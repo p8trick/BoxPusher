@@ -27,7 +27,13 @@
   --accent: #b8814a;
   color-scheme: light;
 }
-* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;   /* 禁掉iOS长按弹出的“拷贝/查询/翻译/搜索网页”系统菜单 */
+  -webkit-user-select: none;
+  user-select: none;
+}
 html, body {
   margin: 0; padding: 0; height: 100%;
   background: var(--bg);
@@ -273,7 +279,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
       <button id="reset">重来</button>
     </div>
   </div>
-  <footer>v1.0.11 · 操作区下沉到屏幕下半部分拇指热区 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
+  <footer>v1.0.12 · 禁掉iOS长按弹出的系统菜单 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
 </div>
 <div id="toast"></div>
 
@@ -758,6 +764,10 @@ document.getElementById('board-wrap').addEventListener('touchend', (e) => {
   }
   touchStart = null;
 }, { passive: true });
+
+// CSS的-webkit-touch-callout在极少数情况下(比如某些iOS版本对特定元素)可能不生效，
+// 这里再加一道JS兜底，直接拦掉长按/右键触发的系统上下文菜单
+document.addEventListener('contextmenu', (e) => e.preventDefault());
 
 loadLevel(0);
 </script>
