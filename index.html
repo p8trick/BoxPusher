@@ -145,12 +145,12 @@ h1 { font-size: 17px; margin: 0; font-weight: 700; color: #f4efe0; letter-spacin
 }
 #dpad {
   position: relative;
+  top: var(--dpad-offset-y, 0px);
   width: 216px;
   height: 216px;
   flex: none;
   transform: scale(var(--dpad-scale, 1));
   margin-left: var(--dpad-offset, 0px);
-  margin-top: var(--dpad-offset-y, 0px);
 }
 #dpad button, #dpad .fill {
   position: absolute;
