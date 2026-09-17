@@ -272,7 +272,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
       <button id="reset">重来</button>
     </div>
   </div>
-  <footer>v1.0.2 · 移动时长调至200ms，避免动画一闪而过 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
+  <footer>v1.0.3 · 跨脚帧占比调至70%，收脚帧更快一闪即过 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
 </div>
 <div id="toast"></div>
 
@@ -378,7 +378,7 @@ const LEVELS = ["###############\n#             #\n#             #\n#           
 
 let IDLE_DELAY = 300; // ms 静止无输入后收拢为站立姿势
 let MOVE_DUR = 200;   // ms 与 --move-dur 保持同步(慢动作切换时一起改)
-const FOOTFALL_RATIO = 0.5; // 左右方向：插帧的“收脚帧”出现在一步时长的百分之多少处
+const FOOTFALL_RATIO = 0.7; // 左右方向：跨脚帧占一步时长的70%，收脚帧只在最后30%露出，更容易看清跨脚动作
 
 function currentFrameKey() {
   const d = SPRITE[state.dir];
