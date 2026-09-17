@@ -272,7 +272,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
       <button id="reset">重来</button>
     </div>
   </div>
-  <footer>v1.0.7 · 正常速度提到300ms · 素材来自 Kenney Sokoban Pack (CC0)</footer>
+  <footer>v1.0.8 · 加移动锁，动画播完前忽略新输入，杜绝斜着走 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
 </div>
 <div id="toast"></div>
 
@@ -453,7 +453,7 @@ function parseLevel(str) {
       if (ch === '+') { player = {r, c}; targets.add(key); }
     }
   }
-  return { width, height, walls, targets, boxes, player, moves: 0, dir: 'down', side: 'B', atNeutral: true, idleTimer: null, stepAnimTimer: null };
+  return { width, height, walls, targets, boxes, player, moves: 0, dir: 'down', side: 'B', atNeutral: true, idleTimer: null, stepAnimTimer: null, moveLock: false, moveLockTimer: null };
 }
 
 let history = [];
@@ -474,6 +474,7 @@ function pushHistory() {
 function loadLevel(idx) {
   if (state && state.idleTimer) clearTimeout(state.idleTimer);
   if (state && state.stepAnimTimer) clearTimeout(state.stepAnimTimer);
+  if (state && state.moveLockTimer) clearTimeout(state.moveLockTimer);
   state = parseLevel(LEVELS[idx]);
   state.levelIndex = idx;
   history = [];
@@ -567,6 +568,7 @@ function renderDynamic() {
 }
 
 function tryMove(dr, dc, dir) {
+  if (state.moveLock) return; // 上一步的滑动动画还没播完，忽略这次输入——避免斜着走/看起来加速
   state.dir = dir;
   const nr = state.player.r + dr;
   const nc = state.player.c + dc;
@@ -578,6 +580,7 @@ function tryMove(dr, dc, dir) {
     const bkey = br + ',' + bc;
     if (state.walls.has(bkey) || state.boxes.has(bkey)) { renderDynamic(); scheduleIdle(); return; }
     advanceGait(dir);
+    lockMovement();
     pushHistory();
     state.boxes.delete(nkey);
     state.boxes.add(bkey);
@@ -596,11 +599,21 @@ function tryMove(dr, dc, dir) {
   }
 
   advanceGait(dir);
+  lockMovement();
   pushHistory();
   state.player = { r: nr, c: nc };
   state.moves++;
   renderDynamic();
   scheduleIdle();
+}
+
+function lockMovement() {
+  state.moveLock = true;
+  if (state.moveLockTimer) clearTimeout(state.moveLockTimer);
+  state.moveLockTimer = setTimeout(() => {
+    state.moveLock = false;
+    state.moveLockTimer = null;
+  }, MOVE_DUR);
 }
 
 function checkWin() {
@@ -628,6 +641,9 @@ function showToast(msg) {
 
 function undo() {
   if (history.length === 0) return;
+  if (state.moveLockTimer) clearTimeout(state.moveLockTimer);
+  state.moveLock = false;
+  state.moveLockTimer = null;
   const snap = history.pop();
   state.player = snap.player;
   state.boxes = snap.boxes;
