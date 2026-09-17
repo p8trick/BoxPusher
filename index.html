@@ -272,7 +272,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
       <button id="reset">重来</button>
     </div>
   </div>
-  <footer>v1.0.0 · 12帧极简画风，行走/推箱共用同一套动作 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
+  <footer>v1.0.1 · 左右方向插帧收脚，走路更贴地 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
 </div>
 <div id="toast"></div>
 
@@ -377,16 +377,37 @@ document.getElementById('settingsOverlay').addEventListener('click', (e) => {
 const LEVELS = ["###############\n#             #\n#             #\n#             #\n#      @ $    #\n#             #\n#             #\n#             #\n###############", "#####\n#   #\n# $ #\n#.@ #\n#   #\n#####", "######\n#    #\n# $$ #\n#.@ .#\n#    #\n######", "#########\n#   @   #\n# $ $ $ #\n# . . . #\n#########"];
 
 let IDLE_DELAY = 300; // ms 静止无输入后收拢为站立姿势
+let MOVE_DUR = 140;   // ms 与 --move-dur 保持同步(慢动作切换时一起改)
+const FOOTFALL_RATIO = 0.5; // 左右方向：插帧的“收脚帧”出现在一步时长的百分之多少处
 
 function currentFrameKey() {
   const d = SPRITE[state.dir];
   return state.atNeutral ? d.stand : (state.side === 'A' ? d.stepA : d.stepB);
 }
 
-// 行走与推箱视觉上完全一致，统一用同一套“收拢↔反手交替”步态机
-function advanceGait() {
+// 上下方向：前后素材细节够，两帧连续交替即可，观感自然
+// 左右方向：只交替 stepA/stepB 会显得手在飘、脚没落地，所以每一步都在“踢腿帧”后
+// 紧跟插入一次“收脚帧”(stand/L1、R1)，两帧算一步，制造真实迈步感
+function advanceGait(dir) {
   state.side = state.side === 'A' ? 'B' : 'A';
   state.atNeutral = false;
+  if (dir === 'left' || dir === 'right') {
+    scheduleFootfall();
+  } else if (state.stepAnimTimer) {
+    clearTimeout(state.stepAnimTimer);
+    state.stepAnimTimer = null;
+  }
+}
+
+function scheduleFootfall() {
+  if (state.stepAnimTimer) clearTimeout(state.stepAnimTimer);
+  const delay = Math.max(30, Math.round(MOVE_DUR * FOOTFALL_RATIO));
+  state.stepAnimTimer = setTimeout(() => {
+    state.atNeutral = true;
+    const sprite = document.getElementById('playerSprite');
+    if (sprite) sprite.style.backgroundImage = `url(${PLAYER_FRAMES[currentFrameKey()]})`;
+    state.stepAnimTimer = null;
+  }, delay);
 }
 
 function scheduleIdle() {
@@ -420,7 +441,7 @@ function parseLevel(str) {
       if (ch === '+') { player = {r, c}; targets.add(key); }
     }
   }
-  return { width, height, walls, targets, boxes, player, moves: 0, dir: 'down', side: 'B', atNeutral: true, idleTimer: null };
+  return { width, height, walls, targets, boxes, player, moves: 0, dir: 'down', side: 'B', atNeutral: true, idleTimer: null, stepAnimTimer: null };
 }
 
 let history = [];
@@ -440,6 +461,7 @@ function pushHistory() {
 
 function loadLevel(idx) {
   if (state && state.idleTimer) clearTimeout(state.idleTimer);
+  if (state && state.stepAnimTimer) clearTimeout(state.stepAnimTimer);
   state = parseLevel(LEVELS[idx]);
   state.levelIndex = idx;
   history = [];
@@ -543,7 +565,7 @@ function tryMove(dr, dc, dir) {
     const br = nr + dr, bc = nc + dc;
     const bkey = br + ',' + bc;
     if (state.walls.has(bkey) || state.boxes.has(bkey)) { renderDynamic(); scheduleIdle(); return; }
-    advanceGait();
+    advanceGait(dir);
     pushHistory();
     state.boxes.delete(nkey);
     state.boxes.add(bkey);
@@ -561,7 +583,7 @@ function tryMove(dr, dc, dir) {
     return;
   }
 
-  advanceGait();
+  advanceGait(dir);
   pushHistory();
   state.player = { r: nr, c: nc };
   state.moves++;
@@ -621,6 +643,7 @@ document.getElementById('slowmoBtn').onclick = () => {
   const on = app.classList.toggle('slowmo');
   document.getElementById('slowmoBtn').classList.toggle('on', on);
   IDLE_DELAY = on ? 1200 : 300;
+  MOVE_DUR = on ? 600 : 140;
 };
 
 window.addEventListener('resize', () => {
