@@ -272,7 +272,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
       <button id="reset">重来</button>
     </div>
   </div>
-  <footer>v1.0.8 · 加移动锁，动画播完前忽略新输入，杜绝斜着走 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
+  <footer>v1.0.9 · 改成输入队列(最多缓冲2步)，减少顿挫感 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
 </div>
 <div id="toast"></div>
 
@@ -453,7 +453,7 @@ function parseLevel(str) {
       if (ch === '+') { player = {r, c}; targets.add(key); }
     }
   }
-  return { width, height, walls, targets, boxes, player, moves: 0, dir: 'down', side: 'B', atNeutral: true, idleTimer: null, stepAnimTimer: null, moveLock: false, moveLockTimer: null };
+  return { width, height, walls, targets, boxes, player, moves: 0, dir: 'down', side: 'B', atNeutral: true, idleTimer: null, stepAnimTimer: null, moveLock: false, moveLockTimer: null, inputQueue: [] };
 }
 
 let history = [];
@@ -567,8 +567,29 @@ function renderDynamic() {
   document.getElementById('moveCount').textContent = `${state.moves} 步`;
 }
 
+const MAX_QUEUE = 2; // 动画播放期间最多缓冲几步输入，超出的直接丢弃(不覆盖已排队的)
+
+// 所有输入(方向键/点击/滑动)统一走这个入口。动画播完前的操作不会丢失，
+// 而是进队列最多攒2步，等动画播完自动依次执行——比“硬等/硬顿”更顺手，
+// 又不会像不设上限那样一路小跑到停不下来
+function requestMove(dr, dc, dir) {
+  if (state.moveLock) {
+    if (state.inputQueue.length < MAX_QUEUE) state.inputQueue.push({ dr, dc, dir });
+    return;
+  }
+  tryMove(dr, dc, dir);
+}
+
+function processQueue() {
+  if (state.inputQueue.length === 0) return;
+  const next = state.inputQueue.shift();
+  tryMove(next.dr, next.dc, next.dir);
+  // 这一步如果被墙/箱子挡住，根本不会触发动画锁，此时应该立刻消费队列里的下一步，
+  // 而不是干等一个不会到来的“动画播完”
+  if (!state.moveLock) processQueue();
+}
+
 function tryMove(dr, dc, dir) {
-  if (state.moveLock) return; // 上一步的滑动动画还没播完，忽略这次输入——避免斜着走/看起来加速
   state.dir = dir;
   const nr = state.player.r + dr;
   const nc = state.player.c + dc;
@@ -613,14 +634,17 @@ function lockMovement() {
   state.moveLockTimer = setTimeout(() => {
     state.moveLock = false;
     state.moveLockTimer = null;
+    processQueue();
   }, MOVE_DUR);
 }
+
 
 function checkWin() {
   if (state.targets.size === 0) return; // 沙盒测试关，无过关判定
   let allDone = true;
   state.targets.forEach(t => { if (!state.boxes.has(t)) allDone = false; });
   if (allDone) {
+    state.inputQueue.length = 0;
     showToast(`过关！用了 ${state.moves} 步`);
     setTimeout(() => {
       if (state.levelIndex + 1 < LEVELS.length) {
@@ -644,6 +668,7 @@ function undo() {
   if (state.moveLockTimer) clearTimeout(state.moveLockTimer);
   state.moveLock = false;
   state.moveLockTimer = null;
+  state.inputQueue.length = 0;
   const snap = history.pop();
   state.player = snap.player;
   state.boxes = snap.boxes;
@@ -654,10 +679,10 @@ function undo() {
 
 function resetLevel() { loadLevel(state.levelIndex); }
 
-document.getElementById('up').onclick = () => tryMove(-1, 0, 'up');
-document.getElementById('down').onclick = () => tryMove(1, 0, 'down');
-document.getElementById('left').onclick = () => tryMove(0, -1, 'left');
-document.getElementById('right').onclick = () => tryMove(0, 1, 'right');
+document.getElementById('up').onclick = () => requestMove(-1, 0, 'up');
+document.getElementById('down').onclick = () => requestMove(1, 0, 'down');
+document.getElementById('left').onclick = () => requestMove(0, -1, 'left');
+document.getElementById('right').onclick = () => requestMove(0, 1, 'right');
 document.getElementById('undo').onclick = undo;
 document.getElementById('reset').onclick = resetLevel;
 document.getElementById('prevLevel').onclick = () => {
@@ -687,7 +712,7 @@ window.addEventListener('keydown', (e) => {
   }
   const map = { ArrowUp: [-1,0,'up'], ArrowDown:[1,0,'down'], ArrowLeft:[0,-1,'left'], ArrowRight:[0,1,'right'],
                 w:[-1,0,'up'], s:[1,0,'down'], a:[0,-1,'left'], d:[0,1,'right'] };
-  if (map[e.key]) { tryMove(...map[e.key]); e.preventDefault(); }
+  if (map[e.key]) { requestMove(...map[e.key]); e.preventDefault(); }
   if (e.key === 'z' && (e.metaKey || e.ctrlKey)) undo();
 });
 
@@ -705,9 +730,9 @@ document.getElementById('board-wrap').addEventListener('touchend', (e) => {
   const THRESH = 24;
   if (Math.max(absX, absY) < THRESH) { touchStart = null; return; }
   if (absX > absY) {
-    tryMove(0, dx > 0 ? 1 : -1, dx > 0 ? 'right' : 'left');
+    requestMove(0, dx > 0 ? 1 : -1, dx > 0 ? 'right' : 'left');
   } else {
-    tryMove(dy > 0 ? 1 : -1, 0, dy > 0 ? 'down' : 'up');
+    requestMove(dy > 0 ? 1 : -1, 0, dy > 0 ? 'down' : 'up');
   }
   touchStart = null;
 }, { passive: true });
