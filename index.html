@@ -279,7 +279,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
       <button id="reset">重来</button>
     </div>
   </div>
-  <footer>v1.0.13 · 拦截双击按住触发的文字放大镜 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
+  <footer>v1.0.14 · 修复按键失灵(改用touchend派发替代被拦掉的click) · 素材来自 Kenney Sokoban Pack (CC0)</footer>
 </div>
 <div id="toast"></div>
 
@@ -369,12 +369,12 @@ function buildSwatchRow(containerId, keys, pathFn, labels, settingsKey) {
     const btn = document.createElement('button');
     btn.className = 'swatchBtn' + (settings[settingsKey] === key ? ' active' : '');
     btn.innerHTML = `<div class="swatchImg" style="background-image:url(${pathFn(key)})"></div><div class="swatchText">${labels[key]}</div>`;
-    btn.onclick = () => {
+    bindTap(btn, () => {
       settings[settingsKey] = key;
       saveSettings();
       applySettings();
       buildSwatchRow(containerId, keys, pathFn, labels, settingsKey);
-    };
+    });
     row.appendChild(btn);
   });
 }
@@ -385,8 +385,8 @@ function buildAllSwatchRows() {
 }
 function openSettings() { buildAllSwatchRows(); document.getElementById('settingsOverlay').classList.add('show'); }
 function closeSettings() { document.getElementById('settingsOverlay').classList.remove('show'); }
-document.getElementById('settingsBtn').onclick = openSettings;
-document.getElementById('closeSettings').onclick = closeSettings;
+bindTap(document.getElementById('settingsBtn'), openSettings);
+bindTap(document.getElementById('closeSettings'), closeSettings);
 document.getElementById('settingsOverlay').addEventListener('click', (e) => {
   if (e.target.id === 'settingsOverlay') closeSettings();
 });
@@ -707,25 +707,25 @@ function undo() {
 
 function resetLevel() { loadLevel(state.levelIndex); }
 
-document.getElementById('up').onclick = () => requestMove(-1, 0, 'up');
-document.getElementById('down').onclick = () => requestMove(1, 0, 'down');
-document.getElementById('left').onclick = () => requestMove(0, -1, 'left');
-document.getElementById('right').onclick = () => requestMove(0, 1, 'right');
-document.getElementById('undo').onclick = undo;
-document.getElementById('reset').onclick = resetLevel;
-document.getElementById('prevLevel').onclick = () => {
+bindTap(document.getElementById('up'), () => requestMove(-1, 0, 'up'));
+bindTap(document.getElementById('down'), () => requestMove(1, 0, 'down'));
+bindTap(document.getElementById('left'), () => requestMove(0, -1, 'left'));
+bindTap(document.getElementById('right'), () => requestMove(0, 1, 'right'));
+bindTap(document.getElementById('undo'), undo);
+bindTap(document.getElementById('reset'), resetLevel);
+bindTap(document.getElementById('prevLevel'), () => {
   if (state.levelIndex > 0) loadLevel(state.levelIndex - 1);
-};
-document.getElementById('nextLevel').onclick = () => {
+});
+bindTap(document.getElementById('nextLevel'), () => {
   if (state.levelIndex < LEVELS.length - 1) loadLevel(state.levelIndex + 1);
-};
-document.getElementById('slowmoBtn').onclick = () => {
+});
+bindTap(document.getElementById('slowmoBtn'), () => {
   const app = document.getElementById('app');
   const on = app.classList.toggle('slowmo');
   document.getElementById('slowmoBtn').classList.toggle('on', on);
   IDLE_DELAY = on ? 1200 : 300;
   MOVE_DUR = on ? 600 : 300;
-};
+});
 
 window.addEventListener('resize', () => {
   fitTileSize();
@@ -769,13 +769,28 @@ document.getElementById('board-wrap').addEventListener('touchend', (e) => {
 // 这里再加一道JS兜底，直接拦掉长按/右键触发的系统上下文菜单
 document.addEventListener('contextmenu', (e) => e.preventDefault());
 
-// 双击后第二下按住会弹出iOS的文字选择放大镜(气泡里显示手指位置的放大图)，
-// 这个跟长按菜单是两套不同的系统手势识别，光靠CSS压不住，
-// 必须在touchstart这一步就preventDefault掉，让系统连手势识别都不开始。
-// 只对真正的按钮生效，不影响棋盘区域本身已有的滑动手势判断
-document.addEventListener('touchstart', (e) => {
-  if (e.target.closest('button')) e.preventDefault();
-}, { passive: false });
+// 双击后第二下按住会弹出iOS的文字选择放大镜，这个跟长按菜单是两套不同的系统手势
+// 识别，必须在touchstart这一步preventDefault掉才能压住。但之前直接全局拦所有
+// button的touchstart会把浏览器合成click事件这件事也一起干掉，导致按钮全部失灵——
+// 所以改成每个按钮单独绑定：touchstart只管拦手势(压放大镜)，真正触发动作放在
+// touchend里直接调用，不依赖被拦掉之后可能不会来的click；同时保留click监听作为
+// 桌面鼠标测试的兜底，用touched标记避免touch和click重复触发同一个操作
+function bindTap(el, handler) {
+  let touched = false;
+  el.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+  }, { passive: false });
+  el.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    touched = true;
+    handler(e);
+    setTimeout(() => { touched = false; }, 400);
+  }, { passive: false });
+  el.addEventListener('click', (e) => {
+    if (touched) { touched = false; return; }
+    handler(e);
+  });
+}
 
 loadLevel(0);
 </script>
