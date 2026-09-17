@@ -148,6 +148,8 @@ h1 { font-size: 17px; margin: 0; font-weight: 700; color: #f4efe0; letter-spacin
   width: 216px;
   height: 216px;
   flex: none;
+  transform: scale(var(--dpad-scale, 1));
+  margin-left: var(--dpad-offset, 0px);
 }
 #dpad button, #dpad .fill {
   position: absolute;
@@ -167,6 +169,18 @@ h1 { font-size: 17px; margin: 0; font-weight: 700; color: #f4efe0; letter-spacin
 #left  { top: 72px; left: 0;   border-radius: 12px 0 0 12px; }
 #right { top: 72px; left: 144px; border-radius: 0 12px 12px 0; }
 #dpad button:active { background: #55493a; }
+
+/* 掌机分离式：四个按键独立圆形分开摆放，中间留空 */
+#dpad.style-split .fill { display: none; }
+#dpad.style-split button {
+  width: 64px; height: 64px;
+  border-radius: 50%;
+}
+#dpad.style-split #up    { top: 0px;   left: 76px; }
+#dpad.style-split #down  { top: 152px; left: 76px; }
+#dpad.style-split #left  { top: 76px;  left: 0px; }
+#dpad.style-split #right { top: 76px;  left: 152px; }
+
 #actions {
   display: flex;
   flex-direction: column;
@@ -246,6 +260,14 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
 }
 .swatchBtn.active .swatchImg { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
 .swatchBtn .swatchText { font-size: 10px; color: var(--ink); }
+.pillBtn {
+  padding: 8px 16px; border-radius: 20px; border: 1px solid var(--panel-border);
+  background: none; color: var(--ink); font-size: 13px;
+}
+.pillBtn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.sliderRow { display: flex; align-items: center; gap: 10px; }
+.sliderRow input[type="range"] { flex: 1; }
+.sliderRow .sliderVal { font-size: 12px; color: #8a7d63; width: 36px; text-align: right; }
 </style>
 </head>
 <body>
@@ -279,7 +301,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
       <button id="reset">重来</button>
     </div>
   </div>
-  <footer>v1.0.15 · 放大镜拦截扩大到整个游戏界面 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
+  <footer>v1.1.0 · D-pad 大小/位置可调、新增分离式按键样式 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
 </div>
 <div id="toast"></div>
 
@@ -300,6 +322,24 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
     <div class="settingsSection">
       <div class="settingsLabel">箱子颜色</div>
       <div class="swatchRow" id="crateSwatches"></div>
+    </div>
+    <div class="settingsSection">
+      <div class="settingsLabel">D-pad 样式</div>
+      <div class="swatchRow" id="dpadStyleSwatches"></div>
+    </div>
+    <div class="settingsSection">
+      <div class="settingsLabel">D-pad 大小</div>
+      <div class="sliderRow">
+        <input type="range" id="dpadSizeSlider" min="70" max="140" step="5">
+        <span class="sliderVal" id="dpadSizeVal"></span>
+      </div>
+    </div>
+    <div class="settingsSection">
+      <div class="settingsLabel">D-pad 位置（左右偏移）</div>
+      <div class="sliderRow">
+        <input type="range" id="dpadOffsetSlider" min="-50" max="50" step="5">
+        <span class="sliderVal" id="dpadOffsetVal"></span>
+      </div>
     </div>
   </div>
 </div>
@@ -339,7 +379,7 @@ const CRATE_KEYS = ['grey', 'red', 'brown', 'blue', 'green'];
 const CRATE_LABELS = { grey: '灰', red: '红', brown: '棕', blue: '蓝', green: '绿' };
 
 const SETTINGS_KEY = 'sokoban_appearance_v1';
-const DEFAULT_SETTINGS = { floor: 'grey', wall: 'red1', crate: 'brown' };
+const DEFAULT_SETTINGS = { floor: 'grey', wall: 'red1', crate: 'brown', dpadStyle: 'cross', dpadScale: 100, dpadOffset: 0 };
 
 function loadSettings() {
   try {
@@ -358,6 +398,9 @@ function applySettings() {
   root.setProperty('--img-wall', `url('assets/Blocks/block_${settings.wall}.png')`);
   root.setProperty('--img-crate', `url('assets/Crates/crate_${settings.crate}.png')`);
   root.setProperty('--img-crateDone', `url('assets/Crates/crate_${settings.crate}Done.png')`);
+  root.setProperty('--dpad-scale', settings.dpadScale / 100);
+  root.setProperty('--dpad-offset', `${settings.dpadOffset}px`);
+  document.getElementById('dpad').classList.toggle('style-split', settings.dpadStyle === 'split');
 }
 let settings = loadSettings();
 applySettings();
@@ -382,8 +425,44 @@ function buildAllSwatchRows() {
   buildSwatchRow('floorSwatches', FLOOR_KEYS, k => `assets/Ground/ground_${k}.png`, FLOOR_LABELS, 'floor');
   buildSwatchRow('wallSwatches', WALL_KEYS, k => `assets/Blocks/block_${k}.png`, WALL_LABELS, 'wall');
   buildSwatchRow('crateSwatches', CRATE_KEYS, k => `assets/Crates/crate_${k}.png`, CRATE_LABELS, 'crate');
+  buildDpadStyleRow();
 }
-function openSettings() { buildAllSwatchRows(); document.getElementById('settingsOverlay').classList.add('show'); }
+const DPAD_STYLE_LABELS = { cross: '十字连体', split: '分离按键' };
+function buildDpadStyleRow() {
+  const row = document.getElementById('dpadStyleSwatches');
+  row.innerHTML = '';
+  Object.keys(DPAD_STYLE_LABELS).forEach(key => {
+    const btn = document.createElement('button');
+    btn.className = 'pillBtn' + (settings.dpadStyle === key ? ' active' : '');
+    btn.textContent = DPAD_STYLE_LABELS[key];
+    bindTap(btn, () => {
+      settings.dpadStyle = key;
+      saveSettings();
+      applySettings();
+      buildDpadStyleRow();
+    });
+    row.appendChild(btn);
+  });
+}
+function syncDpadSliders() {
+  document.getElementById('dpadSizeSlider').value = settings.dpadScale;
+  document.getElementById('dpadSizeVal').textContent = `${settings.dpadScale}%`;
+  document.getElementById('dpadOffsetSlider').value = settings.dpadOffset;
+  document.getElementById('dpadOffsetVal').textContent = `${settings.dpadOffset}px`;
+}
+document.getElementById('dpadSizeSlider').addEventListener('input', (e) => {
+  settings.dpadScale = Number(e.target.value);
+  document.getElementById('dpadSizeVal').textContent = `${settings.dpadScale}%`;
+  applySettings();
+});
+document.getElementById('dpadSizeSlider').addEventListener('change', saveSettings);
+document.getElementById('dpadOffsetSlider').addEventListener('input', (e) => {
+  settings.dpadOffset = Number(e.target.value);
+  document.getElementById('dpadOffsetVal').textContent = `${settings.dpadOffset}px`;
+  applySettings();
+});
+document.getElementById('dpadOffsetSlider').addEventListener('change', saveSettings);
+function openSettings() { buildAllSwatchRows(); syncDpadSliders(); document.getElementById('settingsOverlay').classList.add('show'); }
 function closeSettings() { document.getElementById('settingsOverlay').classList.remove('show'); }
 bindTap(document.getElementById('settingsBtn'), openSettings);
 bindTap(document.getElementById('closeSettings'), closeSettings);
@@ -415,19 +494,17 @@ preloadAllAssets();
 /* ---------- 关卡数据 ---------- */
 const LEVELS = ["###############\n#             #\n#             #\n#             #\n#      @ $    #\n#             #\n#             #\n#             #\n###############", "#####\n#   #\n# $ #\n#.@ #\n#   #\n#####", "######\n#    #\n# $$ #\n#.@ .#\n#    #\n######", "#########\n#   @   #\n# $ $ $ #\n# . . . #\n#########"];
 
-let IDLE_DELAY = 300; // ms 静止无输入后收拢为站立姿势
-let MOVE_DUR = 300;   // ms 与 --move-dur 保持同步(慢动作切换时一起改)
-const FOOTFALL_RATIO = 0.8; // 跨脚帧占一步时长的比例，剩下的时间才露出收脚帧
-const FOOTFALL_DIRS = new Set(['left', 'right']); // 目前只有左右方向用插帧；想让上下也试试，把 'up','down' 加进这个集合即可
+let IDLE_DELAY = 300; // 静止后收拢延迟(ms)
+let MOVE_DUR = 300;   // 移动时长(ms)，需与 --move-dur 同步
+const FOOTFALL_RATIO = 0.8; // 跨脚帧占比
+const FOOTFALL_DIRS = new Set(['left', 'right']); // 插帧方向
 
 function currentFrameKey() {
   const d = SPRITE[state.dir];
   return state.atNeutral ? d.stand : (state.side === 'A' ? d.stepA : d.stepB);
 }
 
-// 上下方向：前后素材细节够，两帧连续交替即可，观感自然
-// 左右方向：只交替 stepA/stepB 会显得手在飘、脚没落地，所以每一步都在“踢腿帧”后
-// 紧跟插入一次“收脚帧”(stand/L1、R1)，两帧算一步，制造真实迈步感
+// 左右方向额外插收脚帧，上下方向两帧交替即可
 function advanceGait(dir) {
   state.side = state.side === 'A' ? 'B' : 'A';
   state.atNeutral = false;
@@ -515,7 +592,7 @@ function loadLevel(idx) {
 }
 
 function fitTileSize() {
-  const horizPadding = 16 * 2 + 10 * 2 + 4; // #app padding + board-wrap padding + border
+  const horizPadding = 16 * 2 + 10 * 2 + 4; // padding+border 总和
   const availW = Math.min(window.innerWidth - horizPadding, 460);
   const availH = window.innerHeight * 0.42;
   const byWidth = Math.floor(availW / state.width);
@@ -595,11 +672,9 @@ function renderDynamic() {
   document.getElementById('moveCount').textContent = `${state.moves} 步`;
 }
 
-const MAX_QUEUE = 2; // 动画播放期间最多缓冲几步输入，超出的直接丢弃(不覆盖已排队的)
+const MAX_QUEUE = 2; // 输入缓冲上限
 
-// 所有输入(方向键/点击/滑动)统一走这个入口。动画播完前的操作不会丢失，
-// 而是进队列最多攒2步，等动画播完自动依次执行——比“硬等/硬顿”更顺手，
-// 又不会像不设上限那样一路小跑到停不下来
+// 所有输入的统一入口，动画播放中排队，播完依次消费
 function requestMove(dr, dc, dir) {
   if (state.moveLock) {
     if (state.inputQueue.length < MAX_QUEUE) state.inputQueue.push({ dr, dc, dir });
@@ -612,9 +687,7 @@ function processQueue() {
   if (state.inputQueue.length === 0) return;
   const next = state.inputQueue.shift();
   tryMove(next.dr, next.dc, next.dir);
-  // 这一步如果被墙/箱子挡住，根本不会触发动画锁，此时应该立刻消费队列里的下一步，
-  // 而不是干等一个不会到来的“动画播完”
-  if (!state.moveLock) processQueue();
+  if (!state.moveLock) processQueue(); // 未触发动画锁则继续消费
 }
 
 function tryMove(dr, dc, dir) {
@@ -765,25 +838,14 @@ document.getElementById('board-wrap').addEventListener('touchend', (e) => {
   touchStart = null;
 }, { passive: true });
 
-// CSS的-webkit-touch-callout在极少数情况下(比如某些iOS版本对特定元素)可能不生效，
-// 这里再加一道JS兜底，直接拦掉长按/右键触发的系统上下文菜单
-document.addEventListener('contextmenu', (e) => e.preventDefault());
+document.addEventListener('contextmenu', (e) => e.preventDefault()); // 拦长按系统菜单
 
-// 之前只在按钮上拦touchstart，游戏界面其他空白区域(标题、棋盘间隙、页面背景等)
-// 双击按住还是会弹放大镜。现在所有按钮都已经改成touchend直接派发(见下面的
-// bindTap)，不再依赖touchstart之后浏览器要不要合成click，所以可以放心把
-// preventDefault扩大到整个document——按住游戏界面任何地方都不会再弹放大镜了，
-// 也不影响棋盘区域自己的滑动手势判断(那边读的是touch坐标，跟preventDefault无关)
+// 全局拦截touchstart压住双击放大镜；按钮已用bindTap在touchend派发，不受影响
 document.addEventListener('touchstart', (e) => {
   e.preventDefault();
 }, { passive: false });
 
-// 双击后第二下按住会弹出iOS的文字选择放大镜，这个跟长按菜单是两套不同的系统手势
-// 识别，必须在touchstart这一步preventDefault掉才能压住。但之前直接全局拦所有
-// button的touchstart会把浏览器合成click事件这件事也一起干掉，导致按钮全部失灵——
-// 所以改成每个按钮单独绑定：touchstart只管拦手势(压放大镜)，真正触发动作放在
-// touchend里直接调用，不依赖被拦掉之后可能不会来的click；同时保留click监听作为
-// 桌面鼠标测试的兜底，用touched标记避免touch和click重复触发同一个操作
+// bindTap: touchstart只拦手势，动作在touchend触发；click监听作桌面兜底，touched标记防重复
 function bindTap(el, handler) {
   let touched = false;
   el.addEventListener('touchstart', (e) => {
