@@ -272,7 +272,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
       <button id="reset">重来</button>
     </div>
   </div>
-  <footer>v1.0.9 · 改成输入队列(最多缓冲2步)，减少顿挫感 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
+  <footer>v1.0.10 · 页面加载时预抓全部贴图，消除首次移动/切配色闪烁 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
 </div>
 <div id="toast"></div>
 
@@ -383,6 +383,27 @@ document.getElementById('closeSettings').onclick = closeSettings;
 document.getElementById('settingsOverlay').addEventListener('click', (e) => {
   if (e.target.id === 'settingsOverlay') closeSettings();
 });
+
+/* ---------- 贴图预加载：页面一打开就把所有会用到的图片抓进浏览器缓存 ----------
+   之前每张贴图都是第一次被用到(第一次往某个方向走、第一次切某个配色)才发请求，
+   这中间的网络延迟就是"刚开始走路/刚切配色时闪一下"的原因。这里提前把 12 个
+   动作帧 + 三类配色的全部变体都建一个 Image() 去加载，用一个数组接住引用防止
+   被GC提前回收，加载完成前后都不影响其他初始化（不阻塞渲染，纯后台抓取）*/
+const _preloadedImages = [];
+function preloadAllAssets() {
+  const paths = [
+    ...Object.values(PLAYER_FRAMES),
+    ...FLOOR_KEYS.flatMap(k => [`assets/Ground/ground_${k}.png`, `assets/Ground/ground_${k}Target.png`]),
+    ...WALL_KEYS.map(k => `assets/Blocks/block_${k}.png`),
+    ...CRATE_KEYS.flatMap(k => [`assets/Crates/crate_${k}.png`, `assets/Crates/crate_${k}Done.png`])
+  ];
+  paths.forEach(src => {
+    const img = new Image();
+    img.src = src;
+    _preloadedImages.push(img);
+  });
+}
+preloadAllAssets();
 
 /* ---------- 关卡数据 ---------- */
 const LEVELS = ["###############\n#             #\n#             #\n#             #\n#      @ $    #\n#             #\n#             #\n#             #\n###############", "#####\n#   #\n# $ #\n#.@ #\n#   #\n#####", "######\n#    #\n# $$ #\n#.@ .#\n#    #\n######", "#########\n#   @   #\n# $ $ $ #\n# . . . #\n#########"];
