@@ -279,7 +279,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
       <button id="reset">重来</button>
     </div>
   </div>
-  <footer>v1.0.14 · 修复按键失灵(改用touchend派发替代被拦掉的click) · 素材来自 Kenney Sokoban Pack (CC0)</footer>
+  <footer>v1.0.15 · 放大镜拦截扩大到整个游戏界面 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
 </div>
 <div id="toast"></div>
 
@@ -768,6 +768,15 @@ document.getElementById('board-wrap').addEventListener('touchend', (e) => {
 // CSS的-webkit-touch-callout在极少数情况下(比如某些iOS版本对特定元素)可能不生效，
 // 这里再加一道JS兜底，直接拦掉长按/右键触发的系统上下文菜单
 document.addEventListener('contextmenu', (e) => e.preventDefault());
+
+// 之前只在按钮上拦touchstart，游戏界面其他空白区域(标题、棋盘间隙、页面背景等)
+// 双击按住还是会弹放大镜。现在所有按钮都已经改成touchend直接派发(见下面的
+// bindTap)，不再依赖touchstart之后浏览器要不要合成click，所以可以放心把
+// preventDefault扩大到整个document——按住游戏界面任何地方都不会再弹放大镜了，
+// 也不影响棋盘区域自己的滑动手势判断(那边读的是touch坐标，跟preventDefault无关)
+document.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+}, { passive: false });
 
 // 双击后第二下按住会弹出iOS的文字选择放大镜，这个跟长按菜单是两套不同的系统手势
 // 识别，必须在touchstart这一步preventDefault掉才能压住。但之前直接全局拦所有
