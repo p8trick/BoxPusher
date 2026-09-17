@@ -130,7 +130,8 @@ h1 { font-size: 17px; margin: 0; font-weight: 700; color: #f4efe0; letter-spacin
   background-position: center bottom;
 }
 #controls {
-  margin-top: 22px;
+  margin-top: auto; /* 吃掉#app里剩余的垂直空间,把D-pad和操作按钮组一起沉到屏幕下半部分的拇指热区,而不是紧贴棋盘顶在偏上位置 */
+  padding-top: 22px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -272,7 +273,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
       <button id="reset">重来</button>
     </div>
   </div>
-  <footer>v1.0.10 · 页面加载时预抓全部贴图，消除首次移动/切配色闪烁 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
+  <footer>v1.0.11 · 操作区下沉到屏幕下半部分拇指热区 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
 </div>
 <div id="toast"></div>
 
