@@ -94,6 +94,7 @@ h1 { font-size: 17px; margin: 0; font-weight: 700; color: #f4efe0; letter-spacin
   padding: 10px;
   box-shadow: 0 6px 18px rgba(0,0,0,0.18);
   touch-action: none;
+  overflow: hidden;
 }
 #board {
   position: relative;
@@ -102,6 +103,7 @@ h1 { font-size: 17px; margin: 0; font-weight: 700; color: #f4efe0; letter-spacin
   grid-template-rows: repeat(var(--rows), var(--tile));
   border-radius: 8px;
   overflow: hidden;
+  transition: transform 180ms ease-out; /* 镜头跟随/预览平移过渡，瞬时更新时JS会临时关掉 */
 }
 .cell {
   width: var(--tile); height: var(--tile);
@@ -280,6 +282,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
     <div id="headerBtns">
       <button id="settingsBtn" class="iconBtn">配色</button>
       <button id="slowmoBtn" class="iconBtn">慢动作</button>
+      <button id="previewBtn" class="iconBtn">地图</button>
     </div>
     <div id="levelNav">
       <button id="prevLevel">‹</button>
@@ -304,7 +307,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
       <button id="reset">重来</button>
     </div>
   </div>
-  <footer>v1.1.1 · D-pad新增垂直位置与分离按键间距调节 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
+  <footer>v1.2.0 · 新增镜头跟随与全局地图预览 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
 </div>
 <div id="toast"></div>
 
@@ -625,6 +628,7 @@ function loadLevel(idx) {
   history = [];
   renderBoardStructure();
   renderDynamic();
+  initCamera();
   document.getElementById('levelInfo').textContent = `第 ${idx+1} / ${LEVELS.length} 关`;
   document.getElementById('moveCount').textContent = `0 步`;
   document.getElementById('prevLevel').disabled = idx === 0;
@@ -637,8 +641,119 @@ function fitTileSize() {
   const availH = window.innerHeight * 0.42;
   const byWidth = Math.floor(availW / state.width);
   const byHeight = Math.floor(availH / state.height);
-  const tile = Math.max(20, Math.min(56, byWidth, byHeight));
+  const tile = Math.max(CAMERA_CFG.minTile, Math.min(CAMERA_CFG.maxTile, byWidth, byHeight));
   document.documentElement.style.setProperty('--tile', tile + 'px');
+}
+
+// 相机/视口相关参数，都集中在这里，方便真机实测后微调
+const CAMERA_CFG = {
+  minTile: 34,      // 大地图也不再往小缩的最小可读tile
+  maxTile: 56,       // 小地图不会被无意义放大
+  safeZone: 0.30,     // 玩家离视口边缘小于这个比例时镜头才跟随
+  lead: 0.6,           // 朝移动方向的前瞻偏移，单位:tile
+  panStepTiles: 3,       // 预览模式下D-pad一次平移几格
+};
+let camera = { mode: 'play', normalX: 0, normalY: 0, previewX: 0, previewY: 0, viewW: 0, viewH: 0, boardW: 0, boardH: 0 };
+function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+function syncViewport() {
+  const tile = tileSize();
+  camera.boardW = state.width * tile;
+  camera.boardH = state.height * tile;
+  const horizPadding = 16 * 2 + 10 * 2 + 4;
+  const availW = Math.min(window.innerWidth - horizPadding, 460);
+  const availH = window.innerHeight * 0.42;
+  camera.viewW = Math.min(camera.boardW, availW);
+  camera.viewH = Math.min(camera.boardH, availH);
+  const chrome = 10 * 2 + 4; // board-wrap自身padding+border
+  const wrap = document.getElementById('board-wrap');
+  wrap.style.width = (camera.viewW + chrome) + 'px';
+  wrap.style.height = (camera.viewH + chrome) + 'px';
+}
+
+function applyCameraTransform(instant) {
+  const board = document.getElementById('board');
+  const x = camera.mode === 'preview' ? camera.previewX : camera.normalX;
+  const y = camera.mode === 'preview' ? camera.previewY : camera.normalY;
+  if (instant) {
+    board.style.transition = 'none';
+    board.style.transform = `translate(${-x}px, ${-y}px)`;
+    void board.offsetWidth; // 强制重排，避免下次过渡被跳过
+    board.style.transition = '';
+  } else {
+    board.style.transform = `translate(${-x}px, ${-y}px)`;
+  }
+}
+
+// 关卡加载/重设窗口时用：让镜头瞬间以玩家为中心归位，不做跟随动画
+function initCamera() {
+  syncViewport();
+  const tile = tileSize();
+  const px = state.player.c * tile + tile / 2;
+  const py = state.player.r * tile + tile / 2;
+  camera.normalX = clamp(px - camera.viewW / 2, 0, Math.max(0, camera.boardW - camera.viewW));
+  camera.normalY = clamp(py - camera.viewH / 2, 0, Math.max(0, camera.boardH - camera.viewH));
+  camera.previewX = camera.normalX;
+  camera.previewY = camera.normalY;
+  camera.mode = 'play';
+  updatePreviewBtnUI();
+  applyCameraTransform(true);
+}
+
+// 每次玩家移动后调用：安全区+前瞻跟随，只在普通模式下生效
+function updateCamera(dir) {
+  if (camera.mode !== 'play') return;
+  const tile = tileSize();
+  const DIR_VEC = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+  const [ldx, ldy] = DIR_VEC[dir] || [0, 0];
+  const px = state.player.c * tile + tile / 2 + ldx * tile * CAMERA_CFG.lead;
+  const py = state.player.r * tile + tile / 2 + ldy * tile * CAMERA_CFG.lead;
+
+  const marginX = camera.viewW * CAMERA_CFG.safeZone;
+  const marginY = camera.viewH * CAMERA_CFG.safeZone;
+  let camX = camera.normalX, camY = camera.normalY;
+  const screenX = px - camX, screenY = py - camY;
+  if (screenX < marginX) camX -= (marginX - screenX);
+  if (screenX > camera.viewW - marginX) camX += (screenX - (camera.viewW - marginX));
+  if (screenY < marginY) camY -= (marginY - screenY);
+  if (screenY > camera.viewH - marginY) camY += (screenY - (camera.viewH - marginY));
+
+  camera.normalX = clamp(camX, 0, Math.max(0, camera.boardW - camera.viewW));
+  camera.normalY = clamp(camY, 0, Math.max(0, camera.boardH - camera.viewH));
+  applyCameraTransform(false);
+}
+
+function reclampCamera() {
+  syncViewport();
+  camera.normalX = clamp(camera.normalX, 0, Math.max(0, camera.boardW - camera.viewW));
+  camera.normalY = clamp(camera.normalY, 0, Math.max(0, camera.boardH - camera.viewH));
+  camera.previewX = clamp(camera.previewX, 0, Math.max(0, camera.boardW - camera.viewW));
+  camera.previewY = clamp(camera.previewY, 0, Math.max(0, camera.boardH - camera.viewH));
+  applyCameraTransform(true);
+}
+
+function updatePreviewBtnUI() {
+  document.getElementById('previewBtn').classList.toggle('on', camera.mode === 'preview');
+}
+
+function togglePreview() {
+  camera.mode = camera.mode === 'preview' ? 'play' : 'preview';
+  if (camera.mode === 'preview') {
+    camera.previewX = camera.normalX;
+    camera.previewY = camera.normalY;
+    showToast('地图预览：拖动或用D-pad查看全图');
+  }
+  updatePreviewBtnUI();
+  applyCameraTransform(false);
+}
+
+// 预览模式下D-pad改为平移视口，不再控制玩家
+function panPreview(dr, dc) {
+  const tile = tileSize();
+  const step = tile * CAMERA_CFG.panStepTiles;
+  camera.previewX = clamp(camera.previewX + dc * step, 0, Math.max(0, camera.boardW - camera.viewW));
+  camera.previewY = clamp(camera.previewY + dr * step, 0, Math.max(0, camera.boardH - camera.viewH));
+  applyCameraTransform(false);
 }
 
 function renderBoardStructure() {
@@ -714,8 +829,9 @@ function renderDynamic() {
 
 const MAX_QUEUE = 2; // 输入缓冲上限
 
-// 所有输入的统一入口，动画播放中排队，播完依次消费
+// 所有输入的统一入口，动画播放中排队，播完依次消费；预览模式下改为平移视口
 function requestMove(dr, dc, dir) {
+  if (camera.mode === 'preview') { panPreview(dr, dc); return; }
   if (state.moveLock) {
     if (state.inputQueue.length < MAX_QUEUE) state.inputQueue.push({ dr, dc, dir });
     return;
@@ -756,6 +872,7 @@ function tryMove(dr, dc, dir) {
     }
     renderDynamic();
     scheduleIdle();
+    updateCamera(dir);
     checkWin();
     return;
   }
@@ -767,6 +884,7 @@ function tryMove(dr, dc, dir) {
   state.moves++;
   renderDynamic();
   scheduleIdle();
+  updateCamera(dir);
 }
 
 function lockMovement() {
@@ -816,6 +934,7 @@ function undo() {
   state.moves = snap.moves;
   renderBoardStructure();
   renderDynamic();
+  updateCamera();
 }
 
 function resetLevel() { loadLevel(state.levelIndex); }
@@ -839,11 +958,13 @@ bindTap(document.getElementById('slowmoBtn'), () => {
   IDLE_DELAY = on ? 1200 : 300;
   MOVE_DUR = on ? 600 : 300;
 });
+bindTap(document.getElementById('previewBtn'), togglePreview);
 
 window.addEventListener('resize', () => {
   fitTileSize();
   renderBoardStructure();
   renderDynamic();
+  reclampCamera();
 });
 
 window.addEventListener('keydown', (e) => {
@@ -858,11 +979,25 @@ window.addEventListener('keydown', (e) => {
 });
 
 let touchStart = null;
+let dragStart = null;
 document.getElementById('board-wrap').addEventListener('touchstart', (e) => {
   const t = e.touches[0];
   touchStart = { x: t.clientX, y: t.clientY };
+  if (camera.mode === 'preview') {
+    dragStart = { x: t.clientX, y: t.clientY, px: camera.previewX, py: camera.previewY };
+  }
+}, { passive: true });
+document.getElementById('board-wrap').addEventListener('touchmove', (e) => {
+  if (camera.mode !== 'preview' || !dragStart) return;
+  const t = e.touches[0];
+  const dx = t.clientX - dragStart.x;
+  const dy = t.clientY - dragStart.y;
+  camera.previewX = clamp(dragStart.px - dx, 0, Math.max(0, camera.boardW - camera.viewW));
+  camera.previewY = clamp(dragStart.py - dy, 0, Math.max(0, camera.boardH - camera.viewH));
+  applyCameraTransform(true);
 }, { passive: true });
 document.getElementById('board-wrap').addEventListener('touchend', (e) => {
+  if (camera.mode === 'preview') { touchStart = null; dragStart = null; return; } // 拖动已在touchmove里处理，预览模式下不再触发挪动/滑动移动
   if (!touchStart) return;
   const t = e.changedTouches[0];
   const dx = t.clientX - touchStart.x;
