@@ -272,7 +272,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
       <button id="reset">重来</button>
     </div>
   </div>
-  <footer>v1.0.4 · 主屏幕图标标题按系统语言自动中/英切换 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
+  <footer>v1.0.5 · 跨脚比例调至0.8，方向插帧集合可配置 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
 </div>
 <div id="toast"></div>
 
@@ -389,7 +389,8 @@ const LEVELS = ["###############\n#             #\n#             #\n#           
 
 let IDLE_DELAY = 300; // ms 静止无输入后收拢为站立姿势
 let MOVE_DUR = 200;   // ms 与 --move-dur 保持同步(慢动作切换时一起改)
-const FOOTFALL_RATIO = 0.7; // 左右方向：跨脚帧占一步时长的70%，收脚帧只在最后30%露出，更容易看清跨脚动作
+const FOOTFALL_RATIO = 0.8; // 跨脚帧占一步时长的比例，剩下的时间才露出收脚帧
+const FOOTFALL_DIRS = new Set(['left', 'right']); // 目前只有左右方向用插帧；想让上下也试试，把 'up','down' 加进这个集合即可
 
 function currentFrameKey() {
   const d = SPRITE[state.dir];
@@ -402,7 +403,7 @@ function currentFrameKey() {
 function advanceGait(dir) {
   state.side = state.side === 'A' ? 'B' : 'A';
   state.atNeutral = false;
-  if (dir === 'left' || dir === 'right') {
+  if (FOOTFALL_DIRS.has(dir)) {
     scheduleFootfall();
   } else if (state.stepAnimTimer) {
     clearTimeout(state.stepAnimTimer);
