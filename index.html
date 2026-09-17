@@ -150,6 +150,7 @@ h1 { font-size: 17px; margin: 0; font-weight: 700; color: #f4efe0; letter-spacin
   flex: none;
   transform: scale(var(--dpad-scale, 1));
   margin-left: var(--dpad-offset, 0px);
+  margin-top: var(--dpad-offset-y, 0px);
 }
 #dpad button, #dpad .fill {
   position: absolute;
@@ -170,16 +171,18 @@ h1 { font-size: 17px; margin: 0; font-weight: 700; color: #f4efe0; letter-spacin
 #right { top: 72px; left: 144px; border-radius: 0 12px 12px 0; }
 #dpad button:active { background: #55493a; }
 
-/* 掌机分离式：四个按键独立圆形分开摆放，中间留空 */
+/* 掌机分离式：四个按键独立圆形分开摆放，中间留空
+   --split-r 是按键中心到dpad中心的距离，靠滑块调，默认76px与原固定布局一致 */
 #dpad.style-split .fill { display: none; }
 #dpad.style-split button {
   width: 64px; height: 64px;
   border-radius: 50%;
 }
-#dpad.style-split #up    { top: 0px;   left: 76px; }
-#dpad.style-split #down  { top: 152px; left: 76px; }
-#dpad.style-split #left  { top: 76px;  left: 0px; }
-#dpad.style-split #right { top: 76px;  left: 152px; }
+#dpad.style-split #up    { top: calc(76px - var(--split-r, 76px)); left: 76px; }
+#dpad.style-split #down  { top: calc(76px + var(--split-r, 76px)); left: 76px; }
+#dpad.style-split #left  { top: 76px; left: calc(76px - var(--split-r, 76px)); }
+#dpad.style-split #right { top: 76px; left: calc(76px + var(--split-r, 76px)); }
+
 
 #actions {
   display: flex;
@@ -266,7 +269,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
 }
 .pillBtn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 .sliderRow { display: flex; align-items: center; gap: 10px; }
-.sliderRow input[type="range"] { flex: 1; }
+.sliderRow input[type="range"] { flex: 1; touch-action: pan-x; }
 .sliderRow .sliderVal { font-size: 12px; color: #8a7d63; width: 36px; text-align: right; }
 </style>
 </head>
@@ -301,7 +304,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
       <button id="reset">重来</button>
     </div>
   </div>
-  <footer>v1.1.0 · D-pad 大小/位置可调、新增分离式按键样式 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
+  <footer>v1.1.1 · D-pad新增垂直位置与分离按键间距调节 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
 </div>
 <div id="toast"></div>
 
@@ -339,6 +342,20 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
       <div class="sliderRow">
         <input type="range" id="dpadOffsetSlider" min="-50" max="50" step="5">
         <span class="sliderVal" id="dpadOffsetVal"></span>
+      </div>
+    </div>
+    <div class="settingsSection">
+      <div class="settingsLabel">D-pad 位置（上下偏移）</div>
+      <div class="sliderRow">
+        <input type="range" id="dpadOffsetYSlider" min="-40" max="40" step="5">
+        <span class="sliderVal" id="dpadOffsetYVal"></span>
+      </div>
+    </div>
+    <div class="settingsSection" id="dpadGapSection">
+      <div class="settingsLabel">分离按键间距</div>
+      <div class="sliderRow">
+        <input type="range" id="dpadGapSlider" min="45" max="95" step="1">
+        <span class="sliderVal" id="dpadGapVal"></span>
       </div>
     </div>
   </div>
@@ -379,7 +396,7 @@ const CRATE_KEYS = ['grey', 'red', 'brown', 'blue', 'green'];
 const CRATE_LABELS = { grey: '灰', red: '红', brown: '棕', blue: '蓝', green: '绿' };
 
 const SETTINGS_KEY = 'sokoban_appearance_v1';
-const DEFAULT_SETTINGS = { floor: 'grey', wall: 'red1', crate: 'brown', dpadStyle: 'cross', dpadScale: 100, dpadOffset: 0 };
+const DEFAULT_SETTINGS = { floor: 'grey', wall: 'red1', crate: 'brown', dpadStyle: 'cross', dpadScale: 100, dpadOffset: 0, dpadOffsetY: 0, dpadGap: 76 };
 
 function loadSettings() {
   try {
@@ -400,6 +417,8 @@ function applySettings() {
   root.setProperty('--img-crateDone', `url('assets/Crates/crate_${settings.crate}Done.png')`);
   root.setProperty('--dpad-scale', settings.dpadScale / 100);
   root.setProperty('--dpad-offset', `${settings.dpadOffset}px`);
+  root.setProperty('--dpad-offset-y', `${settings.dpadOffsetY}px`);
+  root.setProperty('--split-r', `${settings.dpadGap}px`);
   document.getElementById('dpad').classList.toggle('style-split', settings.dpadStyle === 'split');
 }
 let settings = loadSettings();
@@ -440,15 +459,24 @@ function buildDpadStyleRow() {
       saveSettings();
       applySettings();
       buildDpadStyleRow();
+      updateDpadGapVisibility();
     });
     row.appendChild(btn);
   });
+}
+function updateDpadGapVisibility() {
+  document.getElementById('dpadGapSection').style.display = settings.dpadStyle === 'split' ? '' : 'none';
 }
 function syncDpadSliders() {
   document.getElementById('dpadSizeSlider').value = settings.dpadScale;
   document.getElementById('dpadSizeVal').textContent = `${settings.dpadScale}%`;
   document.getElementById('dpadOffsetSlider').value = settings.dpadOffset;
   document.getElementById('dpadOffsetVal').textContent = `${settings.dpadOffset}px`;
+  document.getElementById('dpadOffsetYSlider').value = settings.dpadOffsetY;
+  document.getElementById('dpadOffsetYVal').textContent = `${settings.dpadOffsetY}px`;
+  document.getElementById('dpadGapSlider').value = settings.dpadGap;
+  document.getElementById('dpadGapVal').textContent = `${settings.dpadGap}px`;
+  updateDpadGapVisibility();
 }
 document.getElementById('dpadSizeSlider').addEventListener('input', (e) => {
   settings.dpadScale = Number(e.target.value);
@@ -462,6 +490,18 @@ document.getElementById('dpadOffsetSlider').addEventListener('input', (e) => {
   applySettings();
 });
 document.getElementById('dpadOffsetSlider').addEventListener('change', saveSettings);
+document.getElementById('dpadOffsetYSlider').addEventListener('input', (e) => {
+  settings.dpadOffsetY = Number(e.target.value);
+  document.getElementById('dpadOffsetYVal').textContent = `${settings.dpadOffsetY}px`;
+  applySettings();
+});
+document.getElementById('dpadOffsetYSlider').addEventListener('change', saveSettings);
+document.getElementById('dpadGapSlider').addEventListener('input', (e) => {
+  settings.dpadGap = Number(e.target.value);
+  document.getElementById('dpadGapVal').textContent = `${settings.dpadGap}px`;
+  applySettings();
+});
+document.getElementById('dpadGapSlider').addEventListener('change', saveSettings);
 function openSettings() { buildAllSwatchRows(); syncDpadSliders(); document.getElementById('settingsOverlay').classList.add('show'); }
 function closeSettings() { document.getElementById('settingsOverlay').classList.remove('show'); }
 bindTap(document.getElementById('settingsBtn'), openSettings);
@@ -841,7 +881,9 @@ document.getElementById('board-wrap').addEventListener('touchend', (e) => {
 document.addEventListener('contextmenu', (e) => e.preventDefault()); // 拦长按系统菜单
 
 // 全局拦截touchstart压住双击放大镜；按钮已用bindTap在touchend派发，不受影响
+// range滑块需要原生touch拖拽手势，排除在外，否则拖不动
 document.addEventListener('touchstart', (e) => {
+  if (e.target.tagName === 'INPUT' && e.target.type === 'range') return;
   e.preventDefault();
 }, { passive: false });
 
