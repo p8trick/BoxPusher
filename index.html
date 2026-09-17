@@ -279,7 +279,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
       <button id="reset">重来</button>
     </div>
   </div>
-  <footer>v1.0.12 · 禁掉iOS长按弹出的系统菜单 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
+  <footer>v1.0.13 · 拦截双击按住触发的文字放大镜 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
 </div>
 <div id="toast"></div>
 
@@ -768,6 +768,14 @@ document.getElementById('board-wrap').addEventListener('touchend', (e) => {
 // CSS的-webkit-touch-callout在极少数情况下(比如某些iOS版本对特定元素)可能不生效，
 // 这里再加一道JS兜底，直接拦掉长按/右键触发的系统上下文菜单
 document.addEventListener('contextmenu', (e) => e.preventDefault());
+
+// 双击后第二下按住会弹出iOS的文字选择放大镜(气泡里显示手指位置的放大图)，
+// 这个跟长按菜单是两套不同的系统手势识别，光靠CSS压不住，
+// 必须在touchstart这一步就preventDefault掉，让系统连手势识别都不开始。
+// 只对真正的按钮生效，不影响棋盘区域本身已有的滑动手势判断
+document.addEventListener('touchstart', (e) => {
+  if (e.target.closest('button')) e.preventDefault();
+}, { passive: false });
 
 loadLevel(0);
 </script>
