@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="推箱子">
+<meta name="apple-mobile-web-app-title" content="推箱子" id="appTitleMeta">
 <meta name="theme-color" content="#7f8a6a">
 <link rel="icon" href="assets/icons/icon-192.png">
 <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
@@ -272,7 +272,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
       <button id="reset">重来</button>
     </div>
   </div>
-  <footer>v1.0.3 · 跨脚帧占比调至70%，收脚帧更快一闪即过 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
+  <footer>v1.0.4 · 主屏幕图标标题按系统语言自动中/英切换 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
 </div>
 <div id="toast"></div>
 
@@ -298,6 +298,17 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
 </div>
 
 <script>
+/* ---------- 主屏幕图标标题：跟随系统语言自动切换中/英文 ----------
+   iOS「添加到主屏幕」读取的是 apple-mobile-web-app-title 这个meta,
+   不是 manifest.json 的 name,所以在这里动态改这个meta和<title> */
+(function () {
+  const isZh = (navigator.language || '').toLowerCase().startsWith('zh');
+  const title = isZh ? '推箱子' : 'Sokoban';
+  const meta = document.getElementById('appTitleMeta');
+  if (meta) meta.content = title;
+  document.title = isZh ? '推箱子 Sokoban' : 'Sokoban';
+})();
+
 /* ---------- 素材帧表：行走与推箱共用同一套12帧，不再区分动作 ---------- */
 const PLAYER_FRAMES = {
   Down1: "assets/Player/Down1.png", Down2: "assets/Player/Down2.png", Down3: "assets/Player/Down3.png",
