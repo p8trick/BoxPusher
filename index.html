@@ -108,6 +108,7 @@ h1 { font-size: 17px; margin: 0; font-weight: 700; color: #f4efe0; letter-spacin
   transition: transform var(--move-dur) linear; /* 跟玩家走路动画同款时长/曲线，保证同步 */
 }
 .cell {
+  position: relative;
   width: var(--tile); height: var(--tile);
   background-size: cover;
   background-position: center;
@@ -116,6 +117,21 @@ h1 { font-size: 17px; margin: 0; font-weight: 700; color: #f4efe0; letter-spacin
 .cell.wall { background-image: var(--img-wall); }
 .cell.floor { background-image: var(--img-floor); }
 .cell.target { background-image: var(--img-target); }
+/* 预览模式下目标点缩得太小时原图案不好辨认，叠加一个高亮光点撑起辨识度 */
+#board.previewing .cell.target::after {
+  content: '';
+  position: absolute;
+  inset: 15%;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff2b0 0%, #f2b705 55%, rgba(242,183,5,0) 78%);
+  box-shadow: 0 0 14px 6px rgba(242,183,5,0.85);
+  animation: targetPulse 1.4s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes targetPulse {
+  0%, 100% { opacity: 0.65; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1); }
+}
 .box {
   position: absolute;
   width: var(--tile); height: var(--tile);
@@ -309,7 +325,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
       <button id="reset">重来</button>
     </div>
   </div>
-  <footer>v1.4.1 · 第1关补充放好/未放好的箱子对比，测预览缩放下能否分辨状态 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
+  <footer>v1.4.2 · 预览模式下空目标点加脉冲高亮，缩到最小也能一眼认出 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
 </div>
 <div id="toast"></div>
 
@@ -794,6 +810,7 @@ function reclampCamera() {
 
 function updatePreviewBtnUI() {
   document.getElementById('previewBtn').classList.toggle('on', camera.mode === 'preview');
+  document.getElementById('board').classList.toggle('previewing', camera.mode === 'preview');
 }
 
 function togglePreview() {
