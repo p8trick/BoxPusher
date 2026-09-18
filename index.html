@@ -308,7 +308,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
       <button id="reset">重来</button>
     </div>
   </div>
-  <footer>v1.3.1 · 棋盘宽高滑块上限提到140%，可以试贴边/溢出的极限效果 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
+  <footer>v1.3.2 · 棋盘宽高滑块步进从5%改为1%，方便精确找到贴边不溢出的数值 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
 </div>
 <div id="toast"></div>
 
@@ -365,14 +365,14 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
     <div class="settingsSection">
       <div class="settingsLabel">棋盘宽度</div>
       <div class="sliderRow">
-        <input type="range" id="boardWSlider" min="50" max="140" step="5">
+        <input type="range" id="boardWSlider" min="50" max="140" step="1">
         <span class="sliderVal" id="boardWVal"></span>
       </div>
     </div>
     <div class="settingsSection">
       <div class="settingsLabel">棋盘高度</div>
       <div class="sliderRow">
-        <input type="range" id="boardHSlider" min="50" max="140" step="5">
+        <input type="range" id="boardHSlider" min="50" max="140" step="1">
         <span class="sliderVal" id="boardHVal"></span>
       </div>
     </div>
