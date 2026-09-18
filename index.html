@@ -104,6 +104,7 @@ h1 { font-size: 17px; margin: 0; font-weight: 700; color: #f4efe0; letter-spacin
   grid-template-rows: repeat(var(--rows), var(--tile));
   border-radius: 8px;
   overflow: hidden;
+  transform-origin: 0 0; /* 预览模式缩放时以左上角为基准，配合camera的平移数学 */
   transition: transform var(--move-dur) linear; /* 跟玩家走路动画同款时长/曲线，保证同步 */
 }
 .cell {
@@ -308,7 +309,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
       <button id="reset">重来</button>
     </div>
   </div>
-  <footer>v1.3.2 · 棋盘宽高滑块步进从5%改为1%，方便精确找到贴边不溢出的数值 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
+  <footer>v1.4.1 · 第1关补充放好/未放好的箱子对比，测预览缩放下能否分辨状态 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
 </div>
 <div id="toast"></div>
 
@@ -365,14 +366,14 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
     <div class="settingsSection">
       <div class="settingsLabel">棋盘宽度</div>
       <div class="sliderRow">
-        <input type="range" id="boardWSlider" min="50" max="140" step="1">
+        <input type="range" id="boardWSlider" min="50" max="110" step="1">
         <span class="sliderVal" id="boardWVal"></span>
       </div>
     </div>
     <div class="settingsSection">
       <div class="settingsLabel">棋盘高度</div>
       <div class="sliderRow">
-        <input type="range" id="boardHSlider" min="50" max="140" step="1">
+        <input type="range" id="boardHSlider" min="50" max="120" step="1">
         <span class="sliderVal" id="boardHVal"></span>
       </div>
     </div>
@@ -573,7 +574,7 @@ function preloadAllAssets() {
 preloadAllAssets();
 
 /* ---------- 关卡数据 ---------- */
-const LEVELS = ["####################\n#                  #\n#                  #\n#                  #\n#                  #\n#                  #\n#                  #\n#                  #\n#                  #\n#                  #\n#        @ $       #\n#                  #\n#                  #\n#                  #\n#                  #\n#                  #\n#                  #\n#                  #\n#                  #\n####################", "#####\n#   #\n# $ #\n#.@ #\n#   #\n#####", "######\n#    #\n# $$ #\n#.@ .#\n#    #\n######", "#########\n#   @   #\n# $ $ $ #\n# . . . #\n#########"];
+const LEVELS = ["####################\n#                  #\n#                  #\n#  *            .  #\n#                  #\n#                  #\n#                  #\n#                  #\n#                  #\n#                  #\n#        @.$       #\n#                  #\n#                  #\n#                  #\n#                  #\n#                  #\n#  $            *  #\n#                  #\n#                  #\n####################", "#####\n#   #\n# $ #\n#.@ #\n#   #\n#####", "######\n#    #\n# $$ #\n#.@ .#\n#    #\n######", "#########\n#   @   #\n# $ $ $ #\n# . . . #\n#########"];
 
 let IDLE_DELAY = 300; // 静止后收拢延迟(ms)
 let MOVE_DUR = 300;   // 移动时长(ms)，需与 --move-dur 同步
@@ -689,6 +690,7 @@ const CAMERA_CFG = {
   safeZone: 0.30,     // 玩家离视口边缘小于这个比例时镜头才跟随
   lead: 0.6,           // 朝移动方向的前瞻偏移，单位:tile
   panStepTiles: 3,       // 预览模式下D-pad一次平移几格
+  previewMinTile: 18,     // 预览模式缩放的下限，保证还能看清箱子/目标点，不无限缩小
 };
 let camera = { mode: 'play', normalX: 0, normalY: 0, previewX: 0, previewY: 0, viewW: 0, viewH: 0, boardW: 0, boardH: 0 };
 function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
@@ -714,17 +716,30 @@ function syncViewport() {
   wrap.style.height = (camera.viewH + chrome) + 'px';
 }
 
+// 预览模式的缩放比例：尽量整张地图都塞进视口，但tile不能缩得比previewMinTile还小
+function computePreviewScale() {
+  const tile = tileSize();
+  const fitScale = Math.min(camera.viewW / camera.boardW, camera.viewH / camera.boardH);
+  const minScale = CAMERA_CFG.previewMinTile / tile;
+  return Math.min(1, Math.max(fitScale, minScale));
+}
+
 function applyCameraTransform(instant) {
   const board = document.getElementById('board');
-  const x = camera.mode === 'preview' ? camera.previewX : camera.normalX;
-  const y = camera.mode === 'preview' ? camera.previewY : camera.normalY;
+  let transformStr;
+  if (camera.mode === 'preview') {
+    const s = computePreviewScale();
+    transformStr = `scale(${s}) translate(${-camera.previewX}px, ${-camera.previewY}px)`;
+  } else {
+    transformStr = `translate(${-camera.normalX}px, ${-camera.normalY}px)`;
+  }
   if (instant) {
     board.style.transition = 'none';
-    board.style.transform = `translate(${-x}px, ${-y}px)`;
+    board.style.transform = transformStr;
     void board.offsetWidth; // 强制重排，避免下次过渡被跳过
     board.style.transition = '';
   } else {
-    board.style.transform = `translate(${-x}px, ${-y}px)`;
+    board.style.transform = transformStr;
   }
 }
 
@@ -770,8 +785,10 @@ function reclampCamera() {
   syncViewport();
   camera.normalX = clamp(camera.normalX, 0, Math.max(0, camera.boardW - camera.viewW));
   camera.normalY = clamp(camera.normalY, 0, Math.max(0, camera.boardH - camera.viewH));
-  camera.previewX = clamp(camera.previewX, 0, Math.max(0, camera.boardW - camera.viewW));
-  camera.previewY = clamp(camera.previewY, 0, Math.max(0, camera.boardH - camera.viewH));
+  const s = computePreviewScale();
+  const pViewW = camera.viewW / s, pViewH = camera.viewH / s;
+  camera.previewX = clamp(camera.previewX, 0, Math.max(0, camera.boardW - pViewW));
+  camera.previewY = clamp(camera.previewY, 0, Math.max(0, camera.boardH - pViewH));
   applyCameraTransform(true);
 }
 
@@ -782,8 +799,12 @@ function updatePreviewBtnUI() {
 function togglePreview() {
   camera.mode = camera.mode === 'preview' ? 'play' : 'preview';
   if (camera.mode === 'preview') {
-    camera.previewX = camera.normalX;
-    camera.previewY = camera.normalY;
+    const s = computePreviewScale();
+    const pViewW = camera.viewW / s, pViewH = camera.viewH / s;
+    const centerX = camera.normalX + camera.viewW / 2;
+    const centerY = camera.normalY + camera.viewH / 2;
+    camera.previewX = clamp(centerX - pViewW / 2, 0, Math.max(0, camera.boardW - pViewW));
+    camera.previewY = clamp(centerY - pViewH / 2, 0, Math.max(0, camera.boardH - pViewH));
     showToast('地图预览：拖动或用D-pad查看全图');
   }
   updatePreviewBtnUI();
@@ -793,9 +814,11 @@ function togglePreview() {
 // 预览模式下D-pad改为平移视口，不再控制玩家
 function panPreview(dr, dc) {
   const tile = tileSize();
-  const step = tile * CAMERA_CFG.panStepTiles;
-  camera.previewX = clamp(camera.previewX + dc * step, 0, Math.max(0, camera.boardW - camera.viewW));
-  camera.previewY = clamp(camera.previewY + dr * step, 0, Math.max(0, camera.boardH - camera.viewH));
+  const s = computePreviewScale();
+  const step = tile * CAMERA_CFG.panStepTiles; // 平移的是地图原始坐标系里的固定距离，缩得越小视觉上跳得越不明显，符合直觉
+  const pViewW = camera.viewW / s, pViewH = camera.viewH / s;
+  camera.previewX = clamp(camera.previewX + dc * step, 0, Math.max(0, camera.boardW - pViewW));
+  camera.previewY = clamp(camera.previewY + dr * step, 0, Math.max(0, camera.boardH - pViewH));
   applyCameraTransform(false);
 }
 
@@ -1038,8 +1061,10 @@ document.getElementById('board-wrap').addEventListener('touchmove', (e) => {
   const t = e.touches[0];
   const dx = t.clientX - dragStart.x;
   const dy = t.clientY - dragStart.y;
-  camera.previewX = clamp(dragStart.px - dx, 0, Math.max(0, camera.boardW - camera.viewW));
-  camera.previewY = clamp(dragStart.py - dy, 0, Math.max(0, camera.boardH - camera.viewH));
+  const s = computePreviewScale();
+  const pViewW = camera.viewW / s, pViewH = camera.viewH / s;
+  camera.previewX = clamp(dragStart.px - dx / s, 0, Math.max(0, camera.boardW - pViewW));
+  camera.previewY = clamp(dragStart.py - dy / s, 0, Math.max(0, camera.boardH - pViewH));
   applyCameraTransform(true);
 }, { passive: true });
 document.getElementById('board-wrap').addEventListener('touchend', (e) => {
