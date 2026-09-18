@@ -35,7 +35,8 @@
   user-select: none;
 }
 html, body {
-  margin: 0; padding: 0; height: 100%;
+  margin: 0; padding: 0;
+  height: 100vh; height: 100dvh; /* 用100dvh而不是100%，避免iOS standalone模式下百分比高度被安全区"内推"，导致fixed定位的背景元素底部裁到safe area边界 */
   background: var(--bg);
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
   color: var(--ink);
@@ -258,6 +259,8 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
 #homeScreen {
   position: fixed;
   inset: 0;
+  width: 100vw; width: 100dvw;
+  height: 100vh; height: 100dvh; /* 保险起见显式定死高度，不完全依赖inset:0单独撑满 */
   z-index: 200;
   background-color: var(--bg); /* 背景图传上来之前的占位色 */
   background-image: url('assets/UI/home_bg_portrait.png');
@@ -385,7 +388,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
     <button class="homeBtn" id="homeSettings">游戏设置</button>
     <button class="homeBtn disabled" id="homeDev" disabled>开发中</button>
   </div>
-  <div id="homeVersion">v1.5.0</div>
+  <div id="homeVersion">v1.5.1</div>
   <div id="homeCredit">素材 Kenney Sokoban Pack (CC0)</div>
 </div>
 <div id="levelPickOverlay">
@@ -428,7 +431,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
       <button id="reset">重来</button>
     </div>
   </div>
-  <footer>v1.5.0 · 新增开始主页(菜单/关卡选择/设置入口)，背景图待上传 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
+  <footer>v1.5.1 · 修复主页背景底部被safe area裁切(html/body改用100dvh) · 素材来自 Kenney Sokoban Pack (CC0)</footer>
 </div>
 <div id="toast"></div>
 
