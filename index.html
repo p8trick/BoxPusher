@@ -88,7 +88,7 @@ h1 { font-size: 17px; margin: 0; font-weight: 700; color: #f4efe0; letter-spacin
 }
 #levelNav button:disabled { opacity: 0.3; }
 #board-wrap {
-  background: var(--panel);
+  background: var(--bg);
   border: 1px solid var(--panel-border);
   border-radius: 16px;
   padding: 10px;
@@ -307,7 +307,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
       <button id="reset">重来</button>
     </div>
   </div>
-  <footer>v1.2.3 · 棋盘视口高度占比从42%提到50%，给上下镜头平移留更多空间 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
+  <footer>v1.2.4 · 测试关1改为20×20验证上下镜头、棋盘外框改用主题色融入UI · 素材来自 Kenney Sokoban Pack (CC0)</footer>
 </div>
 <div id="toast"></div>
 
@@ -535,7 +535,7 @@ function preloadAllAssets() {
 preloadAllAssets();
 
 /* ---------- 关卡数据 ---------- */
-const LEVELS = ["###############\n#             #\n#             #\n#             #\n#      @ $    #\n#             #\n#             #\n#             #\n###############", "#####\n#   #\n# $ #\n#.@ #\n#   #\n#####", "######\n#    #\n# $$ #\n#.@ .#\n#    #\n######", "#########\n#   @   #\n# $ $ $ #\n# . . . #\n#########"];
+const LEVELS = ["####################\n#                  #\n#                  #\n#                  #\n#                  #\n#                  #\n#                  #\n#                  #\n#                  #\n#                  #\n#        @ $       #\n#                  #\n#                  #\n#                  #\n#                  #\n#                  #\n#                  #\n#                  #\n#                  #\n####################", "#####\n#   #\n# $ #\n#.@ #\n#   #\n#####", "######\n#    #\n# $$ #\n#.@ .#\n#    #\n######", "#########\n#   @   #\n# $ $ $ #\n# . . . #\n#########"];
 
 let IDLE_DELAY = 300; // 静止后收拢延迟(ms)
 let MOVE_DUR = 300;   // 移动时长(ms)，需与 --move-dur 同步
