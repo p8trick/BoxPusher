@@ -37,7 +37,7 @@
 html, body {
   margin: 0; padding: 0;
   height: 100vh; height: 100dvh; /* 用100dvh而不是100%，避免iOS standalone模式下百分比高度被安全区"内推"，导致fixed定位的背景元素底部裁到safe area边界 */
-  background: var(--bg);
+  background: blue; /* 临时调试色：确认底部露出的到底是不是html/body这一层 */
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
   color: var(--ink);
   overscroll-behavior: none;
