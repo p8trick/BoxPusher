@@ -307,7 +307,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
       <button id="reset">重来</button>
     </div>
   </div>
-  <footer>v1.2.0 · 新增镜头跟随与全局地图预览 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
+  <footer>v1.2.1 · 修复#board宽高被父容器auto挤窄导致右侧内容被自己裁掉的bug · 素材来自 Kenney Sokoban Pack (CC0)</footer>
 </div>
 <div id="toast"></div>
 
@@ -759,6 +759,9 @@ function panPreview(dr, dc) {
 function renderBoardStructure() {
   fitTileSize();
   const board = document.getElementById('board');
+  const tile = tileSize();
+  board.style.width = (state.width * tile) + 'px';
+  board.style.height = (state.height * tile) + 'px';
   board.style.setProperty('--cols', state.width);
   board.style.setProperty('--rows', state.height);
   board.innerHTML = '';
