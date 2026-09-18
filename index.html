@@ -37,7 +37,7 @@
 html, body {
   margin: 0; padding: 0;
   height: 100vh; height: 100dvh; /* 用100dvh而不是100%，避免iOS standalone模式下百分比高度被安全区"内推"，导致fixed定位的背景元素底部裁到safe area边界 */
-  background: blue; /* 临时调试色：确认底部露出的到底是不是html/body这一层 */
+  background: var(--bg);
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
   color: var(--ink);
   overscroll-behavior: none;
@@ -51,7 +51,7 @@ html, body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 16px;
+  padding: max(16px, env(safe-area-inset-top)) 16px 16px; /* 底部按经验去掉env()，standalone PWA本身已经避让了，叠加会变成扣两次 */
 }
 #app.slowmo { --move-dur: 0.6s; }
 .iconBtn {
@@ -247,7 +247,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
   background: var(--panel);
   width: 100%; max-width: 460px;
   border-radius: 20px 20px 0 0;
-  padding: 18px 18px max(18px, env(safe-area-inset-bottom));
+  padding: 18px 18px 18px; /* 底部去掉env()，同上原因 */
   box-shadow: 0 -6px 24px rgba(0,0,0,0.25);
   transform: translateY(16px);
   transition: transform 0.2s ease;
@@ -262,7 +262,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
   width: 100vw; width: 100dvw;
   height: 100vh; height: 100dvh; /* 保险起见显式定死高度，不完全依赖inset:0单独撑满 */
   z-index: 200;
-  background-color: red; /* 临时调试色：确认底部露出的是背景色(CSS没盖满)还是图片自身内容 */
+  background-color: var(--bg); /* 背景图传上来之前/加载失败时的占位色 */
   background-image: url('assets/UI/home_bg_portrait.png');
   background-size: cover;
   background-position: center;
@@ -298,14 +298,14 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
 #homeVersion {
   position: absolute;
   right: max(14px, env(safe-area-inset-right));
-  bottom: 30px;
+  bottom: 30px; /* 去掉env()，避免和standalone PWA自带的底部避让叠加 */
   font-size: 11px;
   color: rgba(244,239,224,0.6);
 }
 #homeCredit {
   position: absolute;
   left: 0; right: 0;
-  bottom: 8px;
+  bottom: 8px; /* 去掉env()，同上原因 */
   text-align: center;
   font-size: 10px;
   color: rgba(244,239,224,0.5);
@@ -325,7 +325,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
   background: var(--panel);
   width: 100%; max-width: 460px;
   border-radius: 20px 20px 0 0;
-  padding: 18px 18px max(18px, env(safe-area-inset-bottom));
+  padding: 18px 18px 18px; /* 底部去掉env()，同上原因 */
   box-shadow: 0 -6px 24px rgba(0,0,0,0.25);
   transform: translateY(16px);
   transition: transform 0.2s ease;
@@ -388,7 +388,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
     <button class="homeBtn" id="homeSettings">游戏设置</button>
     <button class="homeBtn disabled" id="homeDev" disabled>开发中</button>
   </div>
-  <div id="homeVersion">v1.5.1</div>
+  <div id="homeVersion">v1.5.2</div>
   <div id="homeCredit">素材 Kenney Sokoban Pack (CC0)</div>
 </div>
 <div id="levelPickOverlay">
@@ -431,7 +431,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
       <button id="reset">重来</button>
     </div>
   </div>
-  <footer>v1.5.1 · 修复主页背景底部被safe area裁切(html/body改用100dvh) · 素材来自 Kenney Sokoban Pack (CC0)</footer>
+  <footer>v1.5.2 · 去掉底部env(safe-area-inset-bottom)手动保护，避免和standalone PWA自带避让叠加 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
 </div>
 <div id="toast"></div>
 
