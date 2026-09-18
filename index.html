@@ -298,14 +298,14 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
 #homeVersion {
   position: absolute;
   right: max(14px, env(safe-area-inset-right));
-  bottom: 30px; /* 去掉env()，避免和standalone PWA自带的底部避让叠加 */
+  bottom: 12px; /* 跟CC0声明对齐到同一水平线 */
   font-size: 11px;
   color: rgba(244,239,224,0.6);
 }
 #homeCredit {
   position: absolute;
   left: 0; right: 0;
-  bottom: 8px; /* 去掉env()，同上原因 */
+  bottom: 12px; /* 跟版本号对齐到同一水平线 */
   text-align: center;
   font-size: 10px;
   color: rgba(244,239,224,0.5);
@@ -378,6 +378,9 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
 .sliderRow { display: flex; align-items: center; gap: 10px; }
 .sliderRow input[type="range"] { flex: 1; touch-action: pan-x; }
 .sliderRow .sliderVal { font-size: 12px; color: #8a7d63; width: 36px; text-align: right; }
+/* 临时调试：隔离测试，把#app整个藏起来，排除它干扰底部颜色判断的可能 */
+#app { display: none !important; }
+#homeScreen { background-color: red !important; } /* 再用红色确认这次到底是不是#homeScreen自己没到底 */
 </style>
 </head>
 <body>
