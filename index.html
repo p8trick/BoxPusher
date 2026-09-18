@@ -34,16 +34,21 @@
   -webkit-user-select: none;
   user-select: none;
 }
-html, body {
+html {
   margin: 0; padding: 0;
-  height: 100vh; height: 100dvh; /* 用100dvh而不是100%，避免iOS standalone模式下百分比高度被安全区"内推"，导致fixed定位的背景元素底部裁到safe area边界 */
+  height: 100vh; height: 100dvh;
+  background: var(--bg);
+}
+body {
+  margin: 0; padding: 0;
+  height: 100vh; height: 100dvh;
   background: var(--bg);
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
   color: var(--ink);
   overscroll-behavior: none;
   touch-action: none;
   user-select: none;
-  overflow-x: hidden; /* 棋盘宽度调到140%时可能顶到/超出屏幕边缘，防止因此出现横向滚动 */
+  overflow-x: hidden; /* 只放在body上，不让html的overflow传播到viewport层面干扰fixed定位元素的安全区计算 */
 }
 #app {
   min-height: 100vh;
@@ -258,9 +263,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
 /* ===== 主页 ===== */
 #homeScreen {
   position: fixed;
-  inset: 0;
-  width: 100vw; width: 100dvw;
-  height: 100vh; height: 100dvh; /* 保险起见显式定死高度，不完全依赖inset:0单独撑满 */
+  inset: 0; /* 只靠inset:0自己撑满，不再叠加显式height，避免"超定"后height反而覆盖掉bottom:0该有的效果 */
   z-index: 200;
   background-color: var(--bg); /* 背景图传上来之前/加载失败时的占位色 */
   background-image: url('assets/UI/home_bg_portrait.png');
@@ -378,9 +381,6 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
 .sliderRow { display: flex; align-items: center; gap: 10px; }
 .sliderRow input[type="range"] { flex: 1; touch-action: pan-x; }
 .sliderRow .sliderVal { font-size: 12px; color: #8a7d63; width: 36px; text-align: right; }
-/* 临时调试：隔离测试，把#app整个藏起来，排除它干扰底部颜色判断的可能 */
-#app { display: none !important; }
-#homeScreen { background-color: red !important; } /* 再用红色确认这次到底是不是#homeScreen自己没到底 */
 </style>
 </head>
 <body>
@@ -391,7 +391,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
     <button class="homeBtn" id="homeSettings">游戏设置</button>
     <button class="homeBtn disabled" id="homeDev" disabled>开发中</button>
   </div>
-  <div id="homeVersion">v1.5.2</div>
+  <div id="homeVersion">v1.5.3</div>
   <div id="homeCredit">素材 Kenney Sokoban Pack (CC0)</div>
 </div>
 <div id="levelPickOverlay">
@@ -434,7 +434,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
       <button id="reset">重来</button>
     </div>
   </div>
-  <footer>v1.5.2 · 去掉底部env(safe-area-inset-bottom)手动保护，避免和standalone PWA自带避让叠加 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
+  <footer>v1.5.3 · 去掉#homeScreen多余的显式高度、overflow-x只放body不放html，排查安全区裁切 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
 </div>
 <div id="toast"></div>
 
