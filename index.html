@@ -307,7 +307,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
       <button id="reset">重来</button>
     </div>
   </div>
-  <footer>v1.2.2 · 镜头过渡改用与角色走路同款时长/曲线，解决平移不同步的卡顿感 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
+  <footer>v1.2.3 · 棋盘视口高度占比从42%提到50%，给上下镜头平移留更多空间 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
 </div>
 <div id="toast"></div>
 
@@ -638,7 +638,7 @@ function loadLevel(idx) {
 function fitTileSize() {
   const horizPadding = 16 * 2 + 10 * 2 + 4; // padding+border 总和
   const availW = Math.min(window.innerWidth - horizPadding, 460);
-  const availH = window.innerHeight * 0.42;
+  const availH = window.innerHeight * CAMERA_CFG.boardHeightRatio;
   const byWidth = Math.floor(availW / state.width);
   const byHeight = Math.floor(availH / state.height);
   const tile = Math.max(CAMERA_CFG.minTile, Math.min(CAMERA_CFG.maxTile, byWidth, byHeight));
@@ -649,6 +649,7 @@ function fitTileSize() {
 const CAMERA_CFG = {
   minTile: 34,      // 大地图也不再往小缩的最小可读tile
   maxTile: 56,       // 小地图不会被无意义放大
+  boardHeightRatio: 0.5, // 棋盘视口占屏幕高度的比例，剩下的留给D-pad等控制区
   safeZone: 0.30,     // 玩家离视口边缘小于这个比例时镜头才跟随
   lead: 0.6,           // 朝移动方向的前瞻偏移，单位:tile
   panStepTiles: 3,       // 预览模式下D-pad一次平移几格
@@ -662,7 +663,7 @@ function syncViewport() {
   camera.boardH = state.height * tile;
   const horizPadding = 16 * 2 + 10 * 2 + 4;
   const availW = Math.min(window.innerWidth - horizPadding, 460);
-  const availH = window.innerHeight * 0.42;
+  const availH = window.innerHeight * CAMERA_CFG.boardHeightRatio;
   camera.viewW = Math.min(camera.boardW, availW);
   camera.viewH = Math.min(camera.boardH, availH);
   const chrome = 10 * 2 + 4; // board-wrap自身padding+border
