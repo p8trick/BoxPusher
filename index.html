@@ -103,7 +103,7 @@ h1 { font-size: 17px; margin: 0; font-weight: 700; color: #f4efe0; letter-spacin
   grid-template-rows: repeat(var(--rows), var(--tile));
   border-radius: 8px;
   overflow: hidden;
-  transition: transform 180ms ease-out; /* 镜头跟随/预览平移过渡，瞬时更新时JS会临时关掉 */
+  transition: transform var(--move-dur) linear; /* 跟玩家走路动画同款时长/曲线，保证同步 */
 }
 .cell {
   width: var(--tile); height: var(--tile);
@@ -307,7 +307,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
       <button id="reset">重来</button>
     </div>
   </div>
-  <footer>v1.2.1 · 修复#board宽高被父容器auto挤窄导致右侧内容被自己裁掉的bug · 素材来自 Kenney Sokoban Pack (CC0)</footer>
+  <footer>v1.2.2 · 镜头过渡改用与角色走路同款时长/曲线，解决平移不同步的卡顿感 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
 </div>
 <div id="toast"></div>
 
