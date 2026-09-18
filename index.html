@@ -42,6 +42,7 @@ html, body {
   overscroll-behavior: none;
   touch-action: none;
   user-select: none;
+  overflow-x: hidden; /* 棋盘宽度调到140%时可能顶到/超出屏幕边缘，防止因此出现横向滚动 */
 }
 #app {
   min-height: 100vh;
@@ -307,7 +308,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
       <button id="reset">重来</button>
     </div>
   </div>
-  <footer>v1.2.4 · 测试关1改为20×20验证上下镜头、棋盘外框改用主题色融入UI · 素材来自 Kenney Sokoban Pack (CC0)</footer>
+  <footer>v1.3.1 · 棋盘宽高滑块上限提到140%，可以试贴边/溢出的极限效果 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
 </div>
 <div id="toast"></div>
 
@@ -361,6 +362,20 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
         <span class="sliderVal" id="dpadGapVal"></span>
       </div>
     </div>
+    <div class="settingsSection">
+      <div class="settingsLabel">棋盘宽度</div>
+      <div class="sliderRow">
+        <input type="range" id="boardWSlider" min="50" max="140" step="5">
+        <span class="sliderVal" id="boardWVal"></span>
+      </div>
+    </div>
+    <div class="settingsSection">
+      <div class="settingsLabel">棋盘高度</div>
+      <div class="sliderRow">
+        <input type="range" id="boardHSlider" min="50" max="140" step="5">
+        <span class="sliderVal" id="boardHVal"></span>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -399,7 +414,7 @@ const CRATE_KEYS = ['grey', 'red', 'brown', 'blue', 'green'];
 const CRATE_LABELS = { grey: '灰', red: '红', brown: '棕', blue: '蓝', green: '绿' };
 
 const SETTINGS_KEY = 'sokoban_appearance_v1';
-const DEFAULT_SETTINGS = { floor: 'grey', wall: 'red1', crate: 'brown', dpadStyle: 'cross', dpadScale: 100, dpadOffset: 0, dpadOffsetY: 0, dpadGap: 76 };
+const DEFAULT_SETTINGS = { floor: 'grey', wall: 'red1', crate: 'brown', dpadStyle: 'cross', dpadScale: 100, dpadOffset: 0, dpadOffsetY: 0, dpadGap: 76, boardWPct: 100, boardHPct: 100 };
 
 function loadSettings() {
   try {
@@ -480,6 +495,10 @@ function syncDpadSliders() {
   document.getElementById('dpadGapSlider').value = settings.dpadGap;
   document.getElementById('dpadGapVal').textContent = `${settings.dpadGap}px`;
   updateDpadGapVisibility();
+  document.getElementById('boardWSlider').value = settings.boardWPct;
+  document.getElementById('boardWVal').textContent = `${settings.boardWPct}%`;
+  document.getElementById('boardHSlider').value = settings.boardHPct;
+  document.getElementById('boardHVal').textContent = `${settings.boardHPct}%`;
 }
 document.getElementById('dpadSizeSlider').addEventListener('input', (e) => {
   settings.dpadScale = Number(e.target.value);
@@ -505,6 +524,25 @@ document.getElementById('dpadGapSlider').addEventListener('input', (e) => {
   applySettings();
 });
 document.getElementById('dpadGapSlider').addEventListener('change', saveSettings);
+// 棋盘宽高预算改了以后，要重新走一遍布局(不只是CSS变量)：tile/棋盘尺寸/视口/镜头夹紧都要重算
+function relayoutBoard() {
+  fitTileSize();
+  renderBoardStructure();
+  renderDynamic();
+  reclampCamera();
+}
+document.getElementById('boardWSlider').addEventListener('input', (e) => {
+  settings.boardWPct = Number(e.target.value);
+  document.getElementById('boardWVal').textContent = `${settings.boardWPct}%`;
+  relayoutBoard();
+});
+document.getElementById('boardWSlider').addEventListener('change', saveSettings);
+document.getElementById('boardHSlider').addEventListener('input', (e) => {
+  settings.boardHPct = Number(e.target.value);
+  document.getElementById('boardHVal').textContent = `${settings.boardHPct}%`;
+  relayoutBoard();
+});
+document.getElementById('boardHSlider').addEventListener('change', saveSettings);
 function openSettings() { buildAllSwatchRows(); syncDpadSliders(); document.getElementById('settingsOverlay').classList.add('show'); }
 function closeSettings() { document.getElementById('settingsOverlay').classList.remove('show'); }
 bindTap(document.getElementById('settingsBtn'), openSettings);
@@ -636,9 +674,7 @@ function loadLevel(idx) {
 }
 
 function fitTileSize() {
-  const horizPadding = 16 * 2 + 10 * 2 + 4; // padding+border 总和
-  const availW = Math.min(window.innerWidth - horizPadding, 460);
-  const availH = window.innerHeight * CAMERA_CFG.boardHeightRatio;
+  const { availW, availH } = boardBudget();
   const byWidth = Math.floor(availW / state.width);
   const byHeight = Math.floor(availH / state.height);
   const tile = Math.max(CAMERA_CFG.minTile, Math.min(CAMERA_CFG.maxTile, byWidth, byHeight));
@@ -657,13 +693,19 @@ const CAMERA_CFG = {
 let camera = { mode: 'play', normalX: 0, normalY: 0, previewX: 0, previewY: 0, viewW: 0, viewH: 0, boardW: 0, boardH: 0 };
 function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
 
+// 棋盘可用宽高预算，设置里的"棋盘宽度/高度"滑块乘在这里，方便手动避让D-pad
+function boardBudget() {
+  const horizPadding = 16 * 2 + 10 * 2 + 4;
+  const availW = Math.min(window.innerWidth - horizPadding, 460) * (settings.boardWPct / 100);
+  const availH = window.innerHeight * CAMERA_CFG.boardHeightRatio * (settings.boardHPct / 100);
+  return { availW, availH };
+}
+
 function syncViewport() {
   const tile = tileSize();
   camera.boardW = state.width * tile;
   camera.boardH = state.height * tile;
-  const horizPadding = 16 * 2 + 10 * 2 + 4;
-  const availW = Math.min(window.innerWidth - horizPadding, 460);
-  const availH = window.innerHeight * CAMERA_CFG.boardHeightRatio;
+  const { availW, availH } = boardBudget();
   camera.viewW = Math.min(camera.boardW, availW);
   camera.viewH = Math.min(camera.boardH, availH);
   const chrome = 10 * 2 + 4; // board-wrap自身padding+border
