@@ -237,7 +237,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
   position: fixed; inset: 0;
   background: rgba(0,0,0,0.45);
   display: flex; align-items: flex-end; justify-content: center;
-  z-index: 50;
+  z-index: 250; /* 盖在主页上面，从主页也能打开设置 */
   opacity: 0; pointer-events: none;
   transition: opacity 0.2s ease;
 }
@@ -253,11 +253,101 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
   touch-action: pan-y;
 }
 #settingsOverlay.show #settingsSheet { transform: translateY(0); }
+
+/* ===== 主页 ===== */
+#homeScreen {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background-color: var(--bg); /* 背景图传上来之前的占位色 */
+  background-image: url('assets/UI/home_bg_portrait.png');
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  flex-direction: column;
+  touch-action: none;
+  transition: opacity 0.25s ease;
+}
+#homeScreen.hide { opacity: 0; pointer-events: none; }
+#homeMenu {
+  margin-top: auto;
+  margin-bottom: 9%; /* 菜单落在屏幕下半段偏下的位置 */
+  width: 100%;
+  max-width: 320px;
+  align-self: center;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 0 28px;
+}
+.homeBtn {
+  padding: 15px 0;
+  border-radius: 14px;
+  border: 1px solid var(--panel-border);
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 700;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.3);
+}
+.homeBtn:active { background: #e8dfc5; }
+.homeBtn.disabled { opacity: 0.45; pointer-events: none; }
+#homeVersion {
+  position: absolute;
+  right: max(14px, env(safe-area-inset-right));
+  bottom: max(30px, calc(env(safe-area-inset-bottom) + 26px));
+  font-size: 11px;
+  color: rgba(244,239,224,0.6);
+}
+#homeCredit {
+  position: absolute;
+  left: 0; right: 0;
+  bottom: max(8px, calc(env(safe-area-inset-bottom) + 4px));
+  text-align: center;
+  font-size: 10px;
+  color: rgba(244,239,224,0.5);
+}
+
+/* ===== 关卡选择 ===== */
+#levelPickOverlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.45);
+  display: flex; align-items: flex-end; justify-content: center;
+  z-index: 250;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+#levelPickOverlay.show { opacity: 1; pointer-events: auto; }
+#levelPickSheet {
+  background: var(--panel);
+  width: 100%; max-width: 460px;
+  border-radius: 20px 20px 0 0;
+  padding: 18px 18px max(18px, env(safe-area-inset-bottom));
+  box-shadow: 0 -6px 24px rgba(0,0,0,0.25);
+  transform: translateY(16px);
+  transition: transform 0.2s ease;
+}
+#levelPickOverlay.show #levelPickSheet { transform: translateY(0); }
+#levelPickGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+.levelPickBtn {
+  padding: 14px 0;
+  border-radius: 12px;
+  border: 1px solid var(--panel-border);
+  background: none;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
+}
+.levelPickBtn:active { background: #e8dfc5; }
 .settingsHeader {
   display: flex; justify-content: space-between; align-items: center;
   font-weight: 700; font-size: 15px; margin-bottom: 14px;
 }
-#closeSettings {
+#closeSettings, #closeLevelPick {
   border: none; background: transparent; font-size: 18px; color: var(--ink);
   padding: 4px 8px;
 }
@@ -288,6 +378,25 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
 </style>
 </head>
 <body>
+<div id="homeScreen">
+  <div id="homeMenu">
+    <button class="homeBtn" id="homeStart">开始游戏</button>
+    <button class="homeBtn" id="homeLevels">关卡选择</button>
+    <button class="homeBtn" id="homeSettings">游戏设置</button>
+    <button class="homeBtn disabled" id="homeDev" disabled>开发中</button>
+  </div>
+  <div id="homeVersion">v1.5.0</div>
+  <div id="homeCredit">素材 Kenney Sokoban Pack (CC0)</div>
+</div>
+<div id="levelPickOverlay">
+  <div id="levelPickSheet">
+    <div class="settingsHeader">
+      <span>选择关卡</span>
+      <button id="closeLevelPick">✕</button>
+    </div>
+    <div id="levelPickGrid"></div>
+  </div>
+</div>
 <div id="app">
   <header>
     <h1>推箱子</h1>
@@ -319,7 +428,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
       <button id="reset">重来</button>
     </div>
   </div>
-  <footer>v1.4.3 · 目标点预览高亮改为静态方框描边，去掉脉冲动画 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
+  <footer>v1.5.0 · 新增开始主页(菜单/关卡选择/设置入口)，背景图待上传 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
 </div>
 <div id="toast"></div>
 
@@ -558,6 +667,34 @@ function openSettings() { buildAllSwatchRows(); syncDpadSliders(); document.getE
 function closeSettings() { document.getElementById('settingsOverlay').classList.remove('show'); }
 bindTap(document.getElementById('settingsBtn'), openSettings);
 bindTap(document.getElementById('closeSettings'), closeSettings);
+
+// ===== 主页 =====
+function hideHomeScreen() { document.getElementById('homeScreen').classList.add('hide'); }
+function showHomeScreen() { document.getElementById('homeScreen').classList.remove('hide'); }
+bindTap(document.getElementById('homeStart'), hideHomeScreen);
+bindTap(document.getElementById('homeSettings'), openSettings);
+function openLevelPick() {
+  const grid = document.getElementById('levelPickGrid');
+  grid.innerHTML = '';
+  LEVELS.forEach((_, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'levelPickBtn';
+    btn.textContent = `第${i + 1}关`;
+    bindTap(btn, () => {
+      loadLevel(i);
+      closeLevelPick();
+      hideHomeScreen();
+    });
+    grid.appendChild(btn);
+  });
+  document.getElementById('levelPickOverlay').classList.add('show');
+}
+function closeLevelPick() { document.getElementById('levelPickOverlay').classList.remove('show'); }
+bindTap(document.getElementById('homeLevels'), openLevelPick);
+bindTap(document.getElementById('closeLevelPick'), closeLevelPick);
+document.getElementById('levelPickOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'levelPickOverlay') closeLevelPick();
+});
 document.getElementById('settingsOverlay').addEventListener('click', (e) => {
   if (e.target.id === 'settingsOverlay') closeSettings();
 });
@@ -1052,6 +1189,11 @@ window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeSettings();
     return;
   }
+  if (document.getElementById('levelPickOverlay').classList.contains('show')) {
+    if (e.key === 'Escape') closeLevelPick();
+    return;
+  }
+  if (!document.getElementById('homeScreen').classList.contains('hide')) return; // 主页还开着，不响应游戏按键
   const map = { ArrowUp: [-1,0,'up'], ArrowDown:[1,0,'down'], ArrowLeft:[0,-1,'left'], ArrowRight:[0,1,'right'],
                 w:[-1,0,'up'], s:[1,0,'down'], a:[0,-1,'left'], d:[0,1,'right'] };
   if (map[e.key]) { requestMove(...map[e.key]); e.preventDefault(); }
