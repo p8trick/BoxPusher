@@ -36,12 +36,12 @@
 }
 html {
   margin: 0; padding: 0;
-  height: 100vh; /* 实验：先只保留100vh，暂不叠加100dvh，排查是不是dvh在这台设备standalone模式下算法有问题 */
+  height: 100vh; /* 确认过：100dvh在standalone PWA下算出来偏矮，是底部裁切的根因，改回100vh */
   background: var(--bg);
 }
 body {
   margin: 0; padding: 0;
-  height: 100vh; /* 同上，先只保留100vh */
+  height: 100vh; /* 同上 */
   background: var(--bg);
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
   color: var(--ink);
@@ -51,8 +51,7 @@ body {
   overflow-x: hidden; /* 只放在body上，不让html的overflow传播到viewport层面干扰fixed定位元素的安全区计算 */
 }
 #app {
-  min-height: 100vh;
-  min-height: 100dvh;
+  min-height: 100vh; /* dvh在这台设备standalone模式下算出来偏矮，已证实是bug根源，游戏主界面也用回100vh */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -263,8 +262,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
 /* ===== 主页 ===== */
 #homeBg {
   position: fixed;
-  top: 0; left: 0; right: 0;
-  bottom: -120px; /* 独立的背景层，故意比屏幕更大盖住底部空隙；不是#homeScreen的子元素，排除被fixed父级裁切的可能 */
+  inset: 0; /* 根因(100dvh计算偏矮)已解决，不再需要故意溢出的hack，恢复正常inset:0 */
   z-index: 199;
   background-color: var(--bg); /* 背景图传上来之前/加载失败时的占位色 */
   background-image: url('assets/UI/home_bg_portrait.png');
@@ -389,9 +387,6 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
 .sliderRow { display: flex; align-items: center; gap: 10px; }
 .sliderRow input[type="range"] { flex: 1; touch-action: pan-x; }
 .sliderRow .sliderVal { font-size: 12px; color: #8a7d63; width: 36px; text-align: right; }
-/* 临时调试：单变量实验第1步——html/body只保留100vh。红=homeBg，蓝=html/body */
-#homeBg { background-color: red !important; background-image: none !important; }
-html, body { background: blue !important; }
 </style>
 </head>
 <body>
@@ -403,7 +398,7 @@ html, body { background: blue !important; }
     <button class="homeBtn" id="homeSettings">游戏设置</button>
     <button class="homeBtn disabled" id="homeDev" disabled>开发中</button>
   </div>
-  <div id="homeVersion">v1.5.6-exp1</div>
+  <div id="homeVersion">v1.5.6</div>
   <div id="homeCredit">素材 Kenney Sokoban Pack (CC0)</div>
 </div>
 <div id="levelPickOverlay">
@@ -446,7 +441,7 @@ html, body { background: blue !important; }
       <button id="reset">重来</button>
     </div>
   </div>
-  <footer>v1.5.5 · 主页背景改成完全独立于#homeScreen的兄弟元素#homeBg，排除fixed父级裁切可能 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
+  <footer>v1.5.6 · 找到根因：100dvh在standalone PWA下算出来偏矮，全部改回100vh，底部裁切修复 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
 </div>
 <div id="toast"></div>
 
