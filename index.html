@@ -263,16 +263,23 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
 /* ===== 主页 ===== */
 #homeScreen {
   position: fixed;
-  inset: 0; /* 只靠inset:0自己撑满，不再叠加显式height，避免"超定"后height反而覆盖掉bottom:0该有的效果 */
+  inset: 0;
   z-index: 200;
-  background-color: var(--bg); /* 背景图传上来之前/加载失败时的占位色 */
-  background-image: url('assets/UI/home_bg_portrait.png');
-  background-size: cover;
-  background-position: center;
   display: flex;
   flex-direction: column;
   touch-action: none;
   transition: opacity 0.25s ease;
+}
+#homeScreen::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  bottom: -120px; /* 背景专用图层，故意比屏幕更大盖住底部空隙，不影响#homeScreen自身flex布局下菜单的位置 */
+  z-index: -1;
+  background-color: var(--bg); /* 背景图传上来之前/加载失败时的占位色 */
+  background-image: url('assets/UI/home_bg_portrait.png');
+  background-size: cover;
+  background-position: center;
 }
 #homeScreen.hide { opacity: 0; pointer-events: none; }
 #homeMenu {
@@ -391,7 +398,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
     <button class="homeBtn" id="homeSettings">游戏设置</button>
     <button class="homeBtn disabled" id="homeDev" disabled>开发中</button>
   </div>
-  <div id="homeVersion">v1.5.3</div>
+  <div id="homeVersion">v1.5.4</div>
   <div id="homeCredit">素材 Kenney Sokoban Pack (CC0)</div>
 </div>
 <div id="levelPickOverlay">
@@ -434,7 +441,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
       <button id="reset">重来</button>
     </div>
   </div>
-  <footer>v1.5.3 · 去掉#homeScreen多余的显式高度、overflow-x只放body不放html，排查安全区裁切 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
+  <footer>v1.5.4 · 主页背景独立成::before图层并故意超出屏幕底部，强行盖住裁切空隙 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
 </div>
 <div id="toast"></div>
 
