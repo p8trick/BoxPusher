@@ -36,12 +36,12 @@
 }
 html {
   margin: 0; padding: 0;
-  height: 100vh; height: 100dvh;
+  height: 100vh; /* 实验：先只保留100vh，暂不叠加100dvh，排查是不是dvh在这台设备standalone模式下算法有问题 */
   background: var(--bg);
 }
 body {
   margin: 0; padding: 0;
-  height: 100vh; height: 100dvh;
+  height: 100vh; /* 同上，先只保留100vh */
   background: var(--bg);
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
   color: var(--ink);
@@ -389,6 +389,9 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
 .sliderRow { display: flex; align-items: center; gap: 10px; }
 .sliderRow input[type="range"] { flex: 1; touch-action: pan-x; }
 .sliderRow .sliderVal { font-size: 12px; color: #8a7d63; width: 36px; text-align: right; }
+/* 临时调试：单变量实验第1步——html/body只保留100vh。红=homeBg，蓝=html/body */
+#homeBg { background-color: red !important; background-image: none !important; }
+html, body { background: blue !important; }
 </style>
 </head>
 <body>
@@ -400,7 +403,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
     <button class="homeBtn" id="homeSettings">游戏设置</button>
     <button class="homeBtn disabled" id="homeDev" disabled>开发中</button>
   </div>
-  <div id="homeVersion">v1.5.5</div>
+  <div id="homeVersion">v1.5.6-exp1</div>
   <div id="homeCredit">素材 Kenney Sokoban Pack (CC0)</div>
 </div>
 <div id="levelPickOverlay">
