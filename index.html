@@ -11,6 +11,7 @@
 <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
 <title>推箱子 Sokoban</title>
 <link rel="manifest" href="manifest.json">
+<link rel="preload" href="assets/fonts/kenney_future_narrow.ttf" as="font" type="font/ttf" crossorigin>
 <style>
 :root {
   --img-wall: url('assets/Blocks/block_red1.png');
@@ -26,6 +27,20 @@
   --ink: #3a3226;
   --accent: #b8814a;
   color-scheme: light;
+}
+/* Kenney 字体：只用在主页按钮等英文/数字标签上(这套字体没有中文字形，中文一律走系统字体)。
+   font-weight写成范围，声明这个字体覆盖所有字重，避免浏览器对它做"假粗体"。文件没上传时自动退回下面的备用字体栈 */
+@font-face {
+  font-family: 'KenneyFutureNarrow';
+  src: url('assets/fonts/kenney_future_narrow.ttf') format('truetype'),
+       url('assets/fonts/Kenney_Future_Narrow.ttf') format('truetype'); /* GitHub Pages区分大小写：小写名找不到就试原始大小写名 */
+  font-weight: 100 900; font-display: swap;
+}
+@font-face {
+  font-family: 'KenneyFuture';
+  src: url('assets/fonts/kenney_future.ttf') format('truetype'),
+       url('assets/fonts/Kenney_Future.ttf') format('truetype');
+  font-weight: 100 900; font-display: swap;
 }
 * {
   box-sizing: border-box;
@@ -273,6 +288,10 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
   transition: opacity 0.25s ease;
 }
 #homeBg.hide { opacity: 0; pointer-events: none; }
+/* 横屏(iPad)换成横版背景图；竖屏(iPhone)沿用上面的竖版图。横版图传上来之前会退回占位底色 */
+@media (orientation: landscape) {
+  #homeBg { background-image: url('assets/UI/home_bg_landscape.png'); }
+}
 #homeScreen {
   position: fixed;
   inset: 0;
@@ -284,44 +303,78 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
 }
 #homeScreen.hide { opacity: 0; pointer-events: none; }
 #homeMenu {
-  margin-top: auto;
-  margin-bottom: 9%; /* 菜单落在屏幕下半段偏下的位置 */
-  width: 100%;
-  max-width: 320px;
-  align-self: center;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 13vh; /* 按截图：菜单整体落在中下部那片蓝色石板地面上，上沿约在屏幕57%处，下沿留出底部的署名区 */
+  width: min(66vw, 280px);
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 0 28px;
+  gap: 12px;
 }
+/* 木箱按钮：九宫格。只取外框，中间用素材里的深棕色平涂，文字压在纯色上最清楚。
+   等以后有更好的美术素材，换 assets/UI/btn_wood.png 并调下面 border-image 的切片数值即可 */
 .homeBtn {
-  padding: 15px 0;
-  border-radius: 14px;
-  border: 1px solid var(--panel-border);
-  background: var(--panel);
-  color: var(--ink);
-  font-size: 17px;
+  height: 56px;
+  border-style: solid;
+  border-width: 7px 12px;
+  border-image-source: url('assets/UI/btn_wood.png');
+  border-image-slice: 12 20;
+  border-image-width: 7px 12px;
+  border-image-repeat: stretch;
+  background: #aa733c;
+  background-clip: padding-box;
+  padding: 0;
+  color: #fff;
+  font-family: 'KenneyFutureNarrow', 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 25px;
   font-weight: 700;
-  box-shadow: 0 4px 14px rgba(0,0,0,0.3);
+  letter-spacing: 1.5px;
+  line-height: 1;
+  /* 白字 + 深棕描边(8方向1.5px)，压在木色上也清楚 */
+  text-shadow:
+    -1.5px 0 #3a2410, 1.5px 0 #3a2410, 0 -1.5px #3a2410, 0 1.5px #3a2410,
+    -1.5px -1.5px #3a2410, 1.5px -1.5px #3a2410, -1.5px 1.5px #3a2410, 1.5px 1.5px #3a2410,
+    0 3px 3px rgba(0,0,0,0.35);
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,0.35));
+  display: flex; align-items: center; justify-content: center;
 }
-.homeBtn:active { background: #e8dfc5; }
-.homeBtn.disabled { opacity: 0.45; pointer-events: none; }
+.homeBtn:active { filter: brightness(0.86) drop-shadow(0 2px 3px rgba(0,0,0,0.35)); transform: translateY(1px); }
+.homeBtn.disabled { opacity: 0.5; pointer-events: none; }
+/* iPad横屏：屏幕大很多，按钮和字整体放大一档；位置先按竖版逻辑推测(居中偏下)，拿到横版截图后再微调 */
+@media (orientation: landscape) and (min-width: 900px) {
+  #homeMenu { width: 360px; gap: 14px; bottom: 9vh; }
+  .homeBtn { height: 66px; font-size: 30px; border-width: 8px 14px; border-image-width: 8px 14px; }
+  #homeVersion { font-size: 13px; }
+  #homeCredit { font-size: 12px; }
+}
+/* 版本号和署名压在很花的底图上：文字用不透明白色 + 深色8方向描边 + 柔光，保证看得清 */
+#homeVersion, #homeCredit {
+  color: #fff;
+  text-shadow:
+    -1px 0 rgba(0,0,0,0.9), 1px 0 rgba(0,0,0,0.9), 0 -1px rgba(0,0,0,0.9), 0 1px rgba(0,0,0,0.9),
+    -1px -1px rgba(0,0,0,0.9), 1px -1px rgba(0,0,0,0.9), -1px 1px rgba(0,0,0,0.9), 1px 1px rgba(0,0,0,0.9),
+    0 0 5px rgba(0,0,0,0.7);
+}
 #homeVersion {
   position: absolute;
-  padding: 10px 8px; /* 加大点按范围(调试开关要连点它)，位置用right/bottom抵消，视觉位置不变 */
-  right: calc(max(14px, env(safe-area-inset-right)) - 8px);
-  bottom: 2px; /* 加上10px下内边距=原来的12px，跟CC0声明对齐到同一水平线 */
+  padding: 10px 8px; /* 加大点按范围(调试开关要连点它)，位置用right/bottom抵消 */
+  /* iPhone屏幕底部四角是大圆角(约55pt)：往里收32px、抬高一点，避免被圆角切到 */
+  right: calc(max(32px, env(safe-area-inset-right)) - 8px);
+  bottom: 6px;
   font-size: 11px;
-  color: rgba(244,239,224,0.6);
+  font-weight: 600;
+  letter-spacing: 0.3px;
 }
 #homeCredit {
   position: absolute;
   left: 0; right: 0;
-  bottom: 12px; /* 跟版本号对齐到同一水平线 */
+  bottom: 16px; /* 居中两行，离开左右圆角区域 */
   text-align: center;
   font-size: 10px;
-  color: rgba(244,239,224,0.5);
-  pointer-events: none; /* 这一条全宽横条会盖住右侧的版本号，不能吃掉点击 */
+  line-height: 1.4;
+  font-weight: 600;
+  pointer-events: none; /* 这一条全宽横条不能吃掉点击 */
 }
 
 /* ===== 关卡选择 ===== */
@@ -415,13 +468,13 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
 <div id="homeBg"></div>
 <div id="homeScreen">
   <div id="homeMenu">
-    <button class="homeBtn" id="homeStart">开始游戏</button>
-    <button class="homeBtn" id="homeLevels">关卡选择</button>
-    <button class="homeBtn" id="homeSettings">游戏设置</button>
-    <button class="homeBtn disabled" id="homeDev" disabled>开发中</button>
+    <button class="homeBtn" id="homeStart">START</button>
+    <button class="homeBtn" id="homeLevels">LEVELS</button>
+    <button class="homeBtn" id="homeSettings">SETTINGS</button>
+    <button class="homeBtn disabled" id="homeDev" disabled>COMING SOON</button>
   </div>
-  <div id="homeVersion">v1.6.0</div>
-  <div id="homeCredit">素材 Kenney Sokoban Pack (CC0) · 关卡 David W. Skinner</div>
+  <div id="homeVersion">v1.7.0</div>
+  <div id="homeCredit">Assets: Kenney Sokoban Pack (CC0)<br>Levels: David W. Skinner</div>
 </div>
 <div id="levelPickOverlay">
   <div id="levelPickSheet">
@@ -463,7 +516,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
       <button id="reset">重来</button>
     </div>
   </div>
-  <footer>v1.6.0 · 接入第一期300关(10章，顺序解锁，进度存档) · 素材 Kenney Sokoban Pack (CC0) · 关卡 David W. Skinner</footer>
+  <footer>v1.7.0 · 主页改版：木箱按钮 + Kenney字体(菜单固定英文)，版本号/署名加描边并避开屏幕圆角；300关(10章，顺序解锁，进度存档) · 素材 Kenney Sokoban Pack (CC0) · 关卡 David W. Skinner</footer>
 </div>
 <div id="toast"></div>
 
@@ -779,6 +832,7 @@ document.getElementById('settingsOverlay').addEventListener('click', (e) => {
 const _preloadedImages = [];
 function preloadAllAssets() {
   const paths = [
+    'assets/UI/btn_wood.png',
     ...Object.values(PLAYER_FRAMES),
     ...FLOOR_KEYS.flatMap(k => [`assets/Ground/ground_${k}.png`, `assets/Ground/ground_${k}Target.png`]),
     ...WALL_KEYS.map(k => `assets/Blocks/block_${k}.png`),
@@ -836,7 +890,7 @@ function updateNavButtons() {
 }
 function refreshHomeUI() {
   const any = Object.keys(progress.cleared).length > 0;
-  document.getElementById('homeStart').textContent = any ? '继续游戏' : '开始游戏';
+  document.getElementById('homeStart').textContent = any ? 'CONTINUE' : 'START';
 }
 
 let IDLE_DELAY = 300; // 静止后收拢延迟(ms)
