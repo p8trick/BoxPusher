@@ -261,6 +261,18 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
 #settingsOverlay.show #settingsSheet { transform: translateY(0); }
 
 /* ===== 主页 ===== */
+#homeBg {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  bottom: -120px; /* 独立的背景层，故意比屏幕更大盖住底部空隙；不是#homeScreen的子元素，排除被fixed父级裁切的可能 */
+  z-index: 199;
+  background-color: var(--bg); /* 背景图传上来之前/加载失败时的占位色 */
+  background-image: url('assets/UI/home_bg_portrait.png');
+  background-size: cover;
+  background-position: center;
+  transition: opacity 0.25s ease;
+}
+#homeBg.hide { opacity: 0; pointer-events: none; }
 #homeScreen {
   position: fixed;
   inset: 0;
@@ -269,17 +281,6 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
   flex-direction: column;
   touch-action: none;
   transition: opacity 0.25s ease;
-}
-#homeScreen::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  bottom: -120px; /* 背景专用图层，故意比屏幕更大盖住底部空隙，不影响#homeScreen自身flex布局下菜单的位置 */
-  z-index: -1;
-  background-color: var(--bg); /* 背景图传上来之前/加载失败时的占位色 */
-  background-image: url('assets/UI/home_bg_portrait.png');
-  background-size: cover;
-  background-position: center;
 }
 #homeScreen.hide { opacity: 0; pointer-events: none; }
 #homeMenu {
@@ -391,6 +392,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
 </style>
 </head>
 <body>
+<div id="homeBg"></div>
 <div id="homeScreen">
   <div id="homeMenu">
     <button class="homeBtn" id="homeStart">开始游戏</button>
@@ -398,7 +400,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
     <button class="homeBtn" id="homeSettings">游戏设置</button>
     <button class="homeBtn disabled" id="homeDev" disabled>开发中</button>
   </div>
-  <div id="homeVersion">v1.5.4</div>
+  <div id="homeVersion">v1.5.5</div>
   <div id="homeCredit">素材 Kenney Sokoban Pack (CC0)</div>
 </div>
 <div id="levelPickOverlay">
@@ -441,7 +443,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
       <button id="reset">重来</button>
     </div>
   </div>
-  <footer>v1.5.4 · 主页背景独立成::before图层并故意超出屏幕底部，强行盖住裁切空隙 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
+  <footer>v1.5.5 · 主页背景改成完全独立于#homeScreen的兄弟元素#homeBg，排除fixed父级裁切可能 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
 </div>
 <div id="toast"></div>
 
@@ -682,8 +684,14 @@ bindTap(document.getElementById('settingsBtn'), openSettings);
 bindTap(document.getElementById('closeSettings'), closeSettings);
 
 // ===== 主页 =====
-function hideHomeScreen() { document.getElementById('homeScreen').classList.add('hide'); }
-function showHomeScreen() { document.getElementById('homeScreen').classList.remove('hide'); }
+function hideHomeScreen() {
+  document.getElementById('homeScreen').classList.add('hide');
+  document.getElementById('homeBg').classList.add('hide');
+}
+function showHomeScreen() {
+  document.getElementById('homeScreen').classList.remove('hide');
+  document.getElementById('homeBg').classList.remove('hide');
+}
 bindTap(document.getElementById('homeStart'), hideHomeScreen);
 bindTap(document.getElementById('homeSettings'), openSettings);
 function openLevelPick() {
