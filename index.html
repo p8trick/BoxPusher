@@ -122,6 +122,7 @@ h1 { font-size: 17px; margin: 0; font-weight: 700; color: #f4efe0; letter-spacin
 .cell.wall { background-image: var(--img-wall); }
 .cell.floor { background-image: var(--img-floor); }
 .cell.target { background-image: var(--img-target); }
+.cell.void { background: none; } /* 墙外的空白格：不铺地板，透出棋盘外框的底色 */
 /* 预览模式下目标点缩得太小时原贴图边框不好辨认，沿同样的方框位置描一层更亮更粗的边强化 */
 #board.previewing .cell.target::after {
   content: '';
@@ -234,6 +235,7 @@ h1 { font-size: 17px; margin: 0; font-weight: 700; color: #f4efe0; letter-spacin
   background: rgba(58,50,38,0.92); color: #f4efe0; padding: 16px 24px; border-radius: 14px;
   font-size: 16px; opacity: 0; pointer-events: none; transition: all 0.25s ease;
   text-align: center;
+  z-index: 400; /* 盖过主页(200)和面板(250)，选关时点到锁定关卡也能看到提示 */
 }
 #toast.show { opacity: 1; transform: translate(-50%,-50%) scale(1); }
 footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-align: center; }
@@ -306,8 +308,9 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
 .homeBtn.disabled { opacity: 0.45; pointer-events: none; }
 #homeVersion {
   position: absolute;
-  right: max(14px, env(safe-area-inset-right));
-  bottom: 12px; /* 跟CC0声明对齐到同一水平线 */
+  padding: 10px 8px; /* 加大点按范围(调试开关要连点它)，位置用right/bottom抵消，视觉位置不变 */
+  right: calc(max(14px, env(safe-area-inset-right)) - 8px);
+  bottom: 2px; /* 加上10px下内边距=原来的12px，跟CC0声明对齐到同一水平线 */
   font-size: 11px;
   color: rgba(244,239,224,0.6);
 }
@@ -318,6 +321,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
   text-align: center;
   font-size: 10px;
   color: rgba(244,239,224,0.5);
+  pointer-events: none; /* 这一条全宽横条会盖住右侧的版本号，不能吃掉点击 */
 }
 
 /* ===== 关卡选择 ===== */
@@ -333,20 +337,35 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
 #levelPickSheet {
   background: var(--panel);
   width: 100%; max-width: 460px;
+  max-height: 80vh; /* 300关要能滚动，面板不能撑满屏幕 */
+  display: flex; flex-direction: column;
   border-radius: 20px 20px 0 0;
   padding: 18px 18px 18px; /* 底部去掉env()，同上原因 */
   box-shadow: 0 -6px 24px rgba(0,0,0,0.25);
   transform: translateY(16px);
   transition: transform 0.2s ease;
 }
+#levelPickList {
+  flex: 1; min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y; /* 全局touchstart拦截对这里放行，否则列表滚不动 */
+}
+.chapterHead {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 12px; font-weight: 700; color: #8a7d63;
+  margin: 16px 2px 8px;
+}
+.chapterHead:first-child { margin-top: 0; }
 #levelPickOverlay.show #levelPickSheet { transform: translateY(0); }
-#levelPickGrid {
+.levelPickGrid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 10px;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
 }
 .levelPickBtn {
-  padding: 14px 0;
+  padding: 12px 0;
   border-radius: 12px;
   border: 1px solid var(--panel-border);
   background: none;
@@ -355,6 +374,9 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
   font-weight: 700;
 }
 .levelPickBtn:active { background: #e8dfc5; }
+.levelPickBtn.cleared { background: #e4dab8; }
+.levelPickBtn.current { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.levelPickBtn.locked { opacity: 0.35; }
 .settingsHeader {
   display: flex; justify-content: space-between; align-items: center;
   font-weight: 700; font-size: 15px; margin-bottom: 14px;
@@ -398,16 +420,16 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
     <button class="homeBtn" id="homeSettings">游戏设置</button>
     <button class="homeBtn disabled" id="homeDev" disabled>开发中</button>
   </div>
-  <div id="homeVersion">v1.5.6</div>
-  <div id="homeCredit">素材 Kenney Sokoban Pack (CC0)</div>
+  <div id="homeVersion">v1.6.0</div>
+  <div id="homeCredit">素材 Kenney Sokoban Pack (CC0) · 关卡 David W. Skinner</div>
 </div>
 <div id="levelPickOverlay">
   <div id="levelPickSheet">
     <div class="settingsHeader">
-      <span>选择关卡</span>
+      <span id="levelPickTitle">选择关卡</span>
       <button id="closeLevelPick">✕</button>
     </div>
-    <div id="levelPickGrid"></div>
+    <div id="levelPickList"></div>
   </div>
 </div>
 <div id="app">
@@ -441,7 +463,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
       <button id="reset">重来</button>
     </div>
   </div>
-  <footer>v1.5.6 · 找到根因：100dvh在standalone PWA下算出来偏矮，全部改回100vh，底部裁切修复 · 素材来自 Kenney Sokoban Pack (CC0)</footer>
+  <footer>v1.6.0 · 接入第一期300关(10章，顺序解锁，进度存档) · 素材 Kenney Sokoban Pack (CC0) · 关卡 David W. Skinner</footer>
 </div>
 <div id="toast"></div>
 
@@ -512,6 +534,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
   </div>
 </div>
 
+<script src="levels.js"></script>
 <script>
 /* ---------- 主屏幕图标标题：跟随系统语言自动切换中/英文 ----------
    iOS「添加到主屏幕」读取的是 apple-mobile-web-app-title 这个meta,
@@ -690,23 +713,53 @@ function showHomeScreen() {
   document.getElementById('homeScreen').classList.remove('hide');
   document.getElementById('homeBg').classList.remove('hide');
 }
-bindTap(document.getElementById('homeStart'), hideHomeScreen);
+bindTap(document.getElementById('homeStart'), () => {
+  loadLevel(firstUnclearedIndex()); // 从还没通关的第一关继续；全部通关则停在最后一关
+  hideHomeScreen();
+});
 bindTap(document.getElementById('homeSettings'), openSettings);
 function openLevelPick() {
-  const grid = document.getElementById('levelPickGrid');
-  grid.innerHTML = '';
-  LEVELS.forEach((_, i) => {
-    const btn = document.createElement('button');
-    btn.className = 'levelPickBtn';
-    btn.textContent = `第${i + 1}关`;
-    bindTap(btn, () => {
-      loadLevel(i);
-      closeLevelPick();
-      hideHomeScreen();
+  const list = document.getElementById('levelPickList');
+  list.innerHTML = '';
+  const cur = state ? state.levelIndex : firstUnclearedIndex();
+  let clearedTotal = 0;
+  LEVELS.forEach((_, i) => { if (isCleared(i)) clearedTotal++; });
+  document.getElementById('levelPickTitle').textContent = `选择关卡 · 已通关 ${clearedTotal} / ${LEVELS.length}`;
+  let curBtn = null;
+  let base = 0;
+  LEVEL_CHAPTERS.forEach((ch) => {
+    let done = 0;
+    ch.levels.forEach((_, li) => { if (isCleared(base + li)) done++; });
+    const head = document.createElement('div');
+    head.className = 'chapterHead';
+    head.innerHTML = `<span>${ch.name}</span><span>${done} / ${ch.levels.length}</span>`;
+    list.appendChild(head);
+    const grid = document.createElement('div');
+    grid.className = 'levelPickGrid';
+    ch.levels.forEach((_, li) => {
+      const i = base + li;
+      const unlocked = isUnlocked(i);
+      const btn = document.createElement('button');
+      btn.className = 'levelPickBtn' + (isCleared(i) ? ' cleared' : '') + (i === cur ? ' current' : '') + (unlocked ? '' : ' locked');
+      btn.textContent = String(i + 1);
+      // 列表要能滚动：这里不用bindTap(它会在touchstart里preventDefault把滚动吃掉)，用原生click
+      btn.addEventListener('click', () => {
+        if (!isUnlocked(i)) { showToast(`先通关第 ${i} 关`); return; }
+        loadLevel(i);
+        closeLevelPick();
+        hideHomeScreen();
+      });
+      if (i === cur) curBtn = btn;
+      grid.appendChild(btn);
     });
-    grid.appendChild(btn);
+    list.appendChild(grid);
+    base += ch.levels.length;
   });
   document.getElementById('levelPickOverlay').classList.add('show');
+  if (curBtn) { // 把当前关滚动到列表中间
+    const lr = list.getBoundingClientRect(), br = curBtn.getBoundingClientRect();
+    list.scrollTop += br.top - lr.top - list.clientHeight / 2 + br.height / 2;
+  }
 }
 function closeLevelPick() { document.getElementById('levelPickOverlay').classList.remove('show'); }
 bindTap(document.getElementById('homeLevels'), openLevelPick);
@@ -740,7 +793,51 @@ function preloadAllAssets() {
 preloadAllAssets();
 
 /* ---------- 关卡数据 ---------- */
-const LEVELS = ["####################\n#                  #\n#                  #\n#  *            .  #\n#                  #\n#                  #\n#                  #\n#                  #\n#                  #\n#                  #\n#        @.$       #\n#                  #\n#                  #\n#                  #\n#                  #\n#                  #\n#  $            *  #\n#                  #\n#                  #\n####################", "#####\n#   #\n# $ #\n#.@ #\n#   #\n#####", "######\n#    #\n# $$ #\n#.@ .#\n#    #\n######", "#########\n#   @   #\n# $ $ $ #\n# . . . #\n#########"];
+// 关卡数据来自 levels.js (window.LEVEL_PACK)，按 章节 -> 关卡 拍平成一个顺序数组
+const LEVEL_CHAPTERS = (window.LEVEL_PACK && window.LEVEL_PACK.chapters && window.LEVEL_PACK.chapters.length)
+  ? window.LEVEL_PACK.chapters
+  : [{ name: '第 1 章', levels: [{ id: 'T-1', xsb: "#####\n#   #\n# $ #\n#.@ #\n#   #\n#####" }] }]; // levels.js 没加载到时的兜底
+const LEVELS = [];      // 每关的 XSB 文本
+const LEVEL_META = [];  // 每关的 {id, chapter, pos}，和 LEVELS 下标一一对应
+LEVEL_CHAPTERS.forEach((ch, ci) => ch.levels.forEach((lv, li) => {
+  LEVELS.push(lv.xsb);
+  LEVEL_META.push({ id: lv.id, chapter: ci, pos: li });
+}));
+
+/* ---------- 进度：顺序解锁 ----------
+   progress.cleared 以关卡id为key存最佳步数(按id而不是下标，以后调整关卡顺序不会错位)；
+   第i关解锁 = 第i-1关已通关(第1关永远解锁)。调试开关在主页连点版本号7次。 */
+const PROGRESS_KEY = 'sokoban_progress_v1';
+function loadProgress() {
+  try {
+    const raw = localStorage.getItem(PROGRESS_KEY);
+    if (raw) {
+      const p = JSON.parse(raw);
+      return { cleared: p.cleared || {}, debugUnlock: !!p.debugUnlock };
+    }
+  } catch (e) {}
+  return { cleared: {}, debugUnlock: false };
+}
+let progress = loadProgress();
+function saveProgress() {
+  try { localStorage.setItem(PROGRESS_KEY, JSON.stringify(progress)); } catch (e) {}
+}
+function isCleared(i) { return progress.cleared[LEVEL_META[i].id] !== undefined; }
+function isUnlocked(i) { return progress.debugUnlock || i === 0 || isCleared(i - 1); }
+function firstUnclearedIndex() {
+  for (let i = 0; i < LEVELS.length; i++) if (!isCleared(i)) return i;
+  return LEVELS.length - 1;
+}
+function updateNavButtons() {
+  if (!state) return;
+  const idx = state.levelIndex;
+  document.getElementById('prevLevel').disabled = idx === 0;
+  document.getElementById('nextLevel').disabled = idx === LEVELS.length - 1 || !isUnlocked(idx + 1);
+}
+function refreshHomeUI() {
+  const any = Object.keys(progress.cleared).length > 0;
+  document.getElementById('homeStart').textContent = any ? '继续游戏' : '开始游戏';
+}
 
 let IDLE_DELAY = 300; // 静止后收拢延迟(ms)
 let MOVE_DUR = 300;   // 移动时长(ms)，需与 --move-dur 同步
@@ -806,7 +903,25 @@ function parseLevel(str) {
       if (ch === '+') { player = {r, c}; targets.add(key); }
     }
   }
-  return { width, height, walls, targets, boxes, player, moves: 0, dir: 'down', side: 'B', atNeutral: true, idleTimer: null, stepAnimTimer: null, moveLock: false, moveLockTimer: null, inputQueue: [] };
+  // 从玩家出发能走到的区域=关卡内部；其余非墙格是墙外空白，渲染成 void，不铺地板
+  const inside = new Set();
+  if (player) {
+    const start = player.r + ',' + player.c;
+    inside.add(start);
+    const stack = [start];
+    while (stack.length) {
+      const [r, c] = stack.pop().split(',').map(Number);
+      for (const [dr, dc] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+        const nr = r + dr, nc = c + dc;
+        if (nr < 0 || nc < 0 || nr >= height || nc >= width) continue;
+        const nk = nr + ',' + nc;
+        if (walls.has(nk) || inside.has(nk)) continue;
+        inside.add(nk);
+        stack.push(nk);
+      }
+    }
+  }
+  return { width, height, walls, targets, boxes, player, inside, moves: 0, dir: 'down', side: 'B', atNeutral: true, idleTimer: null, stepAnimTimer: null, moveLock: false, moveLockTimer: null, inputQueue: [] };
 }
 
 let history = [];
@@ -836,8 +951,7 @@ function loadLevel(idx) {
   initCamera();
   document.getElementById('levelInfo').textContent = `第 ${idx+1} / ${LEVELS.length} 关`;
   document.getElementById('moveCount').textContent = `0 步`;
-  document.getElementById('prevLevel').disabled = idx === 0;
-  document.getElementById('nextLevel').disabled = idx === LEVELS.length - 1;
+  updateNavButtons();
 }
 
 function fitTileSize() {
@@ -1004,6 +1118,8 @@ function renderBoardStructure() {
       const cell = document.createElement('div');
       if (state.walls.has(key)) {
         cell.className = 'cell wall';
+      } else if (!state.inside.has(key)) {
+        cell.className = 'cell void';
       } else if (state.targets.has(key)) {
         cell.className = 'cell target';
       } else {
@@ -1135,15 +1251,28 @@ function lockMovement() {
 
 
 function checkWin() {
-  if (state.targets.size === 0) return; // 沙盒测试关，无过关判定
+  if (state.targets.size === 0) return; // 没有目标点的关卡，无过关判定
+  if (state.won) return; // 防止过关动画等待期间重复触发
   let allDone = true;
   state.targets.forEach(t => { if (!state.boxes.has(t)) allDone = false; });
   if (allDone) {
+    state.won = true;
     state.inputQueue.length = 0;
-    showToast(`过关！用了 ${state.moves} 步`);
+    const idxAtWin = state.levelIndex;
+    const meta = LEVEL_META[idxAtWin];
+    const best = progress.cleared[meta.id];
+    const isNewBest = best === undefined || state.moves < best;
+    progress.cleared[meta.id] = isNewBest ? state.moves : best;
+    saveProgress();
+    updateNavButtons();
+    showToast(`过关！用了 ${state.moves} 步` + (best !== undefined ? (isNewBest ? '（新纪录）' : `（最佳 ${best}）`) : ''));
     setTimeout(() => {
-      if (state.levelIndex + 1 < LEVELS.length) {
-        loadLevel(state.levelIndex + 1);
+      if (!state || state.levelIndex !== idxAtWin) return; // 等待期间已经手动切关，就不再自动跳
+      const next = idxAtWin + 1;
+      if (next < LEVELS.length) {
+        const newChapter = LEVEL_META[next].chapter !== meta.chapter;
+        loadLevel(next);
+        if (newChapter) showToast(LEVEL_CHAPTERS[LEVEL_META[next].chapter].name);
       } else {
         showToast('全部关卡完成 🎉');
       }
@@ -1185,7 +1314,8 @@ bindTap(document.getElementById('prevLevel'), () => {
   if (state.levelIndex > 0) loadLevel(state.levelIndex - 1);
 });
 bindTap(document.getElementById('nextLevel'), () => {
-  if (state.levelIndex < LEVELS.length - 1) loadLevel(state.levelIndex + 1);
+  const n = state.levelIndex + 1;
+  if (n < LEVELS.length && isUnlocked(n)) loadLevel(n);
 });
 bindTap(document.getElementById('slowmoBtn'), () => {
   const app = document.getElementById('app');
@@ -1262,6 +1392,7 @@ document.addEventListener('contextmenu', (e) => e.preventDefault()); // 拦长�
 // range滑块需要原生touch拖拽手势，排除在外，否则拖不动
 document.addEventListener('touchstart', (e) => {
   if (e.target.tagName === 'INPUT' && e.target.type === 'range') return;
+  if (e.target.closest && e.target.closest('#levelPickList')) return; // 关卡列表要能滚动
   e.preventDefault();
 }, { passive: false });
 
@@ -1283,7 +1414,23 @@ function bindTap(el, handler) {
   });
 }
 
-loadLevel(0);
+// 调试：主页连点版本号7次(4秒内)，切换"全部解锁"，方便直接测大图
+let _dbgTaps = 0, _dbgTimer = null;
+bindTap(document.getElementById('homeVersion'), () => {
+  _dbgTaps++;
+  clearTimeout(_dbgTimer);
+  _dbgTimer = setTimeout(() => { _dbgTaps = 0; }, 4000);
+  if (_dbgTaps >= 7) {
+    _dbgTaps = 0;
+    progress.debugUnlock = !progress.debugUnlock;
+    saveProgress();
+    updateNavButtons();
+    showToast(progress.debugUnlock ? '调试：已全部解锁' : '调试：已恢复顺序解锁');
+  }
+});
+
+refreshHomeUI();
+loadLevel(firstUnclearedIndex());
 </script>
 </body>
 </html>
