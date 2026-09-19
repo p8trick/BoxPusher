@@ -1,5 +1,5 @@
 {
-  "name": "推箱子 Sokoban",
+  "name": "推箱子 BoxPusher",
   "short_name": "推箱子",
   "description": "极简像素风推箱子小游戏，支持地板/墙壁/箱子自定义配色",
   "start_url": "./index.html",
