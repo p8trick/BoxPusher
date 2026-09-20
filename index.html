@@ -20,7 +20,7 @@
   --img-crate: url('assets/Crates/crate_brown.png');
   --img-crateDone: url('assets/Crates/crate_brownDone.png');
   --tile: 52px;
-  --move-dur: 0.28s; /* 平时走路；推箱子时由JS按步覆盖成推箱时长(见settings.walkMs/pushMs) */
+  --move-dur: 0.26s; /* 平时走路；推箱子时由JS按步覆盖成推箱时长(见settings.walkMs/pushMs) */
   /* ---- 主题变量（默认：森林绿）。换主题只改 <html data-theme>，下面三套 ---- */
   --bg: #7f8a6a;            /* 页面底色 */
   --frame-bg: #7f8a6a;      /* 棋盘外框内部底色；墙外空白格透出的就是它 */
@@ -271,8 +271,6 @@ body {
 }
 #pauseRow button:active { background: var(--press); }
 #pauseRow button svg { width: 56%; height: 56%; fill: currentColor; pointer-events: none; }
-#pauseRow button.armed { background: #b8543f; border-color: #b8543f; color: #fff; animation: armedPulse 0.45s ease-in-out infinite alternate; }
-@keyframes armedPulse { from { opacity: 1; } to { opacity: 0.7; } }
 #toast {
   position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%) scale(0.9);
   background: rgba(58,50,38,0.92); color: #f4efe0; padding: 16px 24px; border-radius: 14px;
@@ -308,17 +306,37 @@ body {
   color: var(--ink);
   box-shadow: 0 10px 28px rgba(0,0,0,0.35);
 }
-#settingsSheet {
+#settingsWrap { /* 面板外层：木框面板 + 浮在框右上角的关闭钮(钮在滚动区外面，所以滚到哪里都点得到) */
+  position: relative;
   width: 100%; max-width: 460px;
   max-height: 100%; /* 上下留边由 #settingsOverlay 的 padding 决定 */
-  padding: 10px 14px 14px; /* 木框内侧的留白 */
+  display: flex; flex-direction: column;
   transform: scale(0.96);
   transition: transform 0.2s ease;
+}
+#settingsOverlay.show #settingsWrap { transform: scale(1); }
+#settingsSheet {
+  width: 100%; min-height: 0;
+  padding: 10px 14px 14px; /* 木框内侧的留白 */
   touch-action: pan-y;
   overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; /* 内容超出一屏时在框内滚动 */
 }
-#settingsOverlay.show #settingsSheet { transform: scale(1); }
-@media (min-width: 700px) { #settingsSheet { max-width: 640px; } }
+@media (min-width: 700px) { #settingsWrap { max-width: 640px; } }
+/* 关闭钮：44px 圆形木色钮，压在木框右上角(向外探出 8/6px，仍在屏幕内)；✕ 用两根伪元素画，不依赖字体。以后有美术素材可整体换成图 */
+.panelClose {
+  position: absolute; top: -8px; right: -6px; z-index: 2;
+  width: 44px; height: 44px; padding: 0; border-radius: 50%;
+  border: 3px solid #4a2f17; background: #b8814a;
+  box-shadow: 0 3px 0 #4a2f17, 0 6px 10px rgba(0,0,0,0.35);
+}
+.panelClose::before, .panelClose::after {
+  content: ''; position: absolute; left: 50%; top: 50%;
+  width: 20px; height: 3px; margin: -1.5px 0 0 -10px;
+  background: #f4efe0; border-radius: 2px;
+}
+.panelClose::before { transform: rotate(45deg); }
+.panelClose::after { transform: rotate(-45deg); }
+.panelClose:active { transform: translateY(2px); box-shadow: 0 1px 0 #4a2f17, 0 3px 6px rgba(0,0,0,0.35); }
 
 /* ===== iPad 横屏 =====
    三列：左列D-pad(贴左下，左手拇指)，中间是尽量大的棋盘，右列撤销/步数/地图(贴右下，右手拇指)。
@@ -515,7 +533,7 @@ html[data-lang="zh"] .homeBtn {
   display: flex; justify-content: space-between; align-items: center;
   font-weight: 700; font-size: 15px; margin-bottom: 14px;
 }
-#closeSettings, #closeLevelPick {
+#closeLevelPick {
   border: none; background: transparent; font-size: 18px; color: var(--ink);
   padding: 4px 8px;
 }
@@ -554,7 +572,7 @@ html[data-lang="zh"] .homeBtn {
     <button class="homeBtn" id="homeSettings" data-i18n="settings">SETTINGS</button>
     <button class="homeBtn disabled" id="homeDev" disabled data-i18n="soon">COMING SOON</button>
   </div>
-  <div id="homeVersion">v1.11.0</div>
+  <div id="homeVersion">v1.11.1</div>
   <div id="homeCredit">Assets: Kenney Sokoban Pack (CC0)<br>Levels: David W. Skinner</div>
 </div>
 <div id="levelPickOverlay">
@@ -594,10 +612,10 @@ html[data-lang="zh"] .homeBtn {
 <div id="toast"></div>
 
 <div id="settingsOverlay">
-  <div id="settingsSheet" class="artPanel">
+  <div id="settingsWrap">
+   <div id="settingsSheet" class="artPanel">
     <div class="settingsHeader">
       <span data-i18n="settingsTitle">设置</span>
-      <button id="closeSettings">✕</button>
     </div>
     <div class="settingsSection">
       <div class="settingsLabel" data-i18n="lang">语言 / Language</div>
@@ -681,13 +699,10 @@ html[data-lang="zh"] .homeBtn {
       <div class="settingsLabel" data-i18n="durHint" style="margin-top:10px;font-size:11px;opacity:.7"></div>
       <div class="settingsLabel" data-i18n="boxFx" style="margin-top:14px">箱子推动反馈</div>
       <div class="swatchRow" id="boxFxRow"></div>
-      <div class="settingsLabel" data-i18n="boxFxPct" style="margin-top:14px">反馈强度</div>
-      <div class="sliderRow">
-        <input type="range" id="boxFxSlider" min="50" max="200" step="10">
-        <span class="sliderVal" id="boxFxVal"></span>
-      </div>
     </div>
-    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.11.0</div>
+    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.11.1</div>
+   </div>
+   <button id="closeSettings" class="panelClose" aria-label="Close"></button>
   </div>
 </div>
 
@@ -736,7 +751,6 @@ const I18N = {
     pickTitle: (c, total) => `选择关卡 · 已通关 ${c} / ${total}`,
     lockedHint: n => `先通关第 ${n} 关`,
     cleared: m => `过关！用了 ${m} 步`, newBest: '（新纪录）', best: b => `（最佳 ${b}）`, allDone: '全部关卡完成 🎉',
-    restartAgain: '再点一次重新开始',
     resumed: n => `已恢复上次进度（${n} 步）`,
     bestTag: b => `最佳 ${b}`,
     devOn: '开发者模式：已开启（设置里有「高级」）', devOff: '开发者模式：已关闭',
@@ -750,7 +764,7 @@ const I18N = {
     boardW: '棋盘宽度', boardH: '棋盘高度',
     advanced: '高级（开发者模式）', unlockAll: '全部解锁',
     walkDur: '走路每步时长', pushDur: '推箱每步时长', durHint: '镜头平移、帧切换、输入节奏自动跟随。数字越小越快，太小会显得飘。',
-    boxFx: '箱子推动反馈', fxOff: '关', fxRebound: '回弹', fxSquash: '回弹+压缩', boxFxPct: '反馈强度'
+    boxFx: '箱子推动反馈', fxOff: '关', fxRebound: '回弹'
   },
   en: {
     start: 'START', continue: 'CONTINUE', levels: 'LEVELS', settings: 'SETTINGS', soon: 'COMING SOON',
@@ -758,7 +772,6 @@ const I18N = {
     pickTitle: (c, total) => `Levels · ${c} / ${total} cleared`,
     lockedHint: n => `Clear level ${n} first`,
     cleared: m => `Cleared! ${m} ${m === 1 ? 'move' : 'moves'}`, newBest: ' (new best)', best: b => ` (best ${b})`, allDone: 'All levels cleared 🎉',
-    restartAgain: 'Tap again to restart',
     resumed: n => `Progress restored (${n} ${n === 1 ? 'move' : 'moves'})`,
     bestTag: b => `Best ${b}`,
     devOn: 'Developer mode on (Advanced is in Settings)', devOff: 'Developer mode off',
@@ -772,7 +785,7 @@ const I18N = {
     boardW: 'Board width', boardH: 'Board height',
     advanced: 'Advanced (developer mode)', unlockAll: 'Unlock all',
     walkDur: 'Walk step duration', pushDur: 'Push step duration', durHint: 'Camera pan, frame swaps and input timing follow automatically. Lower is faster; too low feels floaty.',
-    boxFx: 'Box push feedback', fxOff: 'Off', fxRebound: 'Rebound', fxSquash: 'Rebound + squash', boxFxPct: 'Feedback strength'
+    boxFx: 'Box push feedback', fxOff: 'Off', fxRebound: 'Rebound'
   }
 };
 function defaultLang() { return (navigator.language || '').toLowerCase().startsWith('zh') ? 'zh' : 'en'; }
@@ -799,13 +812,22 @@ const CRATE_KEYS = ['grey', 'red', 'brown', 'blue', 'green'];
 const CRATE_LABELS = { grey: '灰', red: '红', brown: '棕', blue: '蓝', green: '绿' };
 
 const SETTINGS_KEY = 'sokoban_appearance_v1';
-const DEFAULT_SETTINGS = { lang: defaultLang(), theme: 'green', floor: 'grey', wall: 'red1', crate: 'brown', dpadStyle: 'cross', dpadScale: 100, dpadOffset: 0, dpadOffsetY: 0, dpadGap: 76, boardWPct: 100, boardHPct: 100, walkMs: 280, pushMs: 300, boxFx: 'off', boxFxPct: 100 };
+const DEFAULT_SETTINGS = { lang: defaultLang(), theme: 'green', floor: 'grey', wall: 'red1', crate: 'brown', dpadStyle: 'cross', dpadScale: 100, dpadOffset: 0, dpadOffsetY: 0, dpadGap: 76, boardWPct: 100, boardHPct: 100, walkMs: 260, pushMs: 300, boxFx: 'rebound', tuneVer: 1 };
+// tuneVer：手感类默认值(走路/推箱时长、箱子回弹)的版本号。存档里没有或者比这个旧，就把这几项重置成上面的默认值，
+// 否则老设备存着的旧数字会一直盖住新默认值。以后再改这几个默认值，把 tuneVer 加 1 即可。
 
 function loadSettings() {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
     if (!raw) return { ...DEFAULT_SETTINGS };
-    return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+    const saved = JSON.parse(raw);
+    const st = { ...DEFAULT_SETTINGS, ...saved };
+    if (saved.tuneVer !== DEFAULT_SETTINGS.tuneVer) {
+      ['walkMs', 'pushMs', 'boxFx'].forEach(k => { st[k] = DEFAULT_SETTINGS[k]; });
+      delete st.boxFxPct; // 旧版本的强度滑块，已取消
+      st.tuneVer = DEFAULT_SETTINGS.tuneVer;
+    }
+    return st;
   } catch (e) { return { ...DEFAULT_SETTINGS }; }
 }
 function saveSettings() {
@@ -819,8 +841,7 @@ function applySettings() {
   document.documentElement.lang = settings.lang === 'zh' ? 'zh-CN' : 'en';
   settings.walkMs = Math.max(120, Math.min(600, Number(settings.walkMs) || 280)); // 防止存档里的怪值
   settings.pushMs = Math.max(120, Math.min(600, Number(settings.pushMs) || 300));
-  if (!['off', 'rebound', 'squash'].includes(settings.boxFx)) settings.boxFx = 'off';
-  settings.boxFxPct = Math.max(50, Math.min(200, Number(settings.boxFxPct) || 100));
+  if (!['off', 'rebound'].includes(settings.boxFx)) settings.boxFx = 'rebound';
   const tc = document.getElementById('themeColorMeta');
   if (tc) tc.content = THEMES[settings.theme].bg;
   const root = document.documentElement.style;
@@ -890,7 +911,7 @@ function buildAdvancedRow() {
 function buildBoxFxRow() {
   const row = document.getElementById('boxFxRow');
   row.innerHTML = '';
-  [['off', 'fxOff'], ['rebound', 'fxRebound'], ['squash', 'fxSquash']].forEach(([key, label]) => {
+  [['off', 'fxOff'], ['rebound', 'fxRebound']].forEach(([key, label]) => {
     const b = document.createElement('button');
     b.className = 'pillBtn' + (settings.boxFx === key ? ' active' : '');
     b.textContent = t(label);
@@ -978,8 +999,6 @@ function syncDpadSliders() {
   document.getElementById('walkDurVal').textContent = `${settings.walkMs}ms`;
   document.getElementById('pushDurSlider').value = settings.pushMs;
   document.getElementById('pushDurVal').textContent = `${settings.pushMs}ms`;
-  document.getElementById('boxFxSlider').value = settings.boxFxPct;
-  document.getElementById('boxFxVal').textContent = `${settings.boxFxPct}%`;
 }
 document.getElementById('dpadSizeSlider').addEventListener('input', (e) => {
   settings.dpadScale = Number(e.target.value);
@@ -1036,11 +1055,6 @@ document.getElementById('boardHSlider').addEventListener('change', saveSettings)
   });
   sl.addEventListener('change', saveSettings);
 });
-document.getElementById('boxFxSlider').addEventListener('input', (e) => {
-  settings.boxFxPct = Number(e.target.value);
-  document.getElementById('boxFxVal').textContent = `${settings.boxFxPct}%`;
-});
-document.getElementById('boxFxSlider').addEventListener('change', saveSettings);
 function openSettings() { buildAllSwatchRows(); syncDpadSliders(); buildAdvancedRow(); document.getElementById('settingsOverlay').classList.add('show'); }
 function closeSettings() { document.getElementById('settingsOverlay').classList.remove('show'); }
 bindTap(document.getElementById('closeSettings'), closeSettings);
@@ -1699,28 +1713,20 @@ function tryMove(dr, dc, dir) {
   updateCamera(dir);
 }
 
-/* 箱子推动反馈(开发者模式里选档，默认关)：推完一步，箱子在停下前的最后 ~30% 时间里往推的方向多滑一点再退回来(回弹)；
-   「回弹+压缩」再加一点沿推动方向的挤压。用独立的 translate / scale 属性做 WAAPI 动画，不和 transform 的位移过渡冲突；
-   总时长 = 当步推箱时长，所以角色落脚(收脚帧)和箱子停稳同时发生。幅度都按格子大小折算，滑块 50~200% 整体缩放。 */
+/* 箱子推动反馈(回弹)：推完一步，箱子在停下前的最后 ~30% 时间里往推的方向多滑一点(格子的 6%，52px 的格子约 3px)再退回来。
+   用独立的 translate 属性做 WAAPI 动画，不和 transform 的位移过渡冲突；总时长 = 当步推箱时长，
+   所以角色落脚(收脚帧)和箱子停稳同时发生。设置里(开发者模式)可关。 */
 function playBoxFx(el, dr, dc) {
-  const mode = settings.boxFx;
-  if (mode === 'off' || !el || !el.animate) return;
+  if (settings.boxFx !== 'rebound' || !el || !el.animate) return;
   if (el._fx) { el._fx.cancel(); el._fx = null; }
-  const k = settings.boxFxPct / 100;
-  const over = tileSize() * 0.06 * k;             // 过冲距离：格子的 6%
-  const sq = 0.05 * k;                             // 挤压量：沿推动方向缩 5%，垂直方向胀 3%
+  const over = tileSize() * 0.06;
   const at = (o) => `${dc * o}px ${dr * o}px`;
-  const squash = (a) => dc !== 0 ? `${1 - a} ${1 + a * 0.6}` : `${1 + a * 0.6} ${1 - a}`;
-  const I = { translate: '0 0', scale: '1 1' };
-  const frames = mode === 'squash'
-    ? [{ ...I, offset: 0 }, { ...I, offset: 0.66 },
-       { translate: '0 0', scale: squash(sq), offset: 0.80, easing: 'ease-out' },
-       { translate: at(over), scale: squash(-sq * 0.4), offset: 0.90, easing: 'ease-in-out' },
-       { ...I, offset: 1 }]
-    : [{ ...I, offset: 0 }, { ...I, offset: 0.70 },
-       { translate: at(over), scale: '1 1', offset: 0.86, easing: 'ease-out' },
-       { ...I, offset: 1, easing: 'ease-in-out' }];
-  el._fx = el.animate(frames, { duration: MOVE_DUR, easing: 'linear' });
+  el._fx = el.animate([
+    { translate: '0 0', offset: 0 },
+    { translate: '0 0', offset: 0.70 },
+    { translate: at(over), offset: 0.86, easing: 'ease-out' },
+    { translate: '0 0', offset: 1, easing: 'ease-in-out' }
+  ], { duration: MOVE_DUR, easing: 'linear' });
   el._fx.onfinish = () => { el._fx = null; };
 }
 
@@ -1802,10 +1808,8 @@ bindTap(document.getElementById('undo'), undo);
    点右下角圆形按钮进入：棋盘切成全图预览(拖动查看)，D-pad/撤销/步数隐藏，四个选项排成一行悬在按钮上方；
    同一个按钮(此时是返回图标)再点一次退出。选项行只在暂停时才创建，退出即删除。 */
 let paused = false;
-let restartArmTimer = null;
 function updateModeBtn() { document.getElementById('modeBtn').innerHTML = iconSVG(paused ? 'back' : 'map'); }
 function removePauseRow() {
-  clearTimeout(restartArmTimer);
   const r = document.getElementById('pauseRow');
   if (r) r.remove();
 }
@@ -1815,21 +1819,8 @@ function resetPauseUI() { // 换关/重来时调用：直接退出暂停模式(�
   removePauseRow();
   updateModeBtn();
 }
-function onRestartTap() { // 防误触：第一次点先"上膛"，2秒内再点才真的重来
-  const b = document.getElementById('pause_restart');
-  if (!b) return;
-  if (!b.classList.contains('armed')) {
-    b.classList.add('armed');
-    showToast(t('restartAgain'));
-    restartArmTimer = setTimeout(() => b.classList.remove('armed'), 2000);
-  } else {
-    clearTimeout(restartArmTimer);
-    b.classList.remove('armed');
-    loadLevel(state.levelIndex);
-  }
-}
 const PAUSE_ITEMS = [
-  ['restart',  'Restart level', () => onRestartTap()],
+  ['restart',  'Restart level', () => loadLevel(state.levelIndex)], // 直接重来，不再二次确认(按钮在最左边，不容易误碰)
   ['levels',   'Levels',        () => openLevelPick()],
   ['home',     'Home',          () => goHome()],
   ['settings', 'Settings',      () => openSettings()]
