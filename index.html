@@ -301,6 +301,36 @@ body {
 }
 #settingsOverlay.show #settingsSheet { transform: translateY(0); }
 
+/* ===== iPad 横屏 =====
+   三列：左列D-pad(贴左下，左手拇指)，中间是尽量大的棋盘，右列撤销/步数/地图(贴右下，右手拇指)。
+   #controls 用 display:contents 拆掉外壳，它里面的左槽和右列直接成为网格项；
+   暂停模式的四个选项在右列里竖排，悬在地图/返回按钮上方。iPhone竖屏不受影响。 */
+@media (orientation: landscape) and (min-width: 900px) {
+  #app {
+    display: grid;
+    grid-template-columns: 262px minmax(0, 1fr) 176px; /* 两侧列只留够放D-pad/按钮的宽度，其余全给棋盘 */
+    grid-template-rows: minmax(0, 1fr);
+    align-items: stretch; justify-items: center;
+    column-gap: 8px;
+    padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) 24px max(20px, env(safe-area-inset-left));
+  }
+  #stage { grid-column: 2; grid-row: 1; justify-self: stretch; width: auto; min-width: 0; padding-bottom: 0; }
+  #controls { display: contents; }
+  #leftSlot { grid-column: 1; grid-row: 1; align-self: end; justify-self: center; }
+  #dpad { transform-origin: 50% 100%; transform: scale(calc(var(--dpad-scale, 1) * var(--tablet-scale, 1.15))); }
+  #actions { grid-column: 3; grid-row: 1; align-self: end; justify-self: center; gap: 20px; }
+  #undo { width: 104px; height: 104px; font-size: 20px; }
+  #moveCount { font-size: 16px; }
+  #modeBtn { width: 76px; height: 76px; }
+  #levelTag { font-size: 14px; height: 18px; line-height: 18px; }
+  #pauseRow {
+    position: static; transform: none; grid-column: 3; grid-row: 1;
+    align-self: center; justify-self: center;
+    width: auto; flex-direction: column; gap: 16px;
+  }
+  #pauseRow button { width: 72px; height: 72px; }
+}
+
 /* ===== 主页 ===== */
 #homeBg {
   position: fixed;
@@ -500,7 +530,7 @@ body {
     <button class="homeBtn" id="homeSettings">SETTINGS</button>
     <button class="homeBtn disabled" id="homeDev" disabled>COMING SOON</button>
   </div>
-  <div id="homeVersion">v1.8.2</div>
+  <div id="homeVersion">v1.9.0</div>
   <div id="homeCredit">Assets: Kenney Sokoban Pack (CC0)<br>Levels: David W. Skinner</div>
 </div>
 <div id="levelPickOverlay">
@@ -612,7 +642,7 @@ body {
       <div class="settingsLabel">高级（开发者模式）</div>
       <div class="swatchRow" id="advancedRow"></div>
     </div>
-    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.8.2</div>
+    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.9.0</div>
   </div>
 </div>
 
@@ -1102,7 +1132,8 @@ function fitTileSize() {
   const { availW, availH } = boardBudget();
   const byWidth = Math.floor(availW / state.width);
   const byHeight = Math.floor(availH / state.height);
-  const tile = Math.max(CAMERA_CFG.minTile, Math.min(CAMERA_CFG.maxTile, byWidth, byHeight));
+  const maxTile = isWideLayout() ? CAMERA_CFG.maxTileWide : CAMERA_CFG.maxTile;
+  const tile = Math.max(CAMERA_CFG.minTile, Math.min(maxTile, byWidth, byHeight));
   document.documentElement.style.setProperty('--tile', tile + 'px');
 }
 
@@ -1110,6 +1141,7 @@ function fitTileSize() {
 const CAMERA_CFG = {
   minTile: 34,      // 大地图也不再往小缩的最小可读tile
   maxTile: 56,       // 小地图不会被无意义放大
+  maxTileWide: 80,   // iPad横屏：屏幕大得多，允许小地图放到更大(素材是64px图，放太大会发软，可按真机效果调)
   boardHeightRatio: 0.5, // 棋盘视口占屏幕高度的比例，剩下的留给D-pad等控制区
   safeZone: 0.30,     // 玩家离视口边缘小于这个比例时镜头才跟随
   lead: 0.6,           // 朝移动方向的前瞻偏移，单位:tile
@@ -1121,21 +1153,30 @@ function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
 
 // 舞台：顶部安全区到D-pad上沿之间。下沿按D-pad实际显示位置(含大小/上下偏移设置)量，
 // D-pad调大或上移时给舞台补一段下内边距，棋盘自动避让、依然在剩余区域里垂直居中
+// iPad横屏(三列布局)：D-pad和按钮在两侧，中间整列都是棋盘；竖屏(iPhone)：D-pad在棋盘下面，棋盘在上方空闲区居中
+function isWideLayout() { return window.matchMedia('(orientation: landscape) and (min-width: 900px)').matches; }
 function stageInfo() {
   const stage = document.getElementById('stage');
   const sr = stage.getBoundingClientRect();
+  if (isWideLayout()) {
+    stage.style.paddingBottom = '0px';
+    return { height: sr.height, width: sr.width };
+  }
   const dp = document.getElementById('dpad').getBoundingClientRect();
   const extra = Math.max(0, sr.bottom - (dp.top - 10));
   stage.style.paddingBottom = extra + 'px';
-  return { height: sr.height - extra };
+  return { height: sr.height - extra, width: sr.width };
 }
 // 棋盘可用宽高预算，设置里的"棋盘宽度/高度"滑块乘在这里
 function boardBudget() {
-  const horizPadding = 16 * 2 + 10 * 2 + 4;
-  const availW = Math.min(window.innerWidth - horizPadding, 460) * (settings.boardWPct / 100);
   const chrome = 10 * 2 + 4;   // board-wrap自身padding+border
   const tagH = 22;              // 关卡编号小字 + 间距
-  const availH = Math.max(120, stageInfo().height - chrome - tagH) * (settings.boardHPct / 100);
+  const st = stageInfo();
+  const wide = isWideLayout();
+  const baseW = wide ? Math.max(200, st.width - chrome - 8)          // 横屏：中间整列的宽度
+                     : Math.min(window.innerWidth - (16 * 2 + 10 * 2 + 4), 460); // 竖屏：沿用原来的算法，上限460
+  const availW = baseW * (settings.boardWPct / 100);
+  const availH = Math.max(120, st.height - chrome - tagH) * (settings.boardHPct / 100);
   return { availW, availH };
 }
 
