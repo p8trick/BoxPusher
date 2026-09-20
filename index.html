@@ -397,10 +397,16 @@ body {
 }
 .homeBtn:active { filter: brightness(0.86) drop-shadow(0 2px 3px rgba(0,0,0,0.35)); transform: translateY(1px); }
 .homeBtn.disabled { opacity: 0.5; pointer-events: none; }
+/* 中文模式：主页菜单用系统粗体(Kenney字体没有中文字形)，字号/字距按汉字调整 */
+html[data-lang="zh"] .homeBtn {
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+  font-weight: 800; font-size: 24px; letter-spacing: 4px; -webkit-text-stroke: 0;
+}
 /* iPad横屏：屏幕大很多，按钮和字整体放大一档；位置先按竖版逻辑推测(居中偏下)，拿到横版截图后再微调 */
 @media (orientation: landscape) and (min-width: 900px) {
   #homeMenu { width: 360px; gap: 14px; bottom: 9vh; }
   .homeBtn { height: 66px; font-size: 32px; border-width: 8px 14px; border-image-width: 8px 14px; }
+  html[data-lang="zh"] .homeBtn { font-size: 29px; }
   #homeVersion { font-size: 13px; }
   #homeCredit { font-size: 12px; }
 }
@@ -526,11 +532,11 @@ body {
 <div id="homeScreen">
   <div id="homeMenu">
     <button class="homeBtn" id="homeStart">START</button>
-    <button class="homeBtn" id="homeLevels">LEVELS</button>
-    <button class="homeBtn" id="homeSettings">SETTINGS</button>
-    <button class="homeBtn disabled" id="homeDev" disabled>COMING SOON</button>
+    <button class="homeBtn" id="homeLevels" data-i18n="levels">LEVELS</button>
+    <button class="homeBtn" id="homeSettings" data-i18n="settings">SETTINGS</button>
+    <button class="homeBtn disabled" id="homeDev" disabled data-i18n="soon">COMING SOON</button>
   </div>
-  <div id="homeVersion">v1.9.0</div>
+  <div id="homeVersion">v1.9.1</div>
   <div id="homeCredit">Assets: Kenney Sokoban Pack (CC0)<br>Levels: David W. Skinner</div>
 </div>
 <div id="levelPickOverlay">
@@ -562,7 +568,7 @@ body {
       </div>
     </div>
     <div id="actions">
-      <button id="undo">撤销</button>
+      <button id="undo" data-i18n="undo">撤销</button>
       <div id="moveCount">0 步</div>
       <button id="modeBtn" aria-label="Map / Menu"></button>
     </div>
@@ -573,76 +579,80 @@ body {
 <div id="settingsOverlay">
   <div id="settingsSheet">
     <div class="settingsHeader">
-      <span>设置</span>
+      <span data-i18n="settingsTitle">设置</span>
       <button id="closeSettings">✕</button>
     </div>
     <div class="settingsSection">
-      <div class="settingsLabel">界面主题</div>
+      <div class="settingsLabel" data-i18n="lang">语言 / Language</div>
+      <div class="swatchRow" id="langRow"></div>
+    </div>
+    <div class="settingsSection">
+      <div class="settingsLabel" data-i18n="theme">界面主题</div>
       <div class="swatchRow" id="themeSwatches"></div>
     </div>
     <div class="settingsSection">
-      <div class="settingsLabel">地板颜色（目标点光圈随地板配套）</div>
+      <div class="settingsLabel" data-i18n="floor">地板颜色（目标点光圈随地板配套）</div>
       <div class="swatchRow" id="floorSwatches"></div>
     </div>
     <div class="settingsSection">
-      <div class="settingsLabel">墙壁样式</div>
+      <div class="settingsLabel" data-i18n="wall">墙壁样式</div>
       <div class="swatchRow" id="wallSwatches"></div>
     </div>
     <div class="settingsSection">
-      <div class="settingsLabel">箱子颜色</div>
+      <div class="settingsLabel" data-i18n="crate">箱子颜色</div>
       <div class="swatchRow" id="crateSwatches"></div>
     </div>
     <div class="settingsSection">
-      <div class="settingsLabel">D-pad 样式</div>
+      <div class="settingsLabel" data-i18n="dpadStyle">D-pad 样式</div>
       <div class="swatchRow" id="dpadStyleSwatches"></div>
     </div>
     <div class="settingsSection">
-      <div class="settingsLabel">D-pad 大小</div>
+      <div class="settingsLabel" data-i18n="dpadSize">D-pad 大小</div>
       <div class="sliderRow">
         <input type="range" id="dpadSizeSlider" min="70" max="140" step="5">
         <span class="sliderVal" id="dpadSizeVal"></span>
       </div>
     </div>
     <div class="settingsSection">
-      <div class="settingsLabel">D-pad 位置（左右偏移）</div>
+      <div class="settingsLabel" data-i18n="dpadX">D-pad 位置（左右偏移）</div>
       <div class="sliderRow">
         <input type="range" id="dpadOffsetSlider" min="-50" max="50" step="5">
         <span class="sliderVal" id="dpadOffsetVal"></span>
       </div>
     </div>
     <div class="settingsSection">
-      <div class="settingsLabel">D-pad 位置（上下偏移）</div>
+      <div class="settingsLabel" data-i18n="dpadY">D-pad 位置（上下偏移）</div>
       <div class="sliderRow">
         <input type="range" id="dpadOffsetYSlider" min="-200" max="40" step="5">
         <span class="sliderVal" id="dpadOffsetYVal"></span>
       </div>
     </div>
     <div class="settingsSection" id="dpadGapSection">
-      <div class="settingsLabel">分离按键间距</div>
+      <div class="settingsLabel" data-i18n="dpadGap">分离按键间距</div>
       <div class="sliderRow">
         <input type="range" id="dpadGapSlider" min="45" max="95" step="1">
         <span class="sliderVal" id="dpadGapVal"></span>
       </div>
     </div>
     <div class="settingsSection">
-      <div class="settingsLabel">棋盘宽度</div>
+      <div class="settingsLabel" data-i18n="boardW">棋盘宽度</div>
       <div class="sliderRow">
         <input type="range" id="boardWSlider" min="50" max="110" step="1">
         <span class="sliderVal" id="boardWVal"></span>
       </div>
     </div>
     <div class="settingsSection">
-      <div class="settingsLabel">棋盘高度</div>
+      <div class="settingsLabel" data-i18n="boardH">棋盘高度</div>
       <div class="sliderRow">
         <input type="range" id="boardHSlider" min="50" max="120" step="1">
         <span class="sliderVal" id="boardHVal"></span>
       </div>
     </div>
     <div class="settingsSection" id="advancedSection" style="display:none">
-      <div class="settingsLabel">高级（开发者模式）</div>
+      <div class="settingsLabel" data-i18n="advanced">高级（开发者模式）</div>
       <div class="swatchRow" id="advancedRow"></div>
     </div>
-    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.9.0</div>
+    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.9.1</div>
   </div>
 </div>
 
@@ -681,6 +691,54 @@ function iconSVG(name) {
   return `<svg viewBox="${vb}" aria-hidden="true"><path d="${d}"/></svg>`;
 }
 
+/* ---------- 界面语言：中文 / English ----------
+   默认跟随系统语言，设置里可切换并记住。主页菜单也跟着语言走(中文用系统粗体，英文用Kenney字体)。
+   新增文案：在下面两张表里各加一条同名key，用 t('key') 或 t('key', 参数) 取值 */
+const I18N = {
+  zh: {
+    start: '开始游戏', continue: '继续游戏', levels: '关卡选择', settings: '游戏设置', soon: '敬请期待',
+    undo: '撤销', moves: n => `${n} 步`, levelTag: n => `第 ${n} 关`, chapter: n => `第 ${n} 章`,
+    pickTitle: (c, total) => `选择关卡 · 已通关 ${c} / ${total}`,
+    lockedHint: n => `先通关第 ${n} 关`,
+    cleared: m => `过关！用了 ${m} 步`, newBest: '（新纪录）', best: b => `（最佳 ${b}）`, allDone: '全部关卡完成 🎉',
+    restartAgain: '再点一次重新开始',
+    devOn: '开发者模式：已开启（设置里有「高级」）', devOff: '开发者模式：已关闭',
+    settingsTitle: '设置', lang: '语言 / Language', theme: '界面主题',
+    theme_green: '森林绿', theme_dark: '酷黑', theme_blue: '海蓝',
+    floor: '地板颜色（目标点光圈随地板配套）', wall: '墙壁样式', crate: '箱子颜色',
+    grey: '灰', brown: '棕', green: '绿', red: '红', blue: '蓝',
+    wall_grey: '灰砖', wall_brown: '棕砖', wall_red1: '红砖A', wall_red2: '红砖B',
+    dpadStyle: 'D-pad 样式', dpad_cross: '十字连体', dpad_split: '分离按键',
+    dpadSize: 'D-pad 大小', dpadX: 'D-pad 位置（左右偏移）', dpadY: 'D-pad 位置（上下偏移）', dpadGap: '分离按键间距',
+    boardW: '棋盘宽度', boardH: '棋盘高度',
+    advanced: '高级（开发者模式）', slowmo: '慢动作', unlockAll: '全部解锁'
+  },
+  en: {
+    start: 'START', continue: 'CONTINUE', levels: 'LEVELS', settings: 'SETTINGS', soon: 'COMING SOON',
+    undo: 'UNDO', moves: n => `${n} ${n === 1 ? 'move' : 'moves'}`, levelTag: n => `Level ${n}`, chapter: n => `Chapter ${n}`,
+    pickTitle: (c, total) => `Levels · ${c} / ${total} cleared`,
+    lockedHint: n => `Clear level ${n} first`,
+    cleared: m => `Cleared! ${m} ${m === 1 ? 'move' : 'moves'}`, newBest: ' (new best)', best: b => ` (best ${b})`, allDone: 'All levels cleared 🎉',
+    restartAgain: 'Tap again to restart',
+    devOn: 'Developer mode on (Advanced is in Settings)', devOff: 'Developer mode off',
+    settingsTitle: 'Settings', lang: '语言 / Language', theme: 'Theme',
+    theme_green: 'Forest', theme_dark: 'Dark', theme_blue: 'Ocean',
+    floor: 'Floor colour (targets match the floor)', wall: 'Wall style', crate: 'Crate colour',
+    grey: 'Grey', brown: 'Brown', green: 'Green', red: 'Red', blue: 'Blue',
+    wall_grey: 'Grey brick', wall_brown: 'Brown brick', wall_red1: 'Red brick A', wall_red2: 'Red brick B',
+    dpadStyle: 'D-pad style', dpad_cross: 'Cross', dpad_split: 'Split',
+    dpadSize: 'D-pad size', dpadX: 'D-pad position (left / right)', dpadY: 'D-pad position (up / down)', dpadGap: 'Split button spacing',
+    boardW: 'Board width', boardH: 'Board height',
+    advanced: 'Advanced (developer mode)', slowmo: 'Slow motion', unlockAll: 'Unlock all'
+  }
+};
+function defaultLang() { return (navigator.language || '').toLowerCase().startsWith('zh') ? 'zh' : 'en'; }
+function t(key, ...args) {
+  const table = I18N[settings.lang] || I18N.zh;
+  const v = table[key] !== undefined ? table[key] : (I18N.zh[key] !== undefined ? I18N.zh[key] : key);
+  return typeof v === 'function' ? v(...args) : v;
+}
+
 /* ---------- 界面主题：三套 ---------- */
 const THEME_KEYS = ['green', 'dark', 'blue'];
 const THEMES = {
@@ -698,7 +756,7 @@ const CRATE_KEYS = ['grey', 'red', 'brown', 'blue', 'green'];
 const CRATE_LABELS = { grey: '灰', red: '红', brown: '棕', blue: '蓝', green: '绿' };
 
 const SETTINGS_KEY = 'sokoban_appearance_v1';
-const DEFAULT_SETTINGS = { theme: 'green', floor: 'grey', wall: 'red1', crate: 'brown', dpadStyle: 'cross', dpadScale: 100, dpadOffset: 0, dpadOffsetY: 0, dpadGap: 76, boardWPct: 100, boardHPct: 100 };
+const DEFAULT_SETTINGS = { lang: defaultLang(), theme: 'green', floor: 'grey', wall: 'red1', crate: 'brown', dpadStyle: 'cross', dpadScale: 100, dpadOffset: 0, dpadOffsetY: 0, dpadGap: 76, boardWPct: 100, boardHPct: 100 };
 
 function loadSettings() {
   try {
@@ -713,6 +771,9 @@ function saveSettings() {
 function applySettings() {
   if (!THEMES[settings.theme]) settings.theme = 'green';
   document.documentElement.dataset.theme = settings.theme;
+  if (settings.lang !== 'zh' && settings.lang !== 'en') settings.lang = defaultLang();
+  document.documentElement.dataset.lang = settings.lang;
+  document.documentElement.lang = settings.lang === 'zh' ? 'zh-CN' : 'en';
   const tc = document.getElementById('themeColorMeta');
   if (tc) tc.content = THEMES[settings.theme].bg;
   const root = document.documentElement.style;
@@ -736,7 +797,7 @@ function buildSwatchRow(containerId, keys, pathFn, labels, settingsKey) {
   keys.forEach(key => {
     const btn = document.createElement('button');
     btn.className = 'swatchBtn' + (settings[settingsKey] === key ? ' active' : '');
-    btn.innerHTML = `<div class="swatchImg" style="background-image:url(${pathFn(key)})"></div><div class="swatchText">${labels[key]}</div>`;
+    btn.innerHTML = `<div class="swatchImg" style="background-image:url(${pathFn(key)})"></div><div class="swatchText">${typeof labels === 'function' ? labels(key) : labels[key]}</div>`;
     bindTap(btn, () => {
       settings[settingsKey] = key;
       saveSettings();
@@ -750,10 +811,10 @@ function buildThemeRow() {
   const row = document.getElementById('themeSwatches');
   row.innerHTML = '';
   THEME_KEYS.forEach(key => {
-    const t = THEMES[key];
+    const th = THEMES[key];
     const btn = document.createElement('button');
     btn.className = 'swatchBtn' + (settings.theme === key ? ' active' : '');
-    btn.innerHTML = `<div class="swatchImg" style="background:linear-gradient(135deg, ${t.bg} 55%, ${t.frame} 55%)"></div><div class="swatchText">${t.label}</div>`;
+    btn.innerHTML = `<div class="swatchImg" style="background:linear-gradient(135deg, ${th.bg} 55%, ${th.frame} 55%)"></div><div class="swatchText">${t('theme_' + key)}</div>`;
     bindTap(btn, () => {
       settings.theme = key;
       saveSettings();
@@ -783,14 +844,42 @@ function buildAdvancedRow() {
     bindTap(b, fn);
     row.appendChild(b);
   };
-  mk('慢动作', slowmoOn, () => { setSlowmo(!slowmoOn); buildAdvancedRow(); });
-  mk('全部解锁', progress.debugUnlock, () => { progress.debugUnlock = !progress.debugUnlock; saveProgress(); buildAdvancedRow(); });
+  mk(t('slowmo'), slowmoOn, () => { setSlowmo(!slowmoOn); buildAdvancedRow(); });
+  mk(t('unlockAll'), progress.debugUnlock, () => { progress.debugUnlock = !progress.debugUnlock; saveProgress(); buildAdvancedRow(); });
+}
+function buildLangRow() {
+  const row = document.getElementById('langRow');
+  row.innerHTML = '';
+  [['zh', '中文'], ['en', 'English']].forEach(([key, label]) => {
+    const b = document.createElement('button');
+    b.className = 'pillBtn' + (settings.lang === key ? ' active' : '');
+    b.textContent = label;
+    bindTap(b, () => {
+      settings.lang = key;
+      saveSettings();
+      applySettings();
+      applyI18n();
+      buildAllSwatchRows();
+      buildAdvancedRow();
+    });
+    row.appendChild(b);
+  });
+}
+// 把所有带 data-i18n 的静态文字、主页按钮、关卡编号/步数按当前语言刷新
+function applyI18n() {
+  document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+  refreshHomeUI();
+  if (state) {
+    document.getElementById('levelTag').textContent = t('levelTag', state.levelIndex + 1);
+    document.getElementById('moveCount').textContent = t('moves', state.moves);
+  }
 }
 function buildAllSwatchRows() {
+  buildLangRow();
   buildThemeRow();
-  buildSwatchRow('floorSwatches', FLOOR_KEYS, k => `assets/Ground/ground_${k}.png`, FLOOR_LABELS, 'floor');
-  buildSwatchRow('wallSwatches', WALL_KEYS, k => `assets/Blocks/block_${k}.png`, WALL_LABELS, 'wall');
-  buildSwatchRow('crateSwatches', CRATE_KEYS, k => `assets/Crates/crate_${k}.png`, CRATE_LABELS, 'crate');
+  buildSwatchRow('floorSwatches', FLOOR_KEYS, k => `assets/Ground/ground_${k}.png`, k => t(k), 'floor');
+  buildSwatchRow('wallSwatches', WALL_KEYS, k => `assets/Blocks/block_${k}.png`, k => t('wall_' + k), 'wall');
+  buildSwatchRow('crateSwatches', CRATE_KEYS, k => `assets/Crates/crate_${k}.png`, k => t(k), 'crate');
   buildDpadStyleRow();
 }
 const DPAD_STYLE_LABELS = { cross: '十字连体', split: '分离按键' };
@@ -800,7 +889,7 @@ function buildDpadStyleRow() {
   Object.keys(DPAD_STYLE_LABELS).forEach(key => {
     const btn = document.createElement('button');
     btn.className = 'pillBtn' + (settings.dpadStyle === key ? ' active' : '');
-    btn.textContent = DPAD_STYLE_LABELS[key];
+    btn.textContent = t('dpad_' + key);
     bindTap(btn, () => {
       settings.dpadStyle = key;
       saveSettings();
@@ -902,15 +991,15 @@ function openLevelPick() {
   const cur = state ? state.levelIndex : firstUnclearedIndex();
   let clearedTotal = 0;
   LEVELS.forEach((_, i) => { if (isCleared(i)) clearedTotal++; });
-  document.getElementById('levelPickTitle').textContent = `选择关卡 · 已通关 ${clearedTotal} / ${LEVELS.length}`;
+  document.getElementById('levelPickTitle').textContent = t('pickTitle', clearedTotal, LEVELS.length);
   let curBtn = null;
   let base = 0;
-  LEVEL_CHAPTERS.forEach((ch) => {
+  LEVEL_CHAPTERS.forEach((ch, ci) => {
     let done = 0;
     ch.levels.forEach((_, li) => { if (isCleared(base + li)) done++; });
     const head = document.createElement('div');
     head.className = 'chapterHead';
-    head.innerHTML = `<span>${ch.name}</span><span>${done} / ${ch.levels.length}</span>`;
+    head.innerHTML = `<span>${t('chapter', ci + 1)}</span><span>${done} / ${ch.levels.length}</span>`;
     list.appendChild(head);
     const grid = document.createElement('div');
     grid.className = 'levelPickGrid';
@@ -922,7 +1011,7 @@ function openLevelPick() {
       btn.textContent = String(i + 1);
       // 列表要能滚动：这里不用bindTap(它会在touchstart里preventDefault把滚动吃掉)，用原生click
       btn.addEventListener('click', () => {
-        if (!isUnlocked(i)) { showToast(`先通关第 ${i} 关`); return; }
+        if (!isUnlocked(i)) { showToast(t('lockedHint', i)); return; }
         loadLevel(i);
         closeLevelPick();
         hideHomeScreen();
@@ -1010,7 +1099,7 @@ function firstUnclearedIndex() {
 function updateNavButtons() {} // 顶部关卡导航已取消，保留空函数免得到处改调用
 function refreshHomeUI() {
   const any = Object.keys(progress.cleared).length > 0;
-  document.getElementById('homeStart').textContent = (any || cameFromGame) ? 'CONTINUE' : 'START';
+  document.getElementById('homeStart').textContent = (any || cameFromGame) ? t('continue') : t('start');
 }
 
 let IDLE_DELAY = 300; // 静止后收拢延迟(ms)
@@ -1124,8 +1213,8 @@ function loadLevel(idx) {
   renderBoardStructure();
   renderDynamic();
   initCamera();
-  document.getElementById('levelTag').textContent = `第 ${idx+1} 关`;
-  document.getElementById('moveCount').textContent = `0 步`;
+  document.getElementById('levelTag').textContent = t('levelTag', idx + 1);
+  document.getElementById('moveCount').textContent = t('moves', 0);
 }
 
 function fitTileSize() {
@@ -1372,7 +1461,7 @@ function renderDynamic() {
       el.style.transform = `translate(${c * tileSize()}px, ${r * tileSize()}px)`;
     }
   });
-  document.getElementById('moveCount').textContent = `${state.moves} 步`;
+  document.getElementById('moveCount').textContent = t('moves', state.moves);
 }
 
 const MAX_QUEUE = 2; // 输入缓冲上限
@@ -1461,16 +1550,16 @@ function checkWin() {
     progress.cleared[meta.id] = isNewBest ? state.moves : best;
     saveProgress();
     updateNavButtons();
-    showToast(`过关！用了 ${state.moves} 步` + (best !== undefined ? (isNewBest ? '（新纪录）' : `（最佳 ${best}）`) : ''));
+    showToast(t('cleared', state.moves) + (best !== undefined ? (isNewBest ? t('newBest') : t('best', best)) : ''));
     setTimeout(() => {
       if (!state || state.levelIndex !== idxAtWin) return; // 等待期间已经手动切关，就不再自动跳
       const next = idxAtWin + 1;
       if (next < LEVELS.length) {
         const newChapter = LEVEL_META[next].chapter !== meta.chapter;
         loadLevel(next);
-        if (newChapter) showToast(LEVEL_CHAPTERS[LEVEL_META[next].chapter].name);
+        if (newChapter) showToast(t('chapter', LEVEL_META[next].chapter + 1));
       } else {
-        showToast('全部关卡完成 🎉');
+        showToast(t('allDone'));
       }
     }, 1100);
   }
@@ -1527,7 +1616,7 @@ function onRestartTap() { // 防误触：第一次点先"上膛"，2秒内再点
   if (!b) return;
   if (!b.classList.contains('armed')) {
     b.classList.add('armed');
-    showToast('再点一次重新开始');
+    showToast(t('restartAgain'));
     restartArmTimer = setTimeout(() => b.classList.remove('armed'), 2000);
   } else {
     clearTimeout(restartArmTimer);
@@ -1666,12 +1755,12 @@ bindTap(document.getElementById('homeVersion'), () => {
     progress.debugMode = !progress.debugMode;
     if (!progress.debugMode) { progress.debugUnlock = false; setSlowmo(false); }
     saveProgress();
-    showToast(progress.debugMode ? '开发者模式：已开启（设置里有「高级」）' : '开发者模式：已关闭');
+    showToast(progress.debugMode ? t('devOn') : t('devOff'));
   }
 });
 
 window.addEventListener('load', relayoutBoard);
-refreshHomeUI();
+applyI18n();
 loadLevel(firstUnclearedIndex());
 </script>
 </body>
