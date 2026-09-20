@@ -20,7 +20,7 @@
   --img-crate: url('assets/Crates/crate_brown.png');
   --img-crateDone: url('assets/Crates/crate_brownDone.png');
   --tile: 52px;
-  --move-dur: 0.3s;
+  --move-dur: 0.28s; /* 平时走路；推箱子时由JS按步覆盖成推箱时长(见settings.walkMs/pushMs) */
   /* ---- 主题变量（默认：森林绿）。换主题只改 <html data-theme>，下面三套 ---- */
   --bg: #7f8a6a;            /* 页面底色 */
   --frame-bg: #7f8a6a;      /* 棋盘外框内部底色；墙外空白格透出的就是它 */
@@ -93,7 +93,6 @@ body {
   align-items: center;
   padding: max(16px, env(safe-area-inset-top)) 16px 16px; /* 底部按经验去掉env()，standalone PWA本身已经避让了，叠加会变成扣两次 */
 }
-#app.slowmo { --move-dur: 0.6s; }
 /* 舞台：顶部安全区到D-pad上沿之间的空闲区域，棋盘在里面垂直居中；下沿按D-pad实际显示位置量(JS里的stageInfo) */
 #stage {
   flex: 1; min-height: 0; width: 100%;
@@ -231,7 +230,7 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: 47px; /* 步数挪走后，撤销和地图键的间距(原 16+步数行15+16)，保持两个键在原来的位置 */
 }
 #undo {
   width: 84px; height: 84px;
@@ -322,7 +321,7 @@ body {
   #controls { display: contents; }
   #leftSlot { grid-column: 1; grid-row: 1; align-self: end; justify-self: center; }
   #dpad { transform-origin: 50% 100%; transform: scale(calc(var(--dpad-scale, 1) * var(--tablet-scale, 1.15))); }
-  #actions { grid-column: 3; grid-row: 1; align-self: end; justify-self: center; gap: 20px; }
+  #actions { grid-column: 3; grid-row: 1; align-self: end; justify-self: center; gap: 58px; } /* 原 20+步数行18+20 */
   #undo { width: 104px; height: 104px; font-size: 20px; }
   #modeBtn { width: 76px; height: 76px; }
   #levelInfo { font-size: 14px; height: 18px; line-height: 18px; }
@@ -539,7 +538,7 @@ html[data-lang="zh"] .homeBtn {
     <button class="homeBtn" id="homeSettings" data-i18n="settings">SETTINGS</button>
     <button class="homeBtn disabled" id="homeDev" disabled data-i18n="soon">COMING SOON</button>
   </div>
-  <div id="homeVersion">v1.10.1</div>
+  <div id="homeVersion">v1.10.3</div>
   <div id="homeCredit">Assets: Kenney Sokoban Pack (CC0)<br>Levels: David W. Skinner</div>
 </div>
 <div id="levelPickOverlay">
@@ -653,8 +652,19 @@ html[data-lang="zh"] .homeBtn {
     <div class="settingsSection" id="advancedSection" style="display:none">
       <div class="settingsLabel" data-i18n="advanced">高级（开发者模式）</div>
       <div class="swatchRow" id="advancedRow"></div>
+      <div class="settingsLabel" data-i18n="walkDur" style="margin-top:14px">走路每步时长</div>
+      <div class="sliderRow">
+        <input type="range" id="walkDurSlider" min="120" max="600" step="5">
+        <span class="sliderVal" id="walkDurVal"></span>
+      </div>
+      <div class="settingsLabel" data-i18n="pushDur" style="margin-top:14px">推箱每步时长</div>
+      <div class="sliderRow">
+        <input type="range" id="pushDurSlider" min="120" max="600" step="5">
+        <span class="sliderVal" id="pushDurVal"></span>
+      </div>
+      <div class="settingsLabel" data-i18n="durHint" style="margin-top:10px;font-size:11px;opacity:.7"></div>
     </div>
-    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.10.1</div>
+    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.10.3</div>
   </div>
 </div>
 
@@ -715,7 +725,8 @@ const I18N = {
     dpadStyle: 'D-pad 样式', dpad_cross: '十字连体', dpad_split: '分离按键',
     dpadSize: 'D-pad 大小', dpadX: 'D-pad 位置（左右偏移）', dpadY: 'D-pad 位置（上下偏移）', dpadGap: '分离按键间距',
     boardW: '棋盘宽度', boardH: '棋盘高度',
-    advanced: '高级（开发者模式）', slowmo: '慢动作', unlockAll: '全部解锁'
+    advanced: '高级（开发者模式）', unlockAll: '全部解锁',
+    walkDur: '走路每步时长', pushDur: '推箱每步时长', durHint: '镜头平移、帧切换、输入节奏自动跟随。数字越小越快，太小会显得飘。'
   },
   en: {
     start: 'START', continue: 'CONTINUE', levels: 'LEVELS', settings: 'SETTINGS', soon: 'COMING SOON',
@@ -735,7 +746,8 @@ const I18N = {
     dpadStyle: 'D-pad style', dpad_cross: 'Cross', dpad_split: 'Split',
     dpadSize: 'D-pad size', dpadX: 'D-pad position (left / right)', dpadY: 'D-pad position (up / down)', dpadGap: 'Split button spacing',
     boardW: 'Board width', boardH: 'Board height',
-    advanced: 'Advanced (developer mode)', slowmo: 'Slow motion', unlockAll: 'Unlock all'
+    advanced: 'Advanced (developer mode)', unlockAll: 'Unlock all',
+    walkDur: 'Walk step duration', pushDur: 'Push step duration', durHint: 'Camera pan, frame swaps and input timing follow automatically. Lower is faster; too low feels floaty.'
   }
 };
 function defaultLang() { return (navigator.language || '').toLowerCase().startsWith('zh') ? 'zh' : 'en'; }
@@ -762,7 +774,7 @@ const CRATE_KEYS = ['grey', 'red', 'brown', 'blue', 'green'];
 const CRATE_LABELS = { grey: '灰', red: '红', brown: '棕', blue: '蓝', green: '绿' };
 
 const SETTINGS_KEY = 'sokoban_appearance_v1';
-const DEFAULT_SETTINGS = { lang: defaultLang(), theme: 'green', floor: 'grey', wall: 'red1', crate: 'brown', dpadStyle: 'cross', dpadScale: 100, dpadOffset: 0, dpadOffsetY: 0, dpadGap: 76, boardWPct: 100, boardHPct: 100 };
+const DEFAULT_SETTINGS = { lang: defaultLang(), theme: 'green', floor: 'grey', wall: 'red1', crate: 'brown', dpadStyle: 'cross', dpadScale: 100, dpadOffset: 0, dpadOffsetY: 0, dpadGap: 76, boardWPct: 100, boardHPct: 100, walkMs: 280, pushMs: 300 };
 
 function loadSettings() {
   try {
@@ -780,6 +792,8 @@ function applySettings() {
   if (settings.lang !== 'zh' && settings.lang !== 'en') settings.lang = defaultLang();
   document.documentElement.dataset.lang = settings.lang;
   document.documentElement.lang = settings.lang === 'zh' ? 'zh-CN' : 'en';
+  settings.walkMs = Math.max(120, Math.min(600, Number(settings.walkMs) || 280)); // 防止存档里的怪值
+  settings.pushMs = Math.max(120, Math.min(600, Number(settings.pushMs) || 300));
   const tc = document.getElementById('themeColorMeta');
   if (tc) tc.content = THEMES[settings.theme].bg;
   const root = document.documentElement.style;
@@ -830,13 +844,6 @@ function buildThemeRow() {
     row.appendChild(btn);
   });
 }
-let slowmoOn = false;
-function setSlowmo(on) {
-  slowmoOn = on;
-  document.getElementById('app').classList.toggle('slowmo', on);
-  IDLE_DELAY = on ? 1200 : 300;
-  MOVE_DUR = on ? 600 : 300;
-}
 function buildAdvancedRow() {
   const sec = document.getElementById('advancedSection');
   sec.style.display = progress.debugMode ? '' : 'none';
@@ -850,7 +857,6 @@ function buildAdvancedRow() {
     bindTap(b, fn);
     row.appendChild(b);
   };
-  mk(t('slowmo'), slowmoOn, () => { setSlowmo(!slowmoOn); buildAdvancedRow(); });
   mk(t('unlockAll'), progress.debugUnlock, () => { progress.debugUnlock = !progress.debugUnlock; saveProgress(); buildAdvancedRow(); });
 }
 function buildLangRow() {
@@ -929,6 +935,10 @@ function syncDpadSliders() {
   document.getElementById('boardWVal').textContent = `${settings.boardWPct}%`;
   document.getElementById('boardHSlider').value = settings.boardHPct;
   document.getElementById('boardHVal').textContent = `${settings.boardHPct}%`;
+  document.getElementById('walkDurSlider').value = settings.walkMs;
+  document.getElementById('walkDurVal').textContent = `${settings.walkMs}ms`;
+  document.getElementById('pushDurSlider').value = settings.pushMs;
+  document.getElementById('pushDurVal').textContent = `${settings.pushMs}ms`;
 }
 document.getElementById('dpadSizeSlider').addEventListener('input', (e) => {
   settings.dpadScale = Number(e.target.value);
@@ -976,6 +986,15 @@ document.getElementById('boardHSlider').addEventListener('input', (e) => {
   relayoutBoard();
 });
 document.getElementById('boardHSlider').addEventListener('change', saveSettings);
+// 走路/推箱时长滑块：只影响之后的每一步；松手才存
+[['walkDurSlider', 'walkDurVal', 'walkMs'], ['pushDurSlider', 'pushDurVal', 'pushMs']].forEach(([sid, vid, key]) => {
+  const sl = document.getElementById(sid);
+  sl.addEventListener('input', (e) => {
+    settings[key] = Number(e.target.value);
+    document.getElementById(vid).textContent = `${settings[key]}ms`;
+  });
+  sl.addEventListener('change', saveSettings);
+});
 function openSettings() { buildAllSwatchRows(); syncDpadSliders(); buildAdvancedRow(); document.getElementById('settingsOverlay').classList.add('show'); }
 function closeSettings() { document.getElementById('settingsOverlay').classList.remove('show'); }
 bindTap(document.getElementById('closeSettings'), closeSettings);
@@ -1197,8 +1216,10 @@ function loadInitialLevel() {
 window.addEventListener('pagehide', saveAutosaveNow);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveAutosaveNow(); });
 
-let IDLE_DELAY = 300; // 静止后收拢延迟(ms)
-let MOVE_DUR = 300;   // 移动时长(ms)，需与 --move-dur 同步
+let IDLE_DELAY = 300; // 静止后收拢延迟(ms)，随当步时长自动变(setMoveDur)
+// 每步时长(ms)：走路和推箱分开(推箱慢一点，显得箱子重)，数值在 settings.walkMs / pushMs，开发者模式的「高级」里有滑块
+let MOVE_DUR = settings.walkMs; // 当前这一步的时长，由 setMoveDur 按步设置，同时写进 --move-dur 让棋盘/玩家/箱子/镜头动画同款时长
+const IDLE_GRACE = 20; // 停顿判定 = 当步时长 + 这点余量：动画没播完不会收拢，连点也不会在两步之间闪一下站立帧
 const FOOTFALL_RATIO = 0.8; // 跨脚帧占比
 const FOOTFALL_DIRS = new Set(['left', 'right']); // 插帧方向
 
@@ -1217,6 +1238,12 @@ function advanceGait(dir) {
     clearTimeout(state.stepAnimTimer);
     state.stepAnimTimer = null;
   }
+}
+
+function setMoveDur(pushing) { // 每次真正移动前调用(要在 advanceGait/lockMovement 之前)
+  MOVE_DUR = pushing ? settings.pushMs : settings.walkMs;
+  IDLE_DELAY = MOVE_DUR + IDLE_GRACE;
+  document.documentElement.style.setProperty('--move-dur', MOVE_DUR + 'ms');
 }
 
 function scheduleFootfall() {
@@ -1589,6 +1616,7 @@ function tryMove(dr, dc, dir) {
     const br = nr + dr, bc = nc + dc;
     const bkey = br + ',' + bc;
     if (state.walls.has(bkey) || state.boxes.has(bkey)) { renderDynamic(); scheduleIdle(); return; }
+    setMoveDur(true);
     advanceGait(dir);
     lockMovement();
     pushHistory();
@@ -1611,6 +1639,7 @@ function tryMove(dr, dc, dir) {
     return;
   }
 
+  setMoveDur(false);
   advanceGait(dir);
   lockMovement();
   pushHistory();
@@ -1857,7 +1886,7 @@ bindTap(document.getElementById('homeVersion'), () => {
   if (_dbgTaps >= 7) {
     _dbgTaps = 0;
     progress.debugMode = !progress.debugMode;
-    if (!progress.debugMode) { progress.debugUnlock = false; setSlowmo(false); }
+    if (!progress.debugMode) { progress.debugUnlock = false; }
     saveProgress();
     showToast(progress.debugMode ? t('devOn') : t('devOff'));
   }
