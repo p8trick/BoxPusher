@@ -282,27 +282,43 @@ body {
 }
 #toast.show { opacity: 1; transform: translate(-50%,-50%) scale(1); }
 
+/* ===== 木框面板(设置用；以后选关面板复用 .artPanel 这层外壳) =====
+   浮层居中、四周留边不贴屏幕：手机竖屏宽约 92%(左右各14px)、高最多约 90%(上下各 5vh)，露出后面的主页/棋盘，
+   后面压一层 45% 黑 + 轻微模糊。木框是九宫格图 assets/UI/panel_wood_portrait.png(658×1173，中间透明)，
+   切片 63 54 59 54(上 右 下 左) → 边宽 20 17 19 17px，大约是 3× 屏 1:1 显示；中间底色用主题纸色 var(--panel)。
+   border-image 图不在时，退回一圈木色实线边框。background-clip:padding-box 防止圆角外露出底色。
+   面板本身就是滚动容器，木框在border上不跟着滚。iPad 版木框还没有，先共用这张(宽度上限放大到 640px)。 */
 #settingsOverlay {
   position: fixed; inset: 0;
   background: rgba(0,0,0,0.45);
-  display: flex; align-items: flex-end; justify-content: center;
+  -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+  display: flex; align-items: center; justify-content: center;
+  padding: max(5vh, env(safe-area-inset-top)) 14px 5vh; /* 底部不叠env()，同上原因 */
   z-index: 250; /* 盖在主页上面，从主页也能打开设置 */
   opacity: 0; pointer-events: none;
   transition: opacity 0.2s ease;
 }
 #settingsOverlay.show { opacity: 1; pointer-events: auto; }
+.artPanel {
+  box-sizing: border-box;
+  border-style: solid; border-color: #8a5a2b; /* 图片加载失败时的后备 */
+  border-width: 20px 17px 19px 17px;
+  border-image: url('assets/UI/panel_wood_portrait.png') 63 54 59 54 fill / 20px 17px 19px 17px stretch;
+  background: var(--panel); background-clip: padding-box;
+  color: var(--ink);
+  box-shadow: 0 10px 28px rgba(0,0,0,0.35);
+}
 #settingsSheet {
-  background: var(--panel);
   width: 100%; max-width: 460px;
-  border-radius: 20px 20px 0 0;
-  padding: 18px 18px 18px; /* 底部去掉env()，同上原因 */
-  box-shadow: 0 -6px 24px rgba(0,0,0,0.25);
-  transform: translateY(16px);
+  max-height: 100%; /* 上下留边由 #settingsOverlay 的 padding 决定 */
+  padding: 10px 14px 14px; /* 木框内侧的留白 */
+  transform: scale(0.96);
   transition: transform 0.2s ease;
   touch-action: pan-y;
-  max-height: 90vh; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; /* 主题/高级项加进来后可能超出一屏，允许滚动 */
+  overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; /* 内容超出一屏时在框内滚动 */
 }
-#settingsOverlay.show #settingsSheet { transform: translateY(0); }
+#settingsOverlay.show #settingsSheet { transform: scale(1); }
+@media (min-width: 700px) { #settingsSheet { max-width: 640px; } }
 
 /* ===== iPad 横屏 =====
    三列：左列D-pad(贴左下，左手拇指)，中间是尽量大的棋盘，右列撤销/步数/地图(贴右下，右手拇指)。
@@ -538,7 +554,7 @@ html[data-lang="zh"] .homeBtn {
     <button class="homeBtn" id="homeSettings" data-i18n="settings">SETTINGS</button>
     <button class="homeBtn disabled" id="homeDev" disabled data-i18n="soon">COMING SOON</button>
   </div>
-  <div id="homeVersion">v1.10.3</div>
+  <div id="homeVersion">v1.11.0</div>
   <div id="homeCredit">Assets: Kenney Sokoban Pack (CC0)<br>Levels: David W. Skinner</div>
 </div>
 <div id="levelPickOverlay">
@@ -578,7 +594,7 @@ html[data-lang="zh"] .homeBtn {
 <div id="toast"></div>
 
 <div id="settingsOverlay">
-  <div id="settingsSheet">
+  <div id="settingsSheet" class="artPanel">
     <div class="settingsHeader">
       <span data-i18n="settingsTitle">设置</span>
       <button id="closeSettings">✕</button>
@@ -663,8 +679,15 @@ html[data-lang="zh"] .homeBtn {
         <span class="sliderVal" id="pushDurVal"></span>
       </div>
       <div class="settingsLabel" data-i18n="durHint" style="margin-top:10px;font-size:11px;opacity:.7"></div>
+      <div class="settingsLabel" data-i18n="boxFx" style="margin-top:14px">箱子推动反馈</div>
+      <div class="swatchRow" id="boxFxRow"></div>
+      <div class="settingsLabel" data-i18n="boxFxPct" style="margin-top:14px">反馈强度</div>
+      <div class="sliderRow">
+        <input type="range" id="boxFxSlider" min="50" max="200" step="10">
+        <span class="sliderVal" id="boxFxVal"></span>
+      </div>
     </div>
-    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.10.3</div>
+    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.11.0</div>
   </div>
 </div>
 
@@ -726,7 +749,8 @@ const I18N = {
     dpadSize: 'D-pad 大小', dpadX: 'D-pad 位置（左右偏移）', dpadY: 'D-pad 位置（上下偏移）', dpadGap: '分离按键间距',
     boardW: '棋盘宽度', boardH: '棋盘高度',
     advanced: '高级（开发者模式）', unlockAll: '全部解锁',
-    walkDur: '走路每步时长', pushDur: '推箱每步时长', durHint: '镜头平移、帧切换、输入节奏自动跟随。数字越小越快，太小会显得飘。'
+    walkDur: '走路每步时长', pushDur: '推箱每步时长', durHint: '镜头平移、帧切换、输入节奏自动跟随。数字越小越快，太小会显得飘。',
+    boxFx: '箱子推动反馈', fxOff: '关', fxRebound: '回弹', fxSquash: '回弹+压缩', boxFxPct: '反馈强度'
   },
   en: {
     start: 'START', continue: 'CONTINUE', levels: 'LEVELS', settings: 'SETTINGS', soon: 'COMING SOON',
@@ -747,7 +771,8 @@ const I18N = {
     dpadSize: 'D-pad size', dpadX: 'D-pad position (left / right)', dpadY: 'D-pad position (up / down)', dpadGap: 'Split button spacing',
     boardW: 'Board width', boardH: 'Board height',
     advanced: 'Advanced (developer mode)', unlockAll: 'Unlock all',
-    walkDur: 'Walk step duration', pushDur: 'Push step duration', durHint: 'Camera pan, frame swaps and input timing follow automatically. Lower is faster; too low feels floaty.'
+    walkDur: 'Walk step duration', pushDur: 'Push step duration', durHint: 'Camera pan, frame swaps and input timing follow automatically. Lower is faster; too low feels floaty.',
+    boxFx: 'Box push feedback', fxOff: 'Off', fxRebound: 'Rebound', fxSquash: 'Rebound + squash', boxFxPct: 'Feedback strength'
   }
 };
 function defaultLang() { return (navigator.language || '').toLowerCase().startsWith('zh') ? 'zh' : 'en'; }
@@ -774,7 +799,7 @@ const CRATE_KEYS = ['grey', 'red', 'brown', 'blue', 'green'];
 const CRATE_LABELS = { grey: '灰', red: '红', brown: '棕', blue: '蓝', green: '绿' };
 
 const SETTINGS_KEY = 'sokoban_appearance_v1';
-const DEFAULT_SETTINGS = { lang: defaultLang(), theme: 'green', floor: 'grey', wall: 'red1', crate: 'brown', dpadStyle: 'cross', dpadScale: 100, dpadOffset: 0, dpadOffsetY: 0, dpadGap: 76, boardWPct: 100, boardHPct: 100, walkMs: 280, pushMs: 300 };
+const DEFAULT_SETTINGS = { lang: defaultLang(), theme: 'green', floor: 'grey', wall: 'red1', crate: 'brown', dpadStyle: 'cross', dpadScale: 100, dpadOffset: 0, dpadOffsetY: 0, dpadGap: 76, boardWPct: 100, boardHPct: 100, walkMs: 280, pushMs: 300, boxFx: 'off', boxFxPct: 100 };
 
 function loadSettings() {
   try {
@@ -794,6 +819,8 @@ function applySettings() {
   document.documentElement.lang = settings.lang === 'zh' ? 'zh-CN' : 'en';
   settings.walkMs = Math.max(120, Math.min(600, Number(settings.walkMs) || 280)); // 防止存档里的怪值
   settings.pushMs = Math.max(120, Math.min(600, Number(settings.pushMs) || 300));
+  if (!['off', 'rebound', 'squash'].includes(settings.boxFx)) settings.boxFx = 'off';
+  settings.boxFxPct = Math.max(50, Math.min(200, Number(settings.boxFxPct) || 100));
   const tc = document.getElementById('themeColorMeta');
   if (tc) tc.content = THEMES[settings.theme].bg;
   const root = document.documentElement.style;
@@ -858,6 +885,18 @@ function buildAdvancedRow() {
     row.appendChild(b);
   };
   mk(t('unlockAll'), progress.debugUnlock, () => { progress.debugUnlock = !progress.debugUnlock; saveProgress(); buildAdvancedRow(); });
+  buildBoxFxRow();
+}
+function buildBoxFxRow() {
+  const row = document.getElementById('boxFxRow');
+  row.innerHTML = '';
+  [['off', 'fxOff'], ['rebound', 'fxRebound'], ['squash', 'fxSquash']].forEach(([key, label]) => {
+    const b = document.createElement('button');
+    b.className = 'pillBtn' + (settings.boxFx === key ? ' active' : '');
+    b.textContent = t(label);
+    bindTap(b, () => { settings.boxFx = key; saveSettings(); buildBoxFxRow(); });
+    row.appendChild(b);
+  });
 }
 function buildLangRow() {
   const row = document.getElementById('langRow');
@@ -939,6 +978,8 @@ function syncDpadSliders() {
   document.getElementById('walkDurVal').textContent = `${settings.walkMs}ms`;
   document.getElementById('pushDurSlider').value = settings.pushMs;
   document.getElementById('pushDurVal').textContent = `${settings.pushMs}ms`;
+  document.getElementById('boxFxSlider').value = settings.boxFxPct;
+  document.getElementById('boxFxVal').textContent = `${settings.boxFxPct}%`;
 }
 document.getElementById('dpadSizeSlider').addEventListener('input', (e) => {
   settings.dpadScale = Number(e.target.value);
@@ -995,6 +1036,11 @@ document.getElementById('boardHSlider').addEventListener('change', saveSettings)
   });
   sl.addEventListener('change', saveSettings);
 });
+document.getElementById('boxFxSlider').addEventListener('input', (e) => {
+  settings.boxFxPct = Number(e.target.value);
+  document.getElementById('boxFxVal').textContent = `${settings.boxFxPct}%`;
+});
+document.getElementById('boxFxSlider').addEventListener('change', saveSettings);
 function openSettings() { buildAllSwatchRows(); syncDpadSliders(); buildAdvancedRow(); document.getElementById('settingsOverlay').classList.add('show'); }
 function closeSettings() { document.getElementById('settingsOverlay').classList.remove('show'); }
 bindTap(document.getElementById('closeSettings'), closeSettings);
@@ -1633,6 +1679,7 @@ function tryMove(dr, dc, dir) {
       el.classList.add('pushing');
     }
     renderDynamic();
+    playBoxFx(el, dr, dc);
     scheduleIdle();
     updateCamera(dir);
     checkWin();
@@ -1650,6 +1697,31 @@ function tryMove(dr, dc, dir) {
   renderDynamic();
   scheduleIdle();
   updateCamera(dir);
+}
+
+/* 箱子推动反馈(开发者模式里选档，默认关)：推完一步，箱子在停下前的最后 ~30% 时间里往推的方向多滑一点再退回来(回弹)；
+   「回弹+压缩」再加一点沿推动方向的挤压。用独立的 translate / scale 属性做 WAAPI 动画，不和 transform 的位移过渡冲突；
+   总时长 = 当步推箱时长，所以角色落脚(收脚帧)和箱子停稳同时发生。幅度都按格子大小折算，滑块 50~200% 整体缩放。 */
+function playBoxFx(el, dr, dc) {
+  const mode = settings.boxFx;
+  if (mode === 'off' || !el || !el.animate) return;
+  if (el._fx) { el._fx.cancel(); el._fx = null; }
+  const k = settings.boxFxPct / 100;
+  const over = tileSize() * 0.06 * k;             // 过冲距离：格子的 6%
+  const sq = 0.05 * k;                             // 挤压量：沿推动方向缩 5%，垂直方向胀 3%
+  const at = (o) => `${dc * o}px ${dr * o}px`;
+  const squash = (a) => dc !== 0 ? `${1 - a} ${1 + a * 0.6}` : `${1 + a * 0.6} ${1 - a}`;
+  const I = { translate: '0 0', scale: '1 1' };
+  const frames = mode === 'squash'
+    ? [{ ...I, offset: 0 }, { ...I, offset: 0.66 },
+       { translate: '0 0', scale: squash(sq), offset: 0.80, easing: 'ease-out' },
+       { translate: at(over), scale: squash(-sq * 0.4), offset: 0.90, easing: 'ease-in-out' },
+       { ...I, offset: 1 }]
+    : [{ ...I, offset: 0 }, { ...I, offset: 0.70 },
+       { translate: at(over), scale: '1 1', offset: 0.86, easing: 'ease-out' },
+       { ...I, offset: 1, easing: 'ease-in-out' }];
+  el._fx = el.animate(frames, { duration: MOVE_DUR, easing: 'linear' });
+  el._fx.onfinish = () => { el._fx = null; };
 }
 
 function lockMovement() {
