@@ -322,21 +322,20 @@ body {
   overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; /* 内容超出一屏时在框内滚动 */
 }
 @media (min-width: 700px) { #settingsWrap { max-width: 640px; } }
-/* 关闭钮：44px 圆形木色钮，压在木框右上角(向外探出 8/6px，仍在屏幕内)；✕ 用两根伪元素画，不依赖字体。以后有美术素材可整体换成图 */
-.panelClose {
-  position: absolute; top: -8px; right: -6px; z-index: 2;
-  width: 44px; height: 44px; padding: 0; border-radius: 50%;
-  border: 3px solid #4a2f17; background: #b8814a;
-  box-shadow: 0 3px 0 #4a2f17, 0 6px 10px rgba(0,0,0,0.35);
+/* 关闭钮：复用主页的木板按钮(.homeBtn 的九宫格素材/字体/描边)，但缩短成 132×48，横跨在木框下边中间，
+   向下探出 26px(仍在屏幕内)；钮在滚动区外面，滚到哪里都在。九宫格只拉伸中间的纯色部分，缩短不违和。
+   边宽按 素材切片(68/56) × 高度/素材高度(239) 折算：48px 高 → 14/11px。选择器带 #settingsWrap 是为了压过 .homeBtn 及其 iPad 覆盖 */
+#settingsWrap .panelClose {
+  position: absolute; left: 0; right: 0; bottom: -26px; margin: 0 auto; z-index: 2;
+  width: 132px; height: 48px;
+  border-width: 14px 11px; border-image-width: 14px 11px;
+  font-size: 20px; letter-spacing: 1px;
 }
-.panelClose::before, .panelClose::after {
-  content: ''; position: absolute; left: 50%; top: 50%;
-  width: 20px; height: 3px; margin: -1.5px 0 0 -10px;
-  background: #f4efe0; border-radius: 2px;
+html[data-lang="zh"] #settingsWrap .panelClose { font-size: 20px; letter-spacing: 4px; }
+@media (min-width: 700px) {
+  #settingsWrap .panelClose { width: 150px; height: 54px; border-width: 15px 13px; border-image-width: 15px 13px; bottom: -30px; font-size: 22px; }
+  html[data-lang="zh"] #settingsWrap .panelClose { font-size: 22px; }
 }
-.panelClose::before { transform: rotate(45deg); }
-.panelClose::after { transform: rotate(-45deg); }
-.panelClose:active { transform: translateY(2px); box-shadow: 0 1px 0 #4a2f17, 0 3px 6px rgba(0,0,0,0.35); }
 
 /* ===== iPad 横屏 =====
    三列：左列D-pad(贴左下，左手拇指)，中间是尽量大的棋盘，右列撤销/步数/地图(贴右下，右手拇指)。
@@ -572,7 +571,7 @@ html[data-lang="zh"] .homeBtn {
     <button class="homeBtn" id="homeSettings" data-i18n="settings">SETTINGS</button>
     <button class="homeBtn disabled" id="homeDev" disabled data-i18n="soon">COMING SOON</button>
   </div>
-  <div id="homeVersion">v1.11.1</div>
+  <div id="homeVersion">v1.11.2</div>
   <div id="homeCredit">Assets: Kenney Sokoban Pack (CC0)<br>Levels: David W. Skinner</div>
 </div>
 <div id="levelPickOverlay">
@@ -700,9 +699,9 @@ html[data-lang="zh"] .homeBtn {
       <div class="settingsLabel" data-i18n="boxFx" style="margin-top:14px">箱子推动反馈</div>
       <div class="swatchRow" id="boxFxRow"></div>
     </div>
-    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.11.1</div>
+    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.11.2</div>
    </div>
-   <button id="closeSettings" class="panelClose" aria-label="Close"></button>
+   <button id="closeSettings" class="homeBtn panelClose" data-i18n="close" aria-label="Close">关闭</button>
   </div>
 </div>
 
@@ -764,7 +763,7 @@ const I18N = {
     boardW: '棋盘宽度', boardH: '棋盘高度',
     advanced: '高级（开发者模式）', unlockAll: '全部解锁',
     walkDur: '走路每步时长', pushDur: '推箱每步时长', durHint: '镜头平移、帧切换、输入节奏自动跟随。数字越小越快，太小会显得飘。',
-    boxFx: '箱子推动反馈', fxOff: '关', fxRebound: '回弹'
+    boxFx: '箱子推动反馈', fxOff: '关', fxRebound: '回弹', close: '关闭'
   },
   en: {
     start: 'START', continue: 'CONTINUE', levels: 'LEVELS', settings: 'SETTINGS', soon: 'COMING SOON',
@@ -785,7 +784,7 @@ const I18N = {
     boardW: 'Board width', boardH: 'Board height',
     advanced: 'Advanced (developer mode)', unlockAll: 'Unlock all',
     walkDur: 'Walk step duration', pushDur: 'Push step duration', durHint: 'Camera pan, frame swaps and input timing follow automatically. Lower is faster; too low feels floaty.',
-    boxFx: 'Box push feedback', fxOff: 'Off', fxRebound: 'Rebound'
+    boxFx: 'Box push feedback', fxOff: 'Off', fxRebound: 'Rebound', close: 'CLOSE'
   }
 };
 function defaultLang() { return (navigator.language || '').toLowerCase().startsWith('zh') ? 'zh' : 'en'; }
