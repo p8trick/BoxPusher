@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="推箱子" id="appTitleMeta">
-<meta name="theme-color" content="#7f8a6a">
+<meta name="theme-color" content="#7f8a6a" id="themeColorMeta">
 <link rel="icon" href="assets/icons/icon-192.png">
 <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
 <title>推箱子 Sokoban</title>
@@ -21,12 +21,32 @@
   --img-crateDone: url('assets/Crates/crate_brownDone.png');
   --tile: 52px;
   --move-dur: 0.3s;
-  --bg: #7f8a6a;
-  --panel: #f4efe0;
+  /* ---- 主题变量（默认：森林绿）。换主题只改 <html data-theme>，下面三套 ---- */
+  --bg: #7f8a6a;            /* 页面底色 */
+  --frame-bg: #7f8a6a;      /* 棋盘外框内部底色；墙外空白格透出的就是它 */
+  --frame-border: #cfc4a4;
+  --panel: #f4efe0;         /* 设置/选关面板底色 */
   --panel-border: #cfc4a4;
-  --ink: #3a3226;
+  --ink: #3a3226;           /* 面板上的文字 */
+  --sub: #8a7d63;           /* 面板上的小标题 */
   --accent: #b8814a;
+  --press: #e8dfc5;         /* 面板按钮按下色 */
+  --cleared: #e4dab8;       /* 选关面板里已通关的格子 */
+  --page-text: #f4efe0;     /* 直接写在页面底色上的文字 */
+  --dpad: #3a3226; --dpad-active: #55493a; --dpad-fg: #f4efe0;
   color-scheme: light;
+}
+:root[data-theme="dark"] {
+  --bg: #0c0e11; --frame-bg: #171a1f; --frame-border: #2c3138;
+  --panel: #1d2026; --panel-border: #343a43; --ink: #e8e4d8; --sub: #9aa0a8;
+  --accent: #d99a55; --press: #2a2f37; --cleared: #2d333c; --page-text: #cfc9b8;
+  --dpad: #252930; --dpad-active: #343a43; --dpad-fg: #d9d4c5;
+  color-scheme: dark;
+}
+:root[data-theme="blue"] {
+  --bg: #27506f; --frame-bg: #2f5f85; --frame-border: #5b8db3;
+  --page-text: #eaf2f8;
+  --dpad: #16324a; --dpad-active: #22486a; --dpad-fg: #eaf2f8;
 }
 /* Kenney 字体：只用在主页按钮等英文/数字标签上(这套字体没有中文字形，中文一律走系统字体)。
    font-weight写成范围，声明这个字体覆盖所有字重，避免浏览器对它做"假粗体"。文件没上传时自动退回下面的备用字体栈 */
@@ -66,51 +86,29 @@ body {
   overflow-x: hidden; /* 只放在body上，不让html的overflow传播到viewport层面干扰fixed定位元素的安全区计算 */
 }
 #app {
-  min-height: 100vh; /* dvh在这台设备standalone模式下算出来偏矮，已证实是bug根源，游戏主界面也用回100vh */
+  height: 100vh; /* dvh在这台设备standalone模式下算出来偏矮，已证实是bug根源，游戏主界面也用回100vh。
+                    这里必须是固定高度(不是min-height)：舞台(#stage)才能在确定的剩余空间里居中，加内边距时不会把页面撑高 */
   display: flex;
   flex-direction: column;
   align-items: center;
   padding: max(16px, env(safe-area-inset-top)) 16px 16px; /* 底部按经验去掉env()，standalone PWA本身已经避让了，叠加会变成扣两次 */
 }
 #app.slowmo { --move-dur: 0.6s; }
-.iconBtn {
-  border: 1px solid rgba(244,239,224,0.4);
-  background: transparent;
-  color: #f4efe0;
-  font-size: 12px;
-  border-radius: 8px;
-  padding: 4px 8px;
-  line-height: 1.4;
+/* 舞台：顶部安全区到D-pad上沿之间的空闲区域，棋盘在里面垂直居中；下沿按D-pad实际显示位置量(JS里的stageInfo) */
+#stage {
+  flex: 1; min-height: 0; width: 100%;
+  display: flex; align-items: center; justify-content: center;
 }
-.iconBtn.on { background: #f4efe0; color: #3a3226; }
-header {
-  width: 100%;
-  max-width: 420px;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 10px;
+#boardBlock { display: inline-flex; flex-direction: column; gap: 6px; }
+/* 关卡编号：小字、不可点击，跟着棋盘右下 */
+#levelTag {
+  align-self: flex-end; height: 16px; line-height: 16px; padding-right: 6px;
+  font-size: 12px; letter-spacing: 0.5px; color: var(--page-text); opacity: 0.75;
+  pointer-events: none;
 }
-h1 { font-size: 17px; margin: 0; font-weight: 700; color: #f4efe0; letter-spacing: 1px; }
-#headerBtns { display: flex; align-items: center; gap: 8px; }
-#levelNav { display: flex; align-items: center; gap: 6px; }
-#levelInfo { font-size: 13px; color: #e6e0cc; white-space: nowrap; }
-#levelNav button {
-  width: 26px; height: 26px;
-  border-radius: 50%;
-  border: 1px solid rgba(244,239,224,0.4);
-  background: transparent;
-  color: #f4efe0;
-  font-size: 15px;
-  line-height: 1;
-  padding: 0;
-}
-#levelNav button:disabled { opacity: 0.3; }
 #board-wrap {
-  background: var(--bg);
-  border: 1px solid var(--panel-border);
+  background: var(--frame-bg);
+  border: 1px solid var(--frame-border);
   border-radius: 16px;
   padding: 10px;
   box-shadow: 0 6px 18px rgba(0,0,0,0.18);
@@ -171,12 +169,17 @@ h1 { font-size: 17px; margin: 0; font-weight: 700; color: #f4efe0; letter-spacin
   background-position: center bottom;
 }
 #controls {
-  margin-top: auto; /* 吃掉#app里剩余的垂直空间,把D-pad和操作按钮组一起沉到屏幕下半部分的拇指热区,而不是紧贴棋盘顶在偏上位置 */
+  flex: none; /* 舞台(#stage)吃掉剩余空间，控制区固定沉在屏幕下半部分的拇指热区 */
   padding-top: 22px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 36px;
+}
+/* 左侧槽位：正常时放D-pad，暂停/地图模式时放图标菜单，两者占同一块216x216，界面不跳 */
+#leftSlot {
+  position: relative; flex: none; width: 216px; height: 216px;
+  margin-left: var(--dpad-offset, 0px);
 }
 #dpad {
   position: relative;
@@ -185,26 +188,25 @@ h1 { font-size: 17px; margin: 0; font-weight: 700; color: #f4efe0; letter-spacin
   height: 216px;
   flex: none;
   transform: scale(var(--dpad-scale, 1));
-  margin-left: var(--dpad-offset, 0px);
 }
 #dpad button, #dpad .fill {
   position: absolute;
   width: 72px;
   height: 72px;
-  background: #3a3226;
-  color: #f4efe0;
+  background: var(--dpad);
+  color: var(--dpad-fg);
   border: none;
   font-size: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
-#dpad .fill { background: #3a3226; }
+#dpad .fill { background: var(--dpad); }
 #up    { top: 0;    left: 72px; border-radius: 12px 12px 0 0; }
 #down  { top: 144px; left: 72px; border-radius: 0 0 12px 12px; }
 #left  { top: 72px; left: 0;   border-radius: 12px 0 0 12px; }
 #right { top: 72px; left: 144px; border-radius: 0 12px 12px 0; }
-#dpad button:active { background: #55493a; }
+#dpad button:active { background: var(--dpad-active); }
 
 /* 掌机分离式：四个按键独立圆形分开摆放，中间留空
    --split-r 是按键中心到dpad中心的距离，靠滑块调，默认76px与原固定布局一致 */
@@ -235,16 +237,35 @@ h1 { font-size: 17px; margin: 0; font-weight: 700; color: #f4efe0; letter-spacin
   font-weight: 600;
 }
 #undo:active { background: #a1442f; }
-#reset {
-  width: 60px; height: 60px;
-  border-radius: 50%;
-  background: var(--panel);
-  color: var(--ink);
-  border: 1px solid var(--panel-border);
-  font-size: 13px;
+#moveCount { font-size: 13px; color: var(--page-text); }
+
+/* 木箱图标按钮：九宫格外框 + 深棕平涂底 + 白色图标(和主页菜单同一套木箱素材) */
+.woodBtn {
+  border-style: solid; border-width: 10px 16px;
+  border-image-source: url('assets/UI/btn_wood.png');
+  border-image-slice: 12 20; border-image-width: 10px 16px; border-image-repeat: stretch;
+  background: #aa733c; background-clip: padding-box;
+  padding: 0; color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  filter: drop-shadow(0 4px 5px rgba(0,0,0,0.35));
 }
-#reset:active { background: #e2d8bc; }
-#moveCount { font-size: 13px; color: #f4efe0; }
+.woodBtn:active { filter: brightness(0.86) drop-shadow(0 2px 3px rgba(0,0,0,0.35)); transform: translateY(1px); }
+.woodBtn svg {
+  width: 68%; height: 68%; fill: currentColor; pointer-events: none;
+  filter: drop-shadow(0 0 1px #3a2410) drop-shadow(0 0 1px #3a2410);
+}
+.woodBtn.armed { background: #b04a2f; animation: armedPulse 0.45s ease-in-out infinite alternate; }
+@keyframes armedPulse { from { transform: scale(1); } to { transform: scale(1.06); } }
+#modeBtn { width: 68px; height: 60px; border-width: 8px 13px; border-image-width: 8px 13px; }
+#modeBtn svg { width: 84%; height: 84%; }
+#pauseMenu {
+  position: absolute; inset: 0; display: none;
+  grid-template-columns: 1fr 1fr; gap: 12px; place-items: center;
+}
+#pauseMenu .woodBtn { width: 100px; height: 100px; }
+/* 暂停/地图模式：D-pad和撤销让位给图标菜单(visibility保留占位，布局不跳) */
+#app.paused #pauseMenu { display: grid; }
+#app.paused #dpad, #app.paused #undo { visibility: hidden; pointer-events: none; }
 #toast {
   position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%) scale(0.9);
   background: rgba(58,50,38,0.92); color: #f4efe0; padding: 16px 24px; border-radius: 14px;
@@ -253,7 +274,6 @@ h1 { font-size: 17px; margin: 0; font-weight: 700; color: #f4efe0; letter-spacin
   z-index: 400; /* 盖过主页(200)和面板(250)，选关时点到锁定关卡也能看到提示 */
 }
 #toast.show { opacity: 1; transform: translate(-50%,-50%) scale(1); }
-footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-align: center; }
 
 #settingsOverlay {
   position: fixed; inset: 0;
@@ -273,6 +293,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
   transform: translateY(16px);
   transition: transform 0.2s ease;
   touch-action: pan-y;
+  max-height: 90vh; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; /* 主题/高级项加进来后可能超出一屏，允许滚动 */
 }
 #settingsOverlay.show #settingsSheet { transform: translateY(0); }
 
@@ -327,9 +348,10 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
   padding: 0;
   color: #fff;
   font-family: 'KenneyFutureNarrow', 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif;
-  font-size: 25px;
+  font-size: 27px;
   font-weight: 700;
-  letter-spacing: 1.5px;
+  letter-spacing: 0.5px; /* Kenney Future 自带字距就很宽，不再额外加 */
+  -webkit-text-stroke: 0.8px #fff; /* 这个字体笔画偏细，同色描一圈把白字略微加粗 */
   line-height: 1;
   /* 白字 + 深棕描边(8方向1.5px)，压在木色上也清楚 */
   text-shadow:
@@ -344,7 +366,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
 /* iPad横屏：屏幕大很多，按钮和字整体放大一档；位置先按竖版逻辑推测(居中偏下)，拿到横版截图后再微调 */
 @media (orientation: landscape) and (min-width: 900px) {
   #homeMenu { width: 360px; gap: 14px; bottom: 9vh; }
-  .homeBtn { height: 66px; font-size: 30px; border-width: 8px 14px; border-image-width: 8px 14px; }
+  .homeBtn { height: 66px; font-size: 32px; border-width: 8px 14px; border-image-width: 8px 14px; }
   #homeVersion { font-size: 13px; }
   #homeCredit { font-size: 12px; }
 }
@@ -400,6 +422,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
 }
 #levelPickList {
   flex: 1; min-height: 0;
+  padding: 2px;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
@@ -407,7 +430,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
 }
 .chapterHead {
   display: flex; justify-content: space-between; align-items: baseline;
-  font-size: 12px; font-weight: 700; color: #8a7d63;
+  font-size: 12px; font-weight: 700; color: var(--sub);
   margin: 16px 2px 8px;
 }
 .chapterHead:first-child { margin-top: 0; }
@@ -426,8 +449,8 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
   font-size: 15px;
   font-weight: 700;
 }
-.levelPickBtn:active { background: #e8dfc5; }
-.levelPickBtn.cleared { background: #e4dab8; }
+.levelPickBtn:active { background: var(--press); }
+.levelPickBtn.cleared { background: var(--cleared); }
 .levelPickBtn.current { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
 .levelPickBtn.locked { opacity: 0.35; }
 .settingsHeader {
@@ -440,7 +463,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
 }
 .settingsSection { margin-bottom: 16px; }
 .settingsSection:last-child { margin-bottom: 0; }
-.settingsLabel { font-size: 12px; color: #8a7d63; margin-bottom: 8px; font-weight: 600; }
+.settingsLabel { font-size: 12px; color: var(--sub); margin-bottom: 8px; font-weight: 600; }
 .swatchRow { display: flex; gap: 10px; flex-wrap: wrap; }
 .swatchBtn {
   width: 54px; display: flex; flex-direction: column; align-items: center; gap: 4px;
@@ -461,7 +484,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
 .pillBtn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 .sliderRow { display: flex; align-items: center; gap: 10px; }
 .sliderRow input[type="range"] { flex: 1; touch-action: pan-x; }
-.sliderRow .sliderVal { font-size: 12px; color: #8a7d63; width: 36px; text-align: right; }
+.sliderRow .sliderVal { font-size: 12px; color: var(--sub); width: 36px; text-align: right; }
 </style>
 </head>
 <body>
@@ -473,7 +496,7 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
     <button class="homeBtn" id="homeSettings">SETTINGS</button>
     <button class="homeBtn disabled" id="homeDev" disabled>COMING SOON</button>
   </div>
-  <div id="homeVersion">v1.7.0</div>
+  <div id="homeVersion">v1.8.0</div>
   <div id="homeCredit">Assets: Kenney Sokoban Pack (CC0)<br>Levels: David W. Skinner</div>
 </div>
 <div id="levelPickOverlay">
@@ -486,45 +509,43 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
   </div>
 </div>
 <div id="app">
-  <header>
-    <h1>推箱子</h1>
-    <div id="headerBtns">
-      <button id="settingsBtn" class="iconBtn">配色</button>
-      <button id="slowmoBtn" class="iconBtn">慢动作</button>
-      <button id="previewBtn" class="iconBtn">地图</button>
+  <div id="stage">
+    <div id="boardBlock">
+      <div id="board-wrap">
+        <div id="board"></div>
+      </div>
+      <div id="levelTag">第 1 关</div>
     </div>
-    <div id="levelNav">
-      <button id="prevLevel">‹</button>
-      <div id="levelInfo">第 1 / 4 关</div>
-      <button id="nextLevel">›</button>
-    </div>
-  </header>
-  <div id="board-wrap">
-    <div id="board"></div>
   </div>
   <div id="controls">
-    <div id="dpad">
-      <div class="fill" style="top:72px;left:72px;border-radius:6px;"></div>
-      <button id="up">▲</button>
-      <button id="left">◀</button>
-      <button id="down">▼</button>
-      <button id="right">▶</button>
+    <div id="leftSlot">
+      <div id="dpad">
+        <div class="fill" style="top:72px;left:72px;border-radius:6px;"></div>
+        <button id="up">▲</button>
+        <button id="left">◀</button>
+        <button id="down">▼</button>
+        <button id="right">▶</button>
+      </div>
+      <div id="pauseMenu"></div>
     </div>
     <div id="actions">
       <button id="undo">撤销</button>
       <div id="moveCount">0 步</div>
-      <button id="reset">重来</button>
+      <button id="modeBtn" class="woodBtn" aria-label="Map / Menu"></button>
     </div>
   </div>
-  <footer>v1.7.0 · 主页改版：木箱按钮 + Kenney字体(菜单固定英文)，版本号/署名加描边并避开屏幕圆角；300关(10章，顺序解锁，进度存档) · 素材 Kenney Sokoban Pack (CC0) · 关卡 David W. Skinner</footer>
 </div>
 <div id="toast"></div>
 
 <div id="settingsOverlay">
   <div id="settingsSheet">
     <div class="settingsHeader">
-      <span>外观配色</span>
+      <span>设置</span>
       <button id="closeSettings">✕</button>
+    </div>
+    <div class="settingsSection">
+      <div class="settingsLabel">界面主题</div>
+      <div class="swatchRow" id="themeSwatches"></div>
     </div>
     <div class="settingsSection">
       <div class="settingsLabel">地板颜色（目标点光圈随地板配套）</div>
@@ -584,6 +605,11 @@ footer { margin-top: 14px; font-size: 11px; color: rgba(244,239,224,0.55); text-
         <span class="sliderVal" id="boardHVal"></span>
       </div>
     </div>
+    <div class="settingsSection" id="advancedSection" style="display:none">
+      <div class="settingsLabel">高级（开发者模式）</div>
+      <div class="swatchRow" id="advancedRow"></div>
+    </div>
+    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.8.0</div>
   </div>
 </div>
 
@@ -614,6 +640,22 @@ const SPRITE = {
   right: { stand: 'Right1', stepA: 'Right2', stepB: 'Right3' }
 };
 
+/* ---------- 图标：Kenney Game Icons (CC0) 里挑出来的6个，直接内嵌成SVG路径。
+   fill用currentColor，颜色跟着按钮的color走，三个主题都不用另配一套 ---------- */
+const ICONS = {"restart":["150 100 50 50","M189.45 119.15 L190.5 121.1 190.55 121.2 Q193.7 127.45 190 133.95 186.3 140.75 178.95 141 178.35 141.05 177.85 140.65 177.4 140.25 177.35 139.6 176.8 136 176.9 134.3 176.95 133.7 177.3 133.25 177.7 132.8 178.35 132.8 181.4 132.55 182.95 129.95 L182.9 130 Q184.4 127.5 183.3 125 181.85 121.6 178.4 121.4 L178.35 121.4 Q175.9 121.35 174.15 123.1 176.6 124.5 177.6 125.4 178 125.75 178.1 126.25 L178.05 127.25 177.35 128 163.45 136.05 162.35 136.2 Q161.8 136.15 161.4 135.7 L161.05 134.7 161.1 118.4 161.3 117.55 161.9 116.95 161.95 116.9 162.7 116.7 163.45 116.9 166.95 118.9 Q168.85 116.35 171.2 115 L171.2 114.95 Q175.95 112.1 181.1 113.4 186.05 114.6 189.3 119 L189.45 119.15"],"levels":["500 0 50 50","M541 10 L541 14 Q541 14.85 540.4 15.45 539.8 16 539 16 L535 16 Q534.15 16 533.55 15.45 533 14.85 533 14 L533 10.05 Q533 9.2 533.55 8.6 534.15 8 535 8 L539 8 Q539.8 8 540.4 8.6 541 9.2 541 10 M529 10 L529 14 Q529 14.85 528.4 15.45 527.8 16 527 16 L523 16 Q522.15 16 521.55 15.45 521 14.85 521 14 L521 10.05 Q521 9.2 521.55 8.6 522.15 8 523 8 L527 8 Q527.8 8 528.4 8.6 529 9.2 529 10 M535 20 L539 20 Q539.8 20 540.4 20.6 541 21.2 541 22 L541 26 Q541 26.85 540.4 27.45 539.8 28 539 28 L535 28 Q534.15 28 533.55 27.45 533 26.85 533 26 L533 22.05 Q533 21.2 533.55 20.6 534.15 20 535 20 M528.4 20.6 Q529 21.2 529 22 L529 26 Q529 26.85 528.4 27.45 527.8 28 527 28 L523 28 Q522.15 28 521.55 27.45 521 26.85 521 26 L521 22.05 Q521 21.2 521.55 20.6 522.15 20 523 20 L527 20 Q527.8 20 528.4 20.6 M541 34 L541 38 Q541 38.85 540.4 39.45 539.8 40 539 40 L535 40 Q534.15 40 533.55 39.45 533 38.85 533 38 L533 34.05 Q533 33.2 533.55 32.6 534.15 32 535 32 L539 32 Q539.8 32 540.4 32.6 541 33.2 541 34 M528.4 32.6 Q529 33.2 529 34 L529 38 Q529 38.85 528.4 39.45 527.8 40 527 40 L523 40 Q522.15 40 521.55 39.45 521 38.85 521 38 L521 34.05 Q521 33.2 521.55 32.6 522.15 32 523 32 L527 32 Q527.8 32 528.4 32.6 M517 10 L517 14 Q517 14.85 516.4 15.45 515.8 16 515 16 L511 16 Q510.15 16 509.55 15.45 509 14.85 509 14 L509 10.05 Q509 9.2 509.55 8.6 510.15 8 511 8 L515 8 Q515.8 8 516.4 8.6 517 9.2 517 10 M515 20 Q515.8 20 516.4 20.6 517 21.2 517 22 L517 26 Q517 26.85 516.4 27.45 515.8 28 515 28 L511 28 Q510.15 28 509.55 27.45 509 26.85 509 26 L509 22.05 Q509 21.2 509.55 20.6 510.15 20 511 20 L515 20 M517 34 L517 38 Q517 38.85 516.4 39.45 515.8 40 515 40 L511 40 Q510.15 40 509.55 39.45 509 38.85 509 38 L509 34.05 Q509 33.2 509.55 32.6 510.15 32 511 32 L515 32 Q515.8 32 516.4 32.6 517 33.2 517 34"],"home":["150 150 50 50","M172.05 191 L166.05 191 Q165.2 191 164.6 190.45 164.05 189.85 164.05 189 L164.05 179 160.05 179 160.05 175 176.05 159 192.05 175 192.05 179 188.05 179 188.05 189 Q188.05 189.85 187.45 190.45 186.85 191 186.05 191 L180.05 191 180.05 179 172.05 179 172.05 191"],"settings":["650 100 50 50","M690.8 119.8 Q692 122.65 692 126 692 126.5 691.65 126.85 691.3 127.2 690.8 127.2 L687.5 127.2 687.1 129.25 690.2 130.55 690.85 131.2 Q691.05 131.65 690.85 132.1 689.7 134.95 687.3 137.35 L686.5 137.65 685.65 137.35 683.3 135 681.55 136.2 682.85 139.25 Q683.05 139.7 682.85 140.15 L682.2 140.8 Q679.35 142 676 142 675.5 142 675.15 141.65 674.8 141.3 674.8 140.8 L674.8 137.5 672.75 137.15 671.5 140.2 670.85 140.85 Q670.4 141.05 669.95 140.85 667.05 139.7 664.7 137.35 664.35 137 664.35 136.5 664.35 136 664.7 135.65 L667.05 133.3 665.85 131.55 662.75 132.85 Q662.3 133.05 661.85 132.85 L661.2 132.2 Q660 129.35 660 126 660 125.5 660.35 125.15 660.7 124.8 661.2 124.8 L664.5 124.8 664.9 122.75 661.8 121.5 661.15 120.85 Q660.95 120.4 661.15 119.95 662.3 117.05 664.7 114.7 665.05 114.35 665.5 114.35 666 114.35 666.35 114.7 L668.7 117.05 Q669.55 116.35 670.45 115.85 L669.15 112.75 Q668.95 112.3 669.15 111.85 669.35 111.4 669.8 111.2 672.65 110 676 110 676.5 110 676.85 110.35 677.2 110.7 677.2 111.2 L677.2 114.5 679.25 114.9 680.55 111.8 Q680.7 111.35 681.15 111.15 681.6 110.95 682.1 111.15 683.95 111.9 685.65 113.2 L687.3 114.7 Q687.65 115.05 687.65 115.55 L687.3 116.35 685 118.7 686.15 120.45 689.25 119.15 Q689.7 118.95 690.15 119.15 L690.8 119.8 M676 118.25 Q672.8 118.25 670.5 120.5 668.25 122.8 668.25 126 668.25 129.2 670.5 131.5 672.8 133.75 676 133.75 679.2 133.75 681.5 131.5 683.75 129.2 683.75 126 683.75 122.8 681.5 120.5 679.2 118.25 676 118.25 M676 122.15 Q677.6 122.15 678.75 123.25 679.9 124.4 679.9 126 679.9 127.6 678.75 128.75 677.6 129.9 676 129.9 674.4 129.9 673.25 128.75 672.15 127.6 672.15 126 672.15 124.4 673.25 123.25 674.4 122.15 676 122.15"],"map":["400 50 50 50","M429.9 71.9 Q429.85 68.65 427.6 66.4 L427.6 66.35 Q425.3 64.1 422 64.1 418.7 64.1 416.35 66.35 L416.3 66.4 Q414.05 68.7 414.05 72.05 414.05 75.3 416.35 77.6 418.65 79.85 421.9 79.9 L422 79.9 Q425.3 79.9 427.55 77.6 L427.6 77.6 Q429.9 75.3 429.9 72.05 L429.9 71.9 M430.5 63.5 Q434 67 434 72.05 434 73.9 433.55 75.55 L434.85 76.9 435.15 77.2 435.5 77.55 440.4 82.45 Q442 84.15 442.05 86.4 L442.05 86.65 Q442 88.9 440.4 90.45 439.05 91.85 437.25 92.1 L436.45 92.15 435.7 92.1 Q433.9 91.85 432.45 90.5 L429.95 88 429.95 87.95 425.7 83.65 426.1 84.1 425.55 83.55 422 84 Q417 84 413.45 80.5 410 77 410 72.05 410 67.05 413.45 63.5 417.05 60 422 60 427.05 60 430.5 63.5 M426.05 74.1 L418.05 74.1 418.05 70.1 426.05 70.1 426.05 74.1"],"back":["50 0 50 50","M90 19 Q90.85 19 91.45 19.6 92 20.2 92 21.05 L92 29 Q92 29.85 91.45 30.45 90.85 31 90 31 L76 31 76 37 Q76 37.85 75.45 38.45 74.85 39 74 39 L72 39 58 25 72 11 74 11 Q74.85 11 75.45 11.6 76 12.2 76 13.05 L76 19 90 19"]};
+function iconSVG(name) {
+  const [vb, d] = ICONS[name];
+  return `<svg viewBox="${vb}" aria-hidden="true"><path d="${d}"/></svg>`;
+}
+
+/* ---------- 界面主题：三套 ---------- */
+const THEME_KEYS = ['green', 'dark', 'blue'];
+const THEMES = {
+  green: { label: '森林绿', bg: '#7f8a6a', frame: '#cfc4a4' },
+  dark:  { label: '酷黑',   bg: '#0c0e11', frame: '#2c3138' },
+  blue:  { label: '海蓝',   bg: '#27506f', frame: '#5b8db3' }
+};
+
 /* ---------- 外观配色：地板/墙壁/箱子，对应用户重新整理后的文件名 ---------- */
 const FLOOR_KEYS = ['grey', 'brown', 'green'];
 const FLOOR_LABELS = { grey: '灰', brown: '棕', green: '绿' };
@@ -623,7 +665,7 @@ const CRATE_KEYS = ['grey', 'red', 'brown', 'blue', 'green'];
 const CRATE_LABELS = { grey: '灰', red: '红', brown: '棕', blue: '蓝', green: '绿' };
 
 const SETTINGS_KEY = 'sokoban_appearance_v1';
-const DEFAULT_SETTINGS = { floor: 'grey', wall: 'red1', crate: 'brown', dpadStyle: 'cross', dpadScale: 100, dpadOffset: 0, dpadOffsetY: 0, dpadGap: 76, boardWPct: 100, boardHPct: 100 };
+const DEFAULT_SETTINGS = { theme: 'green', floor: 'grey', wall: 'red1', crate: 'brown', dpadStyle: 'cross', dpadScale: 100, dpadOffset: 0, dpadOffsetY: 0, dpadGap: 76, boardWPct: 100, boardHPct: 100 };
 
 function loadSettings() {
   try {
@@ -636,6 +678,10 @@ function saveSettings() {
   try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) {}
 }
 function applySettings() {
+  if (!THEMES[settings.theme]) settings.theme = 'green';
+  document.documentElement.dataset.theme = settings.theme;
+  const tc = document.getElementById('themeColorMeta');
+  if (tc) tc.content = THEMES[settings.theme].bg;
   const root = document.documentElement.style;
   root.setProperty('--img-floor', `url('assets/Ground/ground_${settings.floor}.png')`);
   root.setProperty('--img-target', `url('assets/Ground/ground_${settings.floor}Target.png')`);
@@ -667,7 +713,48 @@ function buildSwatchRow(containerId, keys, pathFn, labels, settingsKey) {
     row.appendChild(btn);
   });
 }
+function buildThemeRow() {
+  const row = document.getElementById('themeSwatches');
+  row.innerHTML = '';
+  THEME_KEYS.forEach(key => {
+    const t = THEMES[key];
+    const btn = document.createElement('button');
+    btn.className = 'swatchBtn' + (settings.theme === key ? ' active' : '');
+    btn.innerHTML = `<div class="swatchImg" style="background:linear-gradient(135deg, ${t.bg} 55%, ${t.frame} 55%)"></div><div class="swatchText">${t.label}</div>`;
+    bindTap(btn, () => {
+      settings.theme = key;
+      saveSettings();
+      applySettings();
+      buildThemeRow();
+    });
+    row.appendChild(btn);
+  });
+}
+let slowmoOn = false;
+function setSlowmo(on) {
+  slowmoOn = on;
+  document.getElementById('app').classList.toggle('slowmo', on);
+  IDLE_DELAY = on ? 1200 : 300;
+  MOVE_DUR = on ? 600 : 300;
+}
+function buildAdvancedRow() {
+  const sec = document.getElementById('advancedSection');
+  sec.style.display = progress.debugMode ? '' : 'none';
+  if (!progress.debugMode) return;
+  const row = document.getElementById('advancedRow');
+  row.innerHTML = '';
+  const mk = (label, on, fn) => {
+    const b = document.createElement('button');
+    b.className = 'pillBtn' + (on ? ' active' : '');
+    b.textContent = label;
+    bindTap(b, fn);
+    row.appendChild(b);
+  };
+  mk('慢动作', slowmoOn, () => { setSlowmo(!slowmoOn); buildAdvancedRow(); });
+  mk('全部解锁', progress.debugUnlock, () => { progress.debugUnlock = !progress.debugUnlock; saveProgress(); buildAdvancedRow(); });
+}
 function buildAllSwatchRows() {
+  buildThemeRow();
   buildSwatchRow('floorSwatches', FLOOR_KEYS, k => `assets/Ground/ground_${k}.png`, FLOOR_LABELS, 'floor');
   buildSwatchRow('wallSwatches', WALL_KEYS, k => `assets/Blocks/block_${k}.png`, WALL_LABELS, 'wall');
   buildSwatchRow('crateSwatches', CRATE_KEYS, k => `assets/Crates/crate_${k}.png`, CRATE_LABELS, 'crate');
@@ -687,6 +774,7 @@ function buildDpadStyleRow() {
       applySettings();
       buildDpadStyleRow();
       updateDpadGapVisibility();
+      relayoutBoard();
     });
     row.appendChild(btn);
   });
@@ -713,6 +801,7 @@ document.getElementById('dpadSizeSlider').addEventListener('input', (e) => {
   settings.dpadScale = Number(e.target.value);
   document.getElementById('dpadSizeVal').textContent = `${settings.dpadScale}%`;
   applySettings();
+  relayoutBoard();
 });
 document.getElementById('dpadSizeSlider').addEventListener('change', saveSettings);
 document.getElementById('dpadOffsetSlider').addEventListener('input', (e) => {
@@ -725,6 +814,7 @@ document.getElementById('dpadOffsetYSlider').addEventListener('input', (e) => {
   settings.dpadOffsetY = Number(e.target.value);
   document.getElementById('dpadOffsetYVal').textContent = `${settings.dpadOffsetY}px`;
   applySettings();
+  relayoutBoard();
 });
 document.getElementById('dpadOffsetYSlider').addEventListener('change', saveSettings);
 document.getElementById('dpadGapSlider').addEventListener('input', (e) => {
@@ -735,6 +825,7 @@ document.getElementById('dpadGapSlider').addEventListener('input', (e) => {
 document.getElementById('dpadGapSlider').addEventListener('change', saveSettings);
 // 棋盘宽高预算改了以后，要重新走一遍布局(不只是CSS变量)：tile/棋盘尺寸/视口/镜头夹紧都要重算
 function relayoutBoard() {
+  if (!state) return;
   fitTileSize();
   renderBoardStructure();
   renderDynamic();
@@ -752,9 +843,8 @@ document.getElementById('boardHSlider').addEventListener('input', (e) => {
   relayoutBoard();
 });
 document.getElementById('boardHSlider').addEventListener('change', saveSettings);
-function openSettings() { buildAllSwatchRows(); syncDpadSliders(); document.getElementById('settingsOverlay').classList.add('show'); }
+function openSettings() { buildAllSwatchRows(); syncDpadSliders(); buildAdvancedRow(); document.getElementById('settingsOverlay').classList.add('show'); }
 function closeSettings() { document.getElementById('settingsOverlay').classList.remove('show'); }
-bindTap(document.getElementById('settingsBtn'), openSettings);
 bindTap(document.getElementById('closeSettings'), closeSettings);
 
 // ===== 主页 =====
@@ -763,11 +853,13 @@ function hideHomeScreen() {
   document.getElementById('homeBg').classList.add('hide');
 }
 function showHomeScreen() {
+  refreshHomeUI();
   document.getElementById('homeScreen').classList.remove('hide');
   document.getElementById('homeBg').classList.remove('hide');
 }
+let cameFromGame = false; // 从游戏里点HOME回来的：CONTINUE直接回到原来那关，不重置
 bindTap(document.getElementById('homeStart'), () => {
-  loadLevel(firstUnclearedIndex()); // 从还没通关的第一关继续；全部通关则停在最后一关
+  if (!cameFromGame) loadLevel(firstUnclearedIndex()); // 冷启动：从还没通关的第一关继续；全部通关则停在最后一关
   hideHomeScreen();
 });
 bindTap(document.getElementById('homeSettings'), openSettings);
@@ -867,10 +959,10 @@ function loadProgress() {
     const raw = localStorage.getItem(PROGRESS_KEY);
     if (raw) {
       const p = JSON.parse(raw);
-      return { cleared: p.cleared || {}, debugUnlock: !!p.debugUnlock };
+      return { cleared: p.cleared || {}, debugUnlock: !!p.debugUnlock, debugMode: !!(p.debugMode || p.debugUnlock) };
     }
   } catch (e) {}
-  return { cleared: {}, debugUnlock: false };
+  return { cleared: {}, debugUnlock: false, debugMode: false };
 }
 let progress = loadProgress();
 function saveProgress() {
@@ -882,15 +974,10 @@ function firstUnclearedIndex() {
   for (let i = 0; i < LEVELS.length; i++) if (!isCleared(i)) return i;
   return LEVELS.length - 1;
 }
-function updateNavButtons() {
-  if (!state) return;
-  const idx = state.levelIndex;
-  document.getElementById('prevLevel').disabled = idx === 0;
-  document.getElementById('nextLevel').disabled = idx === LEVELS.length - 1 || !isUnlocked(idx + 1);
-}
+function updateNavButtons() {} // 顶部关卡导航已取消，保留空函数免得到处改调用
 function refreshHomeUI() {
   const any = Object.keys(progress.cleared).length > 0;
-  document.getElementById('homeStart').textContent = any ? 'CONTINUE' : 'START';
+  document.getElementById('homeStart').textContent = (any || cameFromGame) ? 'CONTINUE' : 'START';
 }
 
 let IDLE_DELAY = 300; // 静止后收拢延迟(ms)
@@ -1000,12 +1087,12 @@ function loadLevel(idx) {
   state = parseLevel(LEVELS[idx]);
   state.levelIndex = idx;
   history = [];
+  resetPauseUI(); // 换关/重来一律退出暂停模式
   renderBoardStructure();
   renderDynamic();
   initCamera();
-  document.getElementById('levelInfo').textContent = `第 ${idx+1} / ${LEVELS.length} 关`;
+  document.getElementById('levelTag').textContent = `第 ${idx+1} 关`;
   document.getElementById('moveCount').textContent = `0 步`;
-  updateNavButtons();
 }
 
 function fitTileSize() {
@@ -1029,11 +1116,23 @@ const CAMERA_CFG = {
 let camera = { mode: 'play', normalX: 0, normalY: 0, previewX: 0, previewY: 0, viewW: 0, viewH: 0, boardW: 0, boardH: 0 };
 function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
 
-// 棋盘可用宽高预算，设置里的"棋盘宽度/高度"滑块乘在这里，方便手动避让D-pad
+// 舞台：顶部安全区到D-pad上沿之间。下沿按D-pad实际显示位置(含大小/上下偏移设置)量，
+// D-pad调大或上移时给舞台补一段下内边距，棋盘自动避让、依然在剩余区域里垂直居中
+function stageInfo() {
+  const stage = document.getElementById('stage');
+  const sr = stage.getBoundingClientRect();
+  const dp = document.getElementById('dpad').getBoundingClientRect();
+  const extra = Math.max(0, sr.bottom - (dp.top - 10));
+  stage.style.paddingBottom = extra + 'px';
+  return { height: sr.height - extra };
+}
+// 棋盘可用宽高预算，设置里的"棋盘宽度/高度"滑块乘在这里
 function boardBudget() {
   const horizPadding = 16 * 2 + 10 * 2 + 4;
   const availW = Math.min(window.innerWidth - horizPadding, 460) * (settings.boardWPct / 100);
-  const availH = window.innerHeight * CAMERA_CFG.boardHeightRatio * (settings.boardHPct / 100);
+  const chrome = 10 * 2 + 4;   // board-wrap自身padding+border
+  const tagH = 22;              // 关卡编号小字 + 间距
+  const availH = Math.max(120, stageInfo().height - chrome - tagH) * (settings.boardHPct / 100);
   return { availW, availH };
 }
 
@@ -1127,8 +1226,8 @@ function reclampCamera() {
 }
 
 function updatePreviewBtnUI() {
-  document.getElementById('previewBtn').classList.toggle('on', camera.mode === 'preview');
-  document.getElementById('board').classList.toggle('previewing', camera.mode === 'preview');
+  // 只有真的缩小了(scale<1)才加目标点高亮描边，小图进暂停菜单时保持原样
+  document.getElementById('board').classList.toggle('previewing', camera.mode === 'preview' && computePreviewScale() < 1);
 }
 
 function togglePreview() {
@@ -1140,7 +1239,6 @@ function togglePreview() {
     const centerY = camera.normalY + camera.viewH / 2;
     camera.previewX = clamp(centerX - pViewW / 2, 0, Math.max(0, camera.boardW - pViewW));
     camera.previewY = clamp(centerY - pViewH / 2, 0, Math.max(0, camera.boardH - pViewH));
-    showToast('地图预览：拖动或用D-pad查看全图');
   }
   updatePreviewBtnUI();
   applyCameraTransform(false);
@@ -1363,22 +1461,55 @@ bindTap(document.getElementById('down'), () => requestMove(1, 0, 'down'));
 bindTap(document.getElementById('left'), () => requestMove(0, -1, 'left'));
 bindTap(document.getElementById('right'), () => requestMove(0, 1, 'right'));
 bindTap(document.getElementById('undo'), undo);
-bindTap(document.getElementById('reset'), resetLevel);
-bindTap(document.getElementById('prevLevel'), () => {
-  if (state.levelIndex > 0) loadLevel(state.levelIndex - 1);
-});
-bindTap(document.getElementById('nextLevel'), () => {
-  const n = state.levelIndex + 1;
-  if (n < LEVELS.length && isUnlocked(n)) loadLevel(n);
-});
-bindTap(document.getElementById('slowmoBtn'), () => {
-  const app = document.getElementById('app');
-  const on = app.classList.toggle('slowmo');
-  document.getElementById('slowmoBtn').classList.toggle('on', on);
-  IDLE_DELAY = on ? 1200 : 300;
-  MOVE_DUR = on ? 600 : 300;
-});
-bindTap(document.getElementById('previewBtn'), togglePreview);
+/* ---------- 暂停 / 地图模式 ----------
+   点右下角按钮进入：棋盘缩成全图预览(拖动查看)，D-pad和撤销让位给图标菜单；再点同一个位置(已变成返回图标)退出 */
+let paused = false;
+function updateModeBtn() { document.getElementById('modeBtn').innerHTML = iconSVG(paused ? 'back' : 'map'); }
+function resetPauseUI() {
+  paused = false;
+  document.getElementById('app').classList.toggle('paused', false);
+  clearTimeout(restartArmTimer);
+  const rb = document.getElementById('pause_restart');
+  if (rb) rb.classList.remove('armed');
+  updateModeBtn();
+}
+function setPause(on) {
+  if (paused === on) return;
+  paused = on;
+  document.getElementById('app').classList.toggle('paused', on);
+  if ((camera.mode === 'preview') !== on) togglePreview();
+  if (!on) { clearTimeout(restartArmTimer); document.getElementById('pause_restart').classList.remove('armed'); }
+  updateModeBtn();
+}
+let restartArmTimer = null;
+function onRestartTap() { // 防误触：第一次点先"上膛"，2秒内再点才真的重来
+  const b = document.getElementById('pause_restart');
+  if (!b.classList.contains('armed')) {
+    b.classList.add('armed');
+    showToast('再点一次重新开始');
+    restartArmTimer = setTimeout(() => b.classList.remove('armed'), 2000);
+  } else {
+    clearTimeout(restartArmTimer);
+    b.classList.remove('armed');
+    loadLevel(state.levelIndex);
+  }
+}
+function goHome() { setPause(false); cameFromGame = true; showHomeScreen(); }
+(function buildPauseMenu() {
+  const pm = document.getElementById('pauseMenu');
+  const items = [['restart', 'Restart level', onRestartTap], ['levels', 'Levels', openLevelPick], ['home', 'Home', goHome], ['settings', 'Settings', openSettings]];
+  items.forEach(([name, label, fn]) => {
+    const b = document.createElement('button');
+    b.className = 'woodBtn';
+    b.id = 'pause_' + name;
+    b.setAttribute('aria-label', label);
+    b.innerHTML = iconSVG(name);
+    bindTap(b, fn);
+    pm.appendChild(b);
+  });
+  bindTap(document.getElementById('modeBtn'), () => setPause(!paused));
+  updateModeBtn();
+})();
 
 window.addEventListener('resize', () => {
   fitTileSize();
@@ -1446,7 +1577,7 @@ document.addEventListener('contextmenu', (e) => e.preventDefault()); // 拦长�
 // range滑块需要原生touch拖拽手势，排除在外，否则拖不动
 document.addEventListener('touchstart', (e) => {
   if (e.target.tagName === 'INPUT' && e.target.type === 'range') return;
-  if (e.target.closest && e.target.closest('#levelPickList')) return; // 关卡列表要能滚动
+  if (e.target.closest && e.target.closest('#levelPickList, #settingsSheet')) return; // 关卡列表/设置面板要能滚动
   e.preventDefault();
 }, { passive: false });
 
@@ -1468,7 +1599,7 @@ function bindTap(el, handler) {
   });
 }
 
-// 调试：主页连点版本号7次(4秒内)，切换"全部解锁"，方便直接测大图
+// 开发者模式：主页连点版本号7次(4秒内)开关。开启后设置里出现"高级"(慢动作、全部解锁)
 let _dbgTaps = 0, _dbgTimer = null;
 bindTap(document.getElementById('homeVersion'), () => {
   _dbgTaps++;
@@ -1476,13 +1607,14 @@ bindTap(document.getElementById('homeVersion'), () => {
   _dbgTimer = setTimeout(() => { _dbgTaps = 0; }, 4000);
   if (_dbgTaps >= 7) {
     _dbgTaps = 0;
-    progress.debugUnlock = !progress.debugUnlock;
+    progress.debugMode = !progress.debugMode;
+    if (!progress.debugMode) { progress.debugUnlock = false; setSlowmo(false); }
     saveProgress();
-    updateNavButtons();
-    showToast(progress.debugUnlock ? '调试：已全部解锁' : '调试：已恢复顺序解锁');
+    showToast(progress.debugMode ? '开发者模式：已开启（设置里有「高级」）' : '开发者模式：已关闭');
   }
 });
 
+window.addEventListener('load', relayoutBoard);
 refreshHomeUI();
 loadLevel(firstUnclearedIndex());
 </script>
