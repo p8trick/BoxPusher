@@ -170,6 +170,7 @@ body {
 }
 #controls {
   flex: none; /* 舞台(#stage)吃掉剩余空间，控制区固定沉在屏幕下半部分的拇指热区 */
+  width: 100%;
   padding-top: 22px;
   display: flex;
   align-items: center;
@@ -239,33 +240,36 @@ body {
 #undo:active { background: #a1442f; }
 #moveCount { font-size: 13px; color: var(--page-text); }
 
-/* 木箱图标按钮：九宫格外框 + 深棕平涂底 + 白色图标(和主页菜单同一套木箱素材) */
-.woodBtn {
-  border-style: solid; border-width: 10px 16px;
-  border-image-source: url('assets/UI/btn_wood.png');
-  border-image-slice: 12 20; border-image-width: 10px 16px; border-image-repeat: stretch;
-  background: #aa733c; background-clip: padding-box;
-  padding: 0; color: #fff;
+/* 右下角圆形按钮：和"撤销"同一风格(纯色圆、无材质)，只是换了颜色。游戏中是"地图"图标，暂停模式里变成"返回"，同一个位置来回切 */
+#modeBtn {
+  width: 62px; height: 62px; padding: 0;
+  border-radius: 50%; border: none;
+  background: #c98b3a; color: #fff;
   display: flex; align-items: center; justify-content: center;
-  filter: drop-shadow(0 4px 5px rgba(0,0,0,0.35));
 }
-.woodBtn:active { filter: brightness(0.86) drop-shadow(0 2px 3px rgba(0,0,0,0.35)); transform: translateY(1px); }
-.woodBtn svg {
-  width: 68%; height: 68%; fill: currentColor; pointer-events: none;
-  filter: drop-shadow(0 0 1px #3a2410) drop-shadow(0 0 1px #3a2410);
+#modeBtn:active { background: #b07a2e; }
+#modeBtn svg { width: 58%; height: 58%; fill: currentColor; pointer-events: none; }
+
+/* 暂停/地图模式：D-pad、撤销、步数让位；四个选项排成一行悬在右下角按钮的上方，
+   垂直位置大致还在原来D-pad的高度，不再贴底。布局尺寸不变，所以棋盘不会跳。
+   这一排只在暂停时才创建、退出即删除：常驻的隐藏元素在iOS上会漏出投影(D-pad四周色差分界线的根因) */
+#controls { position: relative; }
+#app.paused #dpad, #app.paused #undo, #app.paused #moveCount { visibility: hidden; pointer-events: none; }
+#pauseRow {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  top: calc(22px + (216px - 60px) / 2 - 12px); /* controls的padding-top(22) + 让60px高的一行在216px高的D-pad区域里垂直居中，再上提12px，和下面的按钮拉开一点距离 */
+  width: 336px; max-width: 100%;
+  display: flex; justify-content: space-between;
 }
-.woodBtn.armed { background: #b04a2f; animation: armedPulse 0.45s ease-in-out infinite alternate; }
-@keyframes armedPulse { from { transform: scale(1); } to { transform: scale(1.06); } }
-#modeBtn { width: 68px; height: 60px; border-width: 8px 13px; border-image-width: 8px 13px; }
-#modeBtn svg { width: 84%; height: 84%; }
-#pauseMenu {
-  position: absolute; inset: 0; display: none;
-  grid-template-columns: 1fr 1fr; gap: 12px; place-items: center;
+#pauseRow button {
+  width: 60px; height: 60px; padding: 0; border-radius: 50%;
+  border: 1px solid var(--panel-border); background: var(--panel); color: var(--ink);
+  display: flex; align-items: center; justify-content: center;
 }
-#pauseMenu .woodBtn { width: 100px; height: 100px; }
-/* 暂停/地图模式：D-pad和撤销让位给图标菜单(visibility保留占位，布局不跳) */
-#app.paused #pauseMenu { display: grid; }
-#app.paused #dpad, #app.paused #undo { visibility: hidden; pointer-events: none; }
+#pauseRow button:active { background: var(--press); }
+#pauseRow button svg { width: 56%; height: 56%; fill: currentColor; pointer-events: none; }
+#pauseRow button.armed { background: #b8543f; border-color: #b8543f; color: #fff; animation: armedPulse 0.45s ease-in-out infinite alternate; }
+@keyframes armedPulse { from { opacity: 1; } to { opacity: 0.7; } }
 #toast {
   position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%) scale(0.9);
   background: rgba(58,50,38,0.92); color: #f4efe0; padding: 16px 24px; border-radius: 14px;
@@ -496,7 +500,7 @@ body {
     <button class="homeBtn" id="homeSettings">SETTINGS</button>
     <button class="homeBtn disabled" id="homeDev" disabled>COMING SOON</button>
   </div>
-  <div id="homeVersion">v1.8.0</div>
+  <div id="homeVersion">v1.8.2</div>
   <div id="homeCredit">Assets: Kenney Sokoban Pack (CC0)<br>Levels: David W. Skinner</div>
 </div>
 <div id="levelPickOverlay">
@@ -526,12 +530,11 @@ body {
         <button id="down">▼</button>
         <button id="right">▶</button>
       </div>
-      <div id="pauseMenu"></div>
     </div>
     <div id="actions">
       <button id="undo">撤销</button>
       <div id="moveCount">0 步</div>
-      <button id="modeBtn" class="woodBtn" aria-label="Map / Menu"></button>
+      <button id="modeBtn" aria-label="Map / Menu"></button>
     </div>
   </div>
 </div>
@@ -580,7 +583,7 @@ body {
     <div class="settingsSection">
       <div class="settingsLabel">D-pad 位置（上下偏移）</div>
       <div class="sliderRow">
-        <input type="range" id="dpadOffsetYSlider" min="-40" max="40" step="5">
+        <input type="range" id="dpadOffsetYSlider" min="-200" max="40" step="5">
         <span class="sliderVal" id="dpadOffsetYVal"></span>
       </div>
     </div>
@@ -609,7 +612,7 @@ body {
       <div class="settingsLabel">高级（开发者模式）</div>
       <div class="swatchRow" id="advancedRow"></div>
     </div>
-    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.8.0</div>
+    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.8.2</div>
   </div>
 </div>
 
@@ -1462,28 +1465,25 @@ bindTap(document.getElementById('left'), () => requestMove(0, -1, 'left'));
 bindTap(document.getElementById('right'), () => requestMove(0, 1, 'right'));
 bindTap(document.getElementById('undo'), undo);
 /* ---------- 暂停 / 地图模式 ----------
-   点右下角按钮进入：棋盘缩成全图预览(拖动查看)，D-pad和撤销让位给图标菜单；再点同一个位置(已变成返回图标)退出 */
+   点右下角圆形按钮进入：棋盘切成全图预览(拖动查看)，D-pad/撤销/步数隐藏，四个选项排成一行悬在按钮上方；
+   同一个按钮(此时是返回图标)再点一次退出。选项行只在暂停时才创建，退出即删除。 */
 let paused = false;
-function updateModeBtn() { document.getElementById('modeBtn').innerHTML = iconSVG(paused ? 'back' : 'map'); }
-function resetPauseUI() {
-  paused = false;
-  document.getElementById('app').classList.toggle('paused', false);
-  clearTimeout(restartArmTimer);
-  const rb = document.getElementById('pause_restart');
-  if (rb) rb.classList.remove('armed');
-  updateModeBtn();
-}
-function setPause(on) {
-  if (paused === on) return;
-  paused = on;
-  document.getElementById('app').classList.toggle('paused', on);
-  if ((camera.mode === 'preview') !== on) togglePreview();
-  if (!on) { clearTimeout(restartArmTimer); document.getElementById('pause_restart').classList.remove('armed'); }
-  updateModeBtn();
-}
 let restartArmTimer = null;
+function updateModeBtn() { document.getElementById('modeBtn').innerHTML = iconSVG(paused ? 'back' : 'map'); }
+function removePauseRow() {
+  clearTimeout(restartArmTimer);
+  const r = document.getElementById('pauseRow');
+  if (r) r.remove();
+}
+function resetPauseUI() { // 换关/重来时调用：直接退出暂停模式(后面loadLevel会整体重排)
+  paused = false;
+  document.getElementById('app').classList.remove('paused');
+  removePauseRow();
+  updateModeBtn();
+}
 function onRestartTap() { // 防误触：第一次点先"上膛"，2秒内再点才真的重来
   const b = document.getElementById('pause_restart');
+  if (!b) return;
   if (!b.classList.contains('armed')) {
     b.classList.add('armed');
     showToast('再点一次重新开始');
@@ -1494,22 +1494,37 @@ function onRestartTap() { // 防误触：第一次点先"上膛"，2秒内再点
     loadLevel(state.levelIndex);
   }
 }
-function goHome() { setPause(false); cameFromGame = true; showHomeScreen(); }
-(function buildPauseMenu() {
-  const pm = document.getElementById('pauseMenu');
-  const items = [['restart', 'Restart level', onRestartTap], ['levels', 'Levels', openLevelPick], ['home', 'Home', goHome], ['settings', 'Settings', openSettings]];
-  items.forEach(([name, label, fn]) => {
+const PAUSE_ITEMS = [
+  ['restart',  'Restart level', () => onRestartTap()],
+  ['levels',   'Levels',        () => openLevelPick()],
+  ['home',     'Home',          () => goHome()],
+  ['settings', 'Settings',      () => openSettings()]
+];
+function buildPauseRow() {
+  removePauseRow();
+  const row = document.createElement('div');
+  row.id = 'pauseRow';
+  PAUSE_ITEMS.forEach(([name, label, fn]) => {
     const b = document.createElement('button');
-    b.className = 'woodBtn';
     b.id = 'pause_' + name;
     b.setAttribute('aria-label', label);
     b.innerHTML = iconSVG(name);
     bindTap(b, fn);
-    pm.appendChild(b);
+    row.appendChild(b);
   });
-  bindTap(document.getElementById('modeBtn'), () => setPause(!paused));
+  document.getElementById('controls').appendChild(row);
+}
+function setPause(on) {
+  if (paused === on) return;
+  paused = on;
+  document.getElementById('app').classList.toggle('paused', on);
+  if (on) buildPauseRow(); else removePauseRow();
+  if ((camera.mode === 'preview') !== on) togglePreview();
   updateModeBtn();
-})();
+}
+function goHome() { setPause(false); cameFromGame = true; showHomeScreen(); }
+bindTap(document.getElementById('modeBtn'), () => setPause(!paused));
+updateModeBtn();
 
 window.addEventListener('resize', () => {
   fitTileSize();
