@@ -368,18 +368,18 @@ body {
   gap: 12px;
 }
 /* 木箱按钮：九宫格。只取外框，中间用素材里的深棕色平涂，文字压在纯色上最清楚。
-   等以后有更好的美术素材，换 assets/UI/btn_wood.png 并调下面 border-image 的切片数值即可 */
+   换素材：替换 assets/UI/btn_wood_menu.png，并按新图的四角大小调下面 border-image-slice / border-width */
 .homeBtn {
   height: 56px;
   border-style: solid;
-  border-width: 7px 12px;
-  border-image-source: url('assets/UI/btn_wood.png');
-  border-image-slice: 12 20;
-  border-image-width: 7px 12px;
+  border-width: 16px 13px;   /* = 素材切片(68/56px) x 按钮高度/素材高度(56/239)，四角保持等比 */
+  border-image-source: url('assets/UI/btn_wood_menu.png');
+  border-image-slice: 68 56 fill; /* fill：把中间部分也铺满按钮(否则九宫格中间是空的) */
+  border-image-width: 16px 13px;
   border-image-repeat: stretch;
-  background: #aa733c;
+  background: #aa733c;       /* 素材没加载到时的兜底底色(border-image盖不到边角) */
   background-clip: padding-box;
-  padding: 0;
+  padding: 0 0 3px;          /* 木板下沿有一条厚阴影，视觉中心偏上，文字跟着略微上提 */
   color: #fff;
   font-family: 'KenneyFutureNarrow', 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif;
   font-size: 27px;
@@ -405,7 +405,7 @@ html[data-lang="zh"] .homeBtn {
 /* iPad横屏：屏幕大很多，按钮和字整体放大一档；位置先按竖版逻辑推测(居中偏下)，拿到横版截图后再微调 */
 @media (orientation: landscape) and (min-width: 900px) {
   #homeMenu { width: 360px; gap: 14px; bottom: 9vh; }
-  .homeBtn { height: 66px; font-size: 32px; border-width: 8px 14px; border-image-width: 8px 14px; }
+  .homeBtn { height: 66px; font-size: 32px; border-width: 19px 15px; border-image-width: 19px 15px; } /* 68/56 x 66/239，同上 */
   html[data-lang="zh"] .homeBtn { font-size: 29px; }
   #homeVersion { font-size: 13px; }
   #homeCredit { font-size: 12px; }
@@ -536,7 +536,7 @@ html[data-lang="zh"] .homeBtn {
     <button class="homeBtn" id="homeSettings" data-i18n="settings">SETTINGS</button>
     <button class="homeBtn disabled" id="homeDev" disabled data-i18n="soon">COMING SOON</button>
   </div>
-  <div id="homeVersion">v1.9.1</div>
+  <div id="homeVersion">v1.9.2</div>
   <div id="homeCredit">Assets: Kenney Sokoban Pack (CC0)<br>Levels: David W. Skinner</div>
 </div>
 <div id="levelPickOverlay">
@@ -652,7 +652,7 @@ html[data-lang="zh"] .homeBtn {
       <div class="settingsLabel" data-i18n="advanced">高级（开发者模式）</div>
       <div class="swatchRow" id="advancedRow"></div>
     </div>
-    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.9.1</div>
+    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.9.2</div>
   </div>
 </div>
 
@@ -1046,7 +1046,7 @@ document.getElementById('settingsOverlay').addEventListener('click', (e) => {
 const _preloadedImages = [];
 function preloadAllAssets() {
   const paths = [
-    'assets/UI/btn_wood.png',
+    'assets/UI/btn_wood_menu.png',
     ...Object.values(PLAYER_FRAMES),
     ...FLOOR_KEYS.flatMap(k => [`assets/Ground/ground_${k}.png`, `assets/Ground/ground_${k}Target.png`]),
     ...WALL_KEYS.map(k => `assets/Blocks/block_${k}.png`),
