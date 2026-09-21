@@ -194,37 +194,46 @@ body {
   flex: none;
   transform: scale(var(--dpad-scale, 1));
 }
-#dpad button, #dpad .fill {
-  position: absolute;
-  width: 72px;
-  height: 72px;
-  background: var(--dpad);
-  color: var(--dpad-fg);
-  border: none;
-  font-size: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+/* ---- D-pad 图形(素材在 assets/UI/dpad/，颜色全走主题变量)----
+   用 mask 把单色 svg 当"模具"，背景色就是主题色：--dpad 底色 / --dpad-fg 描边+箭头 / --dpad-active 按下时的底色；
+   按下高亮直接用素材自带的橙色渐变图(dpad_*highlight.svg)，--dpad-hl-filter 可以整体调色；命中区用 clip-path 裁出形状 */
+:root { --dpad-hl-filter: saturate(0.9) hue-rotate(-4deg); }
+.dpSet { position: absolute; inset: 0; }
+#dpadSplit { display: none; }
+#dpad.style-split #dpadSplit { display: block; }
+#dpad.style-split #dpadCross { display: none; }
+.dkey {
+  padding: 0; border: 0; background: transparent; outline: none; appearance: none; -webkit-appearance: none;
+  -webkit-tap-highlight-color: transparent;
 }
-#dpad .fill { background: var(--dpad); }
-#up    { top: 0;    left: 72px; border-radius: 12px 12px 0 0; }
-#down  { top: 144px; left: 72px; border-radius: 0 0 12px 12px; }
-#left  { top: 72px; left: 0;   border-radius: 12px 0 0 12px; }
-#right { top: 72px; left: 144px; border-radius: 0 12px 12px 0; }
-#dpad button:active { background: var(--dpad-active); }
-
-/* 掌机分离式：四个按键独立圆形分开摆放，中间留空
-   --split-r 是按键中心到dpad中心的距离，靠滑块调，默认76px与原固定布局一致 */
-#dpad.style-split .fill { display: none; }
-#dpad.style-split button {
-  width: 64px; height: 64px;
-  border-radius: 50%;
+/* 十字 */
+#dpadCross .dl { position: absolute; inset: 0; pointer-events: none; }
+.dpBody  { background: var(--dpad);        -webkit-mask: url('assets/UI/dpad/dpad_fill.svg') center / 100% 100% no-repeat; mask: url('assets/UI/dpad/dpad_fill.svg') center / 100% 100% no-repeat; }
+.dpLight { background: var(--dpad-active); -webkit-mask: url('assets/UI/dpad/dpad_fill.svg') center / 100% 100% no-repeat; mask: url('assets/UI/dpad/dpad_fill.svg') center / 100% 100% no-repeat; opacity: 0; }
+.dpRing  { background: var(--dpad-fg);     -webkit-mask: url('assets/UI/dpad/dpad.svg') center / 100% 100% no-repeat;      mask: url('assets/UI/dpad/dpad.svg') center / 100% 100% no-repeat; }
+.dpHl    { background: url('assets/UI/dpad/dpad_highlight.svg') center / 100% 100% no-repeat; filter: var(--dpad-hl-filter); opacity: 0; }
+#dpadCross .dkey { position: absolute; inset: 0; width: 100%; height: 100%; }
+#up    { clip-path: polygon(30.47% 0, 69.53% 0, 69.53% 34.38%, 50% 43.75%, 30.47% 34.38%); }
+#down  { clip-path: polygon(30.47% 100%, 69.53% 100%, 69.53% 65.63%, 50% 56.25%, 30.47% 65.63%); }
+#left  { clip-path: polygon(0 30.47%, 0 69.53%, 34.38% 69.53%, 43.75% 50%, 34.38% 30.47%); }
+#right { clip-path: polygon(100% 30.47%, 100% 69.53%, 65.63% 69.53%, 56.25% 50%, 65.63% 30.47%); }
+/* 按下(脚本给 #dpad 加 data-down="方向")：被按的那一臂底色变亮 + 换成高亮描边(用 clip-path 只截取那一臂) */
+#dpad[data-down] .dpLight, #dpad[data-down] .dpHl { opacity: 1; }
+#dpad[data-down="up"]    :is(.dpLight, .dpHl) { clip-path: polygon(30.16% 0, 69.84% 0, 69.84% 35.16%, 30.16% 35.16%); }
+#dpad[data-down="down"]  :is(.dpLight, .dpHl) { clip-path: polygon(30.16% 64.84%, 69.84% 64.84%, 69.84% 100%, 30.16% 100%); }
+#dpad[data-down="left"]  :is(.dpLight, .dpHl) { clip-path: polygon(0 30.16%, 35.16% 30.16%, 35.16% 69.84%, 0 69.84%); }
+#dpad[data-down="right"] :is(.dpLight, .dpHl) { clip-path: polygon(64.84% 30.16%, 100% 30.16%, 100% 69.84%, 64.84% 69.84%); }
+/* 分离：四块独立(64×64)，各自放在 dpad 中心(108,108)沿方向偏 --split-r 处；--split-r = 「分离按键间距」，含义：键中心到 dpad 中心的距离 */
+.dpiece {
+  position: absolute; left: 0; top: 0; width: 64px; height: 64px;
+  transform: translate(calc(108px + var(--tx) * var(--split-r, 48px) - 32px), calc(108px + var(--ty) * var(--split-r, 48px) - 32px));
 }
-#dpad.style-split #up    { top: calc(76px - var(--split-r, 76px)); left: 76px; }
-#dpad.style-split #down  { top: calc(76px + var(--split-r, 76px)); left: 76px; }
-#dpad.style-split #left  { top: 76px; left: calc(76px - var(--split-r, 76px)); }
-#dpad.style-split #right { top: 76px; left: calc(76px + var(--split-r, 76px)); }
-
+.dpiece i { position: absolute; inset: 0; pointer-events: none; }
+.dpiece .pBody { background: var(--dpad);    -webkit-mask: var(--m-fill) center / 100% 100% no-repeat; mask: var(--m-fill) center / 100% 100% no-repeat; }
+.dpiece .pRing { background: var(--dpad-fg); -webkit-mask: var(--m-ring) center / 100% 100% no-repeat; mask: var(--m-ring) center / 100% 100% no-repeat; }
+.dpiece .pHl   { background: var(--i-hl) center / 100% 100% no-repeat; filter: var(--dpad-hl-filter); opacity: 0; }
+.dpiece.on .pBody { background: var(--dpad-active); }
+.dpiece.on .pHl { opacity: 1; }
 
 #actions {
   display: flex;
@@ -577,7 +586,7 @@ html[data-lang="zh"] .homeBtn {
     <button class="homeBtn" id="homeSettings" data-i18n="settings">SETTINGS</button>
     <button class="homeBtn disabled" id="homeDev" disabled data-i18n="soon">COMING SOON</button>
   </div>
-  <div id="homeVersion">v1.11.4</div>
+  <div id="homeVersion">v1.12.1</div>
   <div id="homeCredit">Assets: Kenney Sokoban Pack (CC0)<br>Levels: David W. Skinner</div>
 </div>
 <div id="levelPickOverlay">
@@ -601,11 +610,16 @@ html[data-lang="zh"] .homeBtn {
   <div id="controls">
     <div id="leftSlot">
       <div id="dpad">
-        <div class="fill" style="top:72px;left:72px;border-radius:6px;"></div>
-        <button id="up">▲</button>
-        <button id="left">◀</button>
-        <button id="down">▼</button>
-        <button id="right">▶</button>
+        <!-- D-pad：图形都在 assets/UI/dpad/ 里(svg)，用 CSS mask 上主题色，命中区用 clip-path。
+             十字：#dpadCross 里 4 层图 + 4 个透明按键；分离：#dpadSplit 里的四块由脚本按 DPAD_SPLIT_DEFS 生成 -->
+        <div id="dpadCross" class="dpSet">
+          <i class="dl dpBody"></i><i class="dl dpLight"></i><i class="dl dpRing"></i><i class="dl dpHl"></i>
+          <button id="up" class="dkey" data-dir="up" aria-label="Up"></button>
+          <button id="left" class="dkey" data-dir="left" aria-label="Left"></button>
+          <button id="down" class="dkey" data-dir="down" aria-label="Down"></button>
+          <button id="right" class="dkey" data-dir="right" aria-label="Right"></button>
+        </div>
+        <div id="dpadSplit" class="dpSet"></div>
       </div>
     </div>
     <div id="actions">
@@ -670,7 +684,7 @@ html[data-lang="zh"] .homeBtn {
     <div class="settingsSection" id="dpadGapSection">
       <div class="settingsLabel" data-i18n="dpadGap">分离按键间距</div>
       <div class="sliderRow">
-        <input type="range" id="dpadGapSlider" min="45" max="95" step="1">
+        <input type="range" id="dpadGapSlider" min="36" max="95" step="1">
         <span class="sliderVal" id="dpadGapVal"></span>
       </div>
     </div>
@@ -705,7 +719,7 @@ html[data-lang="zh"] .homeBtn {
       <div class="settingsLabel" data-i18n="boxFx" style="margin-top:14px">箱子推动反馈</div>
       <div class="swatchRow" id="boxFxRow"></div>
     </div>
-    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.11.4</div>
+    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.12.1</div>
    </div>
    <button id="closeSettings" class="homeBtn panelClose" data-i18n="close" aria-label="Close">关闭</button>
   </div>
@@ -817,7 +831,7 @@ const CRATE_KEYS = ['grey', 'red', 'brown', 'blue', 'green'];
 const CRATE_LABELS = { grey: '灰', red: '红', brown: '棕', blue: '蓝', green: '绿' };
 
 const SETTINGS_KEY = 'sokoban_appearance_v1';
-const DEFAULT_SETTINGS = { lang: defaultLang(), theme: 'green', floor: 'grey', wall: 'red1', crate: 'brown', dpadStyle: 'cross', dpadScale: 100, dpadOffset: 0, dpadOffsetY: 0, dpadGap: 76, boardWPct: 100, boardHPct: 100, walkMs: 260, pushMs: 300, boxFx: 'rebound', tuneVer: 1 };
+const DEFAULT_SETTINGS = { lang: defaultLang(), theme: 'green', floor: 'grey', wall: 'red1', crate: 'brown', dpadStyle: 'cross', dpadCross: { scale: 100, x: 0, y: 0 }, dpadSplit: { scale: 100, x: 0, y: 0, gap: 48 }, boardWPct: 100, boardHPct: 100, walkMs: 260, pushMs: 300, boxFx: 'rebound', tuneVer: 1 };
 // tuneVer：手感类默认值(走路/推箱时长、箱子回弹)的版本号。存档里没有或者比这个旧，就把这几项重置成上面的默认值，
 // 否则老设备存着的旧数字会一直盖住新默认值。以后再改这几个默认值，把 tuneVer 加 1 即可。
 
@@ -827,6 +841,12 @@ function loadSettings() {
     if (!raw) return { ...DEFAULT_SETTINGS };
     const saved = JSON.parse(raw);
     const st = { ...DEFAULT_SETTINGS, ...saved };
+    if (!saved.dpadCross && !saved.dpadSplit) { // 旧版本：十字/分离共用一套参数 → 拆成各自一份，起始值都等于旧值(间距只属于分离式)
+      const o = { scale: saved.dpadScale ?? 100, x: saved.dpadOffset ?? 0, y: saved.dpadOffsetY ?? 0 };
+      st.dpadCross = { ...o };
+      st.dpadSplit = { ...o, gap: saved.dpadGap ?? 48 };
+    }
+    ['dpadScale', 'dpadOffset', 'dpadOffsetY', 'dpadGap'].forEach(k => delete st[k]);
     if (saved.tuneVer !== DEFAULT_SETTINGS.tuneVer) {
       ['walkMs', 'pushMs', 'boxFx'].forEach(k => { st[k] = DEFAULT_SETTINGS[k]; });
       delete st.boxFxPct; // 旧版本的强度滑块，已取消
@@ -838,6 +858,7 @@ function loadSettings() {
 function saveSettings() {
   try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) {}
 }
+function dpadCfg() { return settings.dpadStyle === 'split' ? settings.dpadSplit : settings.dpadCross; } // 当前样式的那一份 D-pad 参数
 function applySettings() {
   if (!THEMES[settings.theme]) settings.theme = 'green';
   document.documentElement.dataset.theme = settings.theme;
@@ -855,10 +876,15 @@ function applySettings() {
   root.setProperty('--img-wall', `url('assets/Blocks/block_${settings.wall}.png')`);
   root.setProperty('--img-crate', `url('assets/Crates/crate_${settings.crate}.png')`);
   root.setProperty('--img-crateDone', `url('assets/Crates/crate_${settings.crate}Done.png')`);
-  root.setProperty('--dpad-scale', settings.dpadScale / 100);
-  root.setProperty('--dpad-offset', `${settings.dpadOffset}px`);
-  root.setProperty('--dpad-offset-y', `${settings.dpadOffsetY}px`);
-  root.setProperty('--split-r', `${settings.dpadGap}px`);
+  // 十字和分离式各存一份大小/位置(分离式还有间距)，切样式时滑块跟着换；这里顺便把存档里的怪值夹回范围
+  const nd = (o, d, lim) => { const r = { ...d, ...(o || {}) }; Object.keys(lim).forEach(k => { r[k] = Math.max(lim[k][0], Math.min(lim[k][1], Number(r[k]) || d[k])); }); return r; };
+  settings.dpadCross = nd(settings.dpadCross, DEFAULT_SETTINGS.dpadCross, { scale: [70, 140], x: [-50, 50], y: [-200, 40] });
+  settings.dpadSplit = nd(settings.dpadSplit, DEFAULT_SETTINGS.dpadSplit, { scale: [70, 140], x: [-50, 50], y: [-200, 40], gap: [36, 95] });
+  const dc = dpadCfg();
+  root.setProperty('--dpad-scale', dc.scale / 100);
+  root.setProperty('--dpad-offset', `${dc.x}px`);
+  root.setProperty('--dpad-offset-y', `${dc.y}px`);
+  root.setProperty('--split-r', `${settings.dpadSplit.gap}px`);
   document.getElementById('dpad').classList.toggle('style-split', settings.dpadStyle === 'split');
 }
 let settings = loadSettings();
@@ -977,7 +1003,7 @@ function buildDpadStyleRow() {
       saveSettings();
       applySettings();
       buildDpadStyleRow();
-      updateDpadGapVisibility();
+      syncDpadSliders(); // 滑块换成这个样式自己的数值
       relayoutBoard();
     });
     row.appendChild(btn);
@@ -987,14 +1013,15 @@ function updateDpadGapVisibility() {
   document.getElementById('dpadGapSection').style.display = settings.dpadStyle === 'split' ? '' : 'none';
 }
 function syncDpadSliders() {
-  document.getElementById('dpadSizeSlider').value = settings.dpadScale;
-  document.getElementById('dpadSizeVal').textContent = `${settings.dpadScale}%`;
-  document.getElementById('dpadOffsetSlider').value = settings.dpadOffset;
-  document.getElementById('dpadOffsetVal').textContent = `${settings.dpadOffset}px`;
-  document.getElementById('dpadOffsetYSlider').value = settings.dpadOffsetY;
-  document.getElementById('dpadOffsetYVal').textContent = `${settings.dpadOffsetY}px`;
-  document.getElementById('dpadGapSlider').value = settings.dpadGap;
-  document.getElementById('dpadGapVal').textContent = `${settings.dpadGap}px`;
+  const dc = dpadCfg();
+  document.getElementById('dpadSizeSlider').value = dc.scale;
+  document.getElementById('dpadSizeVal').textContent = `${dc.scale}%`;
+  document.getElementById('dpadOffsetSlider').value = dc.x;
+  document.getElementById('dpadOffsetVal').textContent = `${dc.x}px`;
+  document.getElementById('dpadOffsetYSlider').value = dc.y;
+  document.getElementById('dpadOffsetYVal').textContent = `${dc.y}px`;
+  document.getElementById('dpadGapSlider').value = settings.dpadSplit.gap;
+  document.getElementById('dpadGapVal').textContent = `${settings.dpadSplit.gap}px`;
   updateDpadGapVisibility();
   document.getElementById('boardWSlider').value = settings.boardWPct;
   document.getElementById('boardWVal').textContent = `${settings.boardWPct}%`;
@@ -1006,28 +1033,28 @@ function syncDpadSliders() {
   document.getElementById('pushDurVal').textContent = `${settings.pushMs}ms`;
 }
 document.getElementById('dpadSizeSlider').addEventListener('input', (e) => {
-  settings.dpadScale = Number(e.target.value);
-  document.getElementById('dpadSizeVal').textContent = `${settings.dpadScale}%`;
+  dpadCfg().scale = Number(e.target.value);
+  document.getElementById('dpadSizeVal').textContent = `${dpadCfg().scale}%`;
   applySettings();
   relayoutBoard();
 });
 document.getElementById('dpadSizeSlider').addEventListener('change', saveSettings);
 document.getElementById('dpadOffsetSlider').addEventListener('input', (e) => {
-  settings.dpadOffset = Number(e.target.value);
-  document.getElementById('dpadOffsetVal').textContent = `${settings.dpadOffset}px`;
+  dpadCfg().x = Number(e.target.value);
+  document.getElementById('dpadOffsetVal').textContent = `${dpadCfg().x}px`;
   applySettings();
 });
 document.getElementById('dpadOffsetSlider').addEventListener('change', saveSettings);
 document.getElementById('dpadOffsetYSlider').addEventListener('input', (e) => {
-  settings.dpadOffsetY = Number(e.target.value);
-  document.getElementById('dpadOffsetYVal').textContent = `${settings.dpadOffsetY}px`;
+  dpadCfg().y = Number(e.target.value);
+  document.getElementById('dpadOffsetYVal').textContent = `${dpadCfg().y}px`;
   applySettings();
   relayoutBoard();
 });
 document.getElementById('dpadOffsetYSlider').addEventListener('change', saveSettings);
 document.getElementById('dpadGapSlider').addEventListener('input', (e) => {
-  settings.dpadGap = Number(e.target.value);
-  document.getElementById('dpadGapVal').textContent = `${settings.dpadGap}px`;
+  settings.dpadSplit.gap = Number(e.target.value);
+  document.getElementById('dpadGapVal').textContent = `${settings.dpadSplit.gap}px`;
   applySettings();
 });
 document.getElementById('dpadGapSlider').addEventListener('change', saveSettings);
@@ -1140,10 +1167,21 @@ document.getElementById('settingsOverlay').addEventListener('click', (e) => {
    动作帧 + 三类配色的全部变体都建一个 Image() 去加载，用一个数组接住引用防止
    被GC提前回收，加载完成前后都不影响其他初始化（不阻塞渲染，纯后台抓取）*/
 const _preloadedImages = [];
+/* D-pad 分离式四块：素材文件名里的方位 north/east/south/west = 上/右/下/左；poly 是命中形状(64×64 内，五边形，尖角朝中心) */
+const DPAD_DIR = 'assets/UI/dpad/';
+const DPAD_SPLIT_DEFS = [
+  { id: 'sup',    name: 'north', tx: 0,  ty: -1, dr: -1, dc: 0,  dir: 'up',    poly: '0 0, 64px 0, 64px 32px, 32px 64px, 0 32px' },
+  { id: 'sdown',  name: 'south', tx: 0,  ty: 1,  dr: 1,  dc: 0,  dir: 'down',  poly: '32px 0, 64px 32px, 64px 64px, 0 64px, 0 32px' },
+  { id: 'sleft',  name: 'west',  tx: -1, ty: 0,  dr: 0,  dc: -1, dir: 'left',  poly: '0 0, 32px 0, 64px 32px, 32px 64px, 0 64px' },
+  { id: 'sright', name: 'east',  tx: 1,  ty: 0,  dr: 0,  dc: 1,  dir: 'right', poly: '32px 0, 64px 0, 64px 64px, 32px 64px, 0 32px' },
+];
+const DPAD_FILES = ['dpad.svg', 'dpad_fill.svg', 'dpad_highlight.svg',
+  ...DPAD_SPLIT_DEFS.flatMap(d => [`dpad_element_${d.name}.svg`, `dpad_element_${d.name}_fill.svg`, `dpad_element_${d.name}_highlight.svg`])];
 function preloadAllAssets() {
   const paths = [
     'assets/UI/btn_wood_menu.png',
     'assets/UI/btn_wood_panel.png',
+    ...DPAD_FILES.map(f => DPAD_DIR + f),
     ...Object.values(PLAYER_FRAMES),
     ...FLOOR_KEYS.flatMap(k => [`assets/Ground/ground_${k}.png`, `assets/Ground/ground_${k}Target.png`]),
     ...WALL_KEYS.map(k => `assets/Blocks/block_${k}.png`),
@@ -1809,6 +1847,32 @@ bindTap(document.getElementById('up'), () => requestMove(-1, 0, 'up'));
 bindTap(document.getElementById('down'), () => requestMove(1, 0, 'down'));
 bindTap(document.getElementById('left'), () => requestMove(0, -1, 'left'));
 bindTap(document.getElementById('right'), () => requestMove(0, 1, 'right'));
+// 分离式的四块键：由 DPAD_SPLIT_DEFS 生成(图形素材走 CSS 变量)，动作与十字的 up/down/left/right 同一套
+(() => {
+  const host = document.getElementById('dpadSplit');
+  DPAD_SPLIT_DEFS.forEach(d => {
+    const f = (suffix) => `url(${DPAD_DIR}dpad_element_${d.name}${suffix}.svg)`;
+    const b = document.createElement('button');
+    b.id = d.id; b.className = 'dkey dpiece'; b.dataset.dir = d.dir; b.setAttribute('aria-label', d.dir);
+    b.style.cssText = `--tx:${d.tx};--ty:${d.ty};--m-fill:${f('_fill')};--m-ring:${f('')};--i-hl:${f('_highlight')};clip-path:polygon(${d.poly})`;
+    b.innerHTML = '<i class="pBody"></i><i class="pRing"></i><i class="pHl"></i>';
+    host.appendChild(b);
+    bindTap(b, () => requestMove(d.dr, d.dc, d.dir));
+  });
+})();
+// 按下反馈：手指按着时高亮(十字：#dpad 加 data-down；分离：那一块加 .on)，松手/移开/取消时去掉。动作本身仍由 bindTap 在 touchend 触发
+(() => {
+  const dpad = document.getElementById('dpad');
+  document.querySelectorAll('#dpad .dkey').forEach((el) => {
+    const dir = el.dataset.dir, split = el.classList.contains('dpiece');
+    const on = () => { if (split) el.classList.add('on'); else dpad.dataset.down = dir; };
+    const off = () => { if (split) el.classList.remove('on'); else if (dpad.dataset.down === dir) delete dpad.dataset.down; };
+    el.addEventListener('touchstart', on, { passive: true });
+    ['touchend', 'touchcancel'].forEach(ev => el.addEventListener(ev, off));
+    el.addEventListener('mousedown', on);
+    ['mouseup', 'mouseleave'].forEach(ev => el.addEventListener(ev, off));
+  });
+})();
 bindTap(document.getElementById('undo'), undo);
 /* ---------- 暂停 / 地图模式 ----------
    点右下角圆形按钮进入：棋盘切成全图预览(拖动查看)，D-pad/撤销/步数隐藏，四个选项排成一行悬在按钮上方；
