@@ -322,24 +322,25 @@ body {
   overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; /* 内容超出一屏时在框内滚动 */
 }
 @media (min-width: 700px) { #settingsWrap { max-width: 640px; } }
-/* 关闭钮：复用主页的木板按钮(.homeBtn 的九宫格素材/字体/描边)，但缩短成 132×48，横跨在木框下边中间，
-   向下探出 26px(仍在屏幕内)；钮在滚动区外面，滚到哪里都在。九宫格只拉伸中间的纯色部分，缩短不违和。
-   边宽按 素材切片(68/56) × 高度/素材高度(239) 折算：48px 高 → 14/11px。选择器带 #settingsWrap 是为了压过 .homeBtn 及其 iPad 覆盖 */
+/* 关闭钮：面板专用的木板按钮 assets/UI/btn_wood_panel.png(448×126，由主页的 btn_wood_menu.png 调成木框同色系并缩小得到，主页按钮仍用原图)。
+   还是九宫格：切片 36 30(上下/左右，= 原图 68/56 × 126/238)，按钮 116×42，边宽 = 切片 × 42/126 = 12/10px，
+   即 3× 屏上 1:1 显示。横跨在木框下边中间，向下探出 22px(仍在屏幕内)；钮在滚动区外面，滚到哪里都在。
+   视觉只有 116×42，点击区用 ::after 向四周多扩 4px(≈124×50)。选择器带 #settingsWrap 是为了压过 .homeBtn 及其 iPad 覆盖 */
 #settingsWrap .panelClose {
-  position: absolute; left: 0; right: 0; bottom: -26px; margin: 0 auto; z-index: 2;
-  width: 132px; height: 48px;
-  border-width: 14px 11px; border-image-width: 14px 11px;
-  font-size: 20px; letter-spacing: 1px;
-  /* 木板比木框更饱和、偏红(实测：木框 色相31°/饱和49%，木板 色相24°/饱和68%)，用滤镜往木框的颜色靠一点，只作用在这颗钮上，不改素材图，
-     主页按钮不受影响。想更贴近木框：saturate(.6) hue-rotate(10deg) brightness(1.12)；想保留更多原色：saturate(.8) hue-rotate(3deg) brightness(1.06) */
-  --plank-tint: saturate(0.7) hue-rotate(6deg) brightness(1.1);
-  filter: var(--plank-tint) drop-shadow(0 4px 6px rgba(0,0,0,0.35));
+  position: absolute; left: 0; right: 0; bottom: -22px; margin: 0 auto; z-index: 2;
+  width: 116px; height: 42px;
+  border-width: 12px 10px;
+  border-image-source: url('assets/UI/btn_wood_panel.png');
+  border-image-slice: 36 30 fill; border-image-width: 12px 10px;
+  padding: 0 0 2px;
+  font-size: 18px; letter-spacing: 1px;
 }
-#settingsWrap .panelClose:active { filter: var(--plank-tint) brightness(0.86) drop-shadow(0 2px 3px rgba(0,0,0,0.35)); }
-html[data-lang="zh"] #settingsWrap .panelClose { font-size: 20px; letter-spacing: 4px; }
-@media (min-width: 700px) {
-  #settingsWrap .panelClose { width: 150px; height: 54px; border-width: 15px 13px; border-image-width: 15px 13px; bottom: -30px; font-size: 22px; }
-  html[data-lang="zh"] #settingsWrap .panelClose { font-size: 22px; }
+#settingsWrap .panelClose::after { content: ''; position: absolute; inset: -4px; }
+#settingsWrap .panelClose:active { filter: brightness(0.86) drop-shadow(0 2px 3px rgba(0,0,0,0.35)); }
+html[data-lang="zh"] #settingsWrap .panelClose { font-size: 18px; letter-spacing: 3px; }
+@media (min-width: 700px) { /* iPad：整体放大约 10%，2× 屏上仍是缩小显示，不糊 */
+  #settingsWrap .panelClose { width: 128px; height: 46px; border-width: 13px 11px; border-image-width: 13px 11px; bottom: -24px; font-size: 20px; }
+  html[data-lang="zh"] #settingsWrap .panelClose { font-size: 20px; }
 }
 
 /* ===== iPad 横屏 =====
@@ -576,7 +577,7 @@ html[data-lang="zh"] .homeBtn {
     <button class="homeBtn" id="homeSettings" data-i18n="settings">SETTINGS</button>
     <button class="homeBtn disabled" id="homeDev" disabled data-i18n="soon">COMING SOON</button>
   </div>
-  <div id="homeVersion">v1.11.3</div>
+  <div id="homeVersion">v1.11.4</div>
   <div id="homeCredit">Assets: Kenney Sokoban Pack (CC0)<br>Levels: David W. Skinner</div>
 </div>
 <div id="levelPickOverlay">
@@ -704,7 +705,7 @@ html[data-lang="zh"] .homeBtn {
       <div class="settingsLabel" data-i18n="boxFx" style="margin-top:14px">箱子推动反馈</div>
       <div class="swatchRow" id="boxFxRow"></div>
     </div>
-    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.11.3</div>
+    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.11.4</div>
    </div>
    <button id="closeSettings" class="homeBtn panelClose" data-i18n="close" aria-label="Close">关闭</button>
   </div>
@@ -1142,6 +1143,7 @@ const _preloadedImages = [];
 function preloadAllAssets() {
   const paths = [
     'assets/UI/btn_wood_menu.png',
+    'assets/UI/btn_wood_panel.png',
     ...Object.values(PLAYER_FRAMES),
     ...FLOOR_KEYS.flatMap(k => [`assets/Ground/ground_${k}.png`, `assets/Ground/ground_${k}Target.png`]),
     ...WALL_KEYS.map(k => `assets/Blocks/block_${k}.png`),
