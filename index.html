@@ -5,11 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="推箱子" id="appTitleMeta">
+<meta name="apple-mobile-web-app-title" content="BoxPusher" id="appTitleMeta">
 <meta name="theme-color" content="#7f8a6a" id="themeColorMeta">
 <link rel="icon" href="assets/icons/icon-192.png">
 <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
-<title>推箱子 Sokoban</title>
+<title>BoxPusher</title>
 <link rel="manifest" href="manifest.json">
 <link rel="preload" href="assets/fonts/kenney_future_narrow.ttf" as="font" type="font/ttf" crossorigin>
 <style>
@@ -586,7 +586,7 @@ html[data-lang="zh"] .homeBtn {
     <button class="homeBtn" id="homeSettings" data-i18n="settings">SETTINGS</button>
     <button class="homeBtn disabled" id="homeDev" disabled data-i18n="soon">COMING SOON</button>
   </div>
-  <div id="homeVersion">v1.12.1</div>
+  <div id="homeVersion">v1.12.2</div>
   <div id="homeCredit">Assets: Kenney Sokoban Pack (CC0)<br>Levels: David W. Skinner</div>
 </div>
 <div id="levelPickOverlay">
@@ -719,7 +719,7 @@ html[data-lang="zh"] .homeBtn {
       <div class="settingsLabel" data-i18n="boxFx" style="margin-top:14px">箱子推动反馈</div>
       <div class="swatchRow" id="boxFxRow"></div>
     </div>
-    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.12.1</div>
+    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.12.2</div>
    </div>
    <button id="closeSettings" class="homeBtn panelClose" data-i18n="close" aria-label="Close">关闭</button>
   </div>
@@ -727,15 +727,16 @@ html[data-lang="zh"] .homeBtn {
 
 <script src="levels.js"></script>
 <script>
-/* ---------- 主屏幕图标标题：跟随系统语言自动切换中/英文 ----------
-   iOS「添加到主屏幕」读取的是 apple-mobile-web-app-title 这个meta,
-   不是 manifest.json 的 name,所以在这里动态改这个meta和<title> */
+/* ---------- 主屏幕图标标题：跟随系统语言自动切换中文「推箱子」/英文「BoxPusher」 ----------
+   iOS「添加到主屏幕」取名字看的是页面里的 apple-mobile-web-app-title 这个meta(没有就用<title>)，
+   manifest.json 是一份静态文件、不能按语言给不同名字，所以中/英文名在这里按系统语言动态设置。
+   注意：名字是「添加那一刻」定下的，已经在主屏幕上的旧图标不会变，要删掉重新添加。 */
 (function () {
   const isZh = (navigator.language || '').toLowerCase().startsWith('zh');
-  const title = isZh ? '推箱子' : 'Sokoban';
+  const title = isZh ? '推箱子' : 'BoxPusher';
   const meta = document.getElementById('appTitleMeta');
   if (meta) meta.content = title;
-  document.title = isZh ? '推箱子 Sokoban' : 'Sokoban';
+  document.title = title;
 })();
 
 /* ---------- 素材帧表：行走与推箱共用同一套12帧，不再区分动作 ---------- */
