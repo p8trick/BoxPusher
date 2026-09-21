@@ -10,7 +10,19 @@
 <link rel="icon" href="assets/icons/icon-192.png">
 <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
 <title>BoxPusher</title>
-<link rel="manifest" href="manifest.json">
+<script>
+/* manifest 才是 iOS 生成主屏幕图标时真正取名字的地方(「添加」弹窗里预填的是页面标题，生成后的图标用 manifest 的 name)。
+   manifest 是静态文件、不能按语言给不同名字，所以准备两份：manifest.json(英文 BoxPusher) 和 manifest-zh.json(中文 推箱子)，
+   这里按系统语言二选一，在解析页面时就把 link 建好。两份的 start_url/scope/图标都一样，只有名字/描述/lang 不同。 */
+(function () {
+  var zh = (navigator.language || '').toLowerCase().indexOf('zh') === 0;
+  var l = document.createElement('link');
+  l.rel = 'manifest';
+  l.href = zh ? 'manifest-zh.json' : 'manifest.json';
+  document.head.appendChild(l);
+})();
+</script>
+<noscript><link rel="manifest" href="manifest.json"></noscript>
 <link rel="preload" href="assets/fonts/kenney_future_narrow.ttf" as="font" type="font/ttf" crossorigin>
 <style>
 :root {
@@ -587,7 +599,7 @@ html[data-lang="zh"] .homeBtn {
     <button class="homeBtn" id="homeSettings" data-i18n="settings">SETTINGS</button>
     <button class="homeBtn disabled" id="homeDev" disabled data-i18n="soon">COMING SOON</button>
   </div>
-  <div id="homeVersion">v1.12.3</div>
+  <div id="homeVersion">v1.12.4</div>
   <div id="homeCredit">Assets: Kenney Sokoban Pack (CC0)<br>Levels: David W. Skinner</div>
 </div>
 <div id="levelPickOverlay">
@@ -720,7 +732,7 @@ html[data-lang="zh"] .homeBtn {
       <div class="settingsLabel" data-i18n="boxFx" style="margin-top:14px">箱子推动反馈</div>
       <div class="swatchRow" id="boxFxRow"></div>
     </div>
-    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.12.3</div>
+    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.12.4</div>
    </div>
    <button id="closeSettings" class="homeBtn panelClose" data-i18n="close" aria-label="Close">关闭</button>
   </div>
@@ -729,8 +741,8 @@ html[data-lang="zh"] .homeBtn {
 <script src="levels.js"></script>
 <script>
 /* ---------- 主屏幕图标标题：跟随系统语言自动切换中文「推箱子」/英文「BoxPusher」 ----------
-   iOS「添加到主屏幕」取名字看的是页面里的 apple-mobile-web-app-title 这个meta(没有就用<title>)，
-   manifest.json 是一份静态文件、不能按语言给不同名字，所以中/英文名在这里按系统语言动态设置。
+   这里管的是页面标题和「添加到主屏幕」弹窗里预填的名字(apple-mobile-web-app-title)；
+   生成后主屏幕图标实际用的名字取自 manifest，见 <head> 里按系统语言选 manifest.json / manifest-zh.json 的那段。
    注意：名字是「添加那一刻」定下的，已经在主屏幕上的旧图标不会变，要删掉重新添加。 */
 (function () {
   const isZh = (navigator.language || '').toLowerCase().startsWith('zh');
