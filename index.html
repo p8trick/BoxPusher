@@ -330,7 +330,12 @@ body {
   width: 132px; height: 48px;
   border-width: 14px 11px; border-image-width: 14px 11px;
   font-size: 20px; letter-spacing: 1px;
+  /* 木板比木框更饱和、偏红(实测：木框 色相31°/饱和49%，木板 色相24°/饱和68%)，用滤镜往木框的颜色靠一点，只作用在这颗钮上，不改素材图，
+     主页按钮不受影响。想更贴近木框：saturate(.6) hue-rotate(10deg) brightness(1.12)；想保留更多原色：saturate(.8) hue-rotate(3deg) brightness(1.06) */
+  --plank-tint: saturate(0.7) hue-rotate(6deg) brightness(1.1);
+  filter: var(--plank-tint) drop-shadow(0 4px 6px rgba(0,0,0,0.35));
 }
+#settingsWrap .panelClose:active { filter: var(--plank-tint) brightness(0.86) drop-shadow(0 2px 3px rgba(0,0,0,0.35)); }
 html[data-lang="zh"] #settingsWrap .panelClose { font-size: 20px; letter-spacing: 4px; }
 @media (min-width: 700px) {
   #settingsWrap .panelClose { width: 150px; height: 54px; border-width: 15px 13px; border-image-width: 15px 13px; bottom: -30px; font-size: 22px; }
@@ -571,7 +576,7 @@ html[data-lang="zh"] .homeBtn {
     <button class="homeBtn" id="homeSettings" data-i18n="settings">SETTINGS</button>
     <button class="homeBtn disabled" id="homeDev" disabled data-i18n="soon">COMING SOON</button>
   </div>
-  <div id="homeVersion">v1.11.2</div>
+  <div id="homeVersion">v1.11.3</div>
   <div id="homeCredit">Assets: Kenney Sokoban Pack (CC0)<br>Levels: David W. Skinner</div>
 </div>
 <div id="levelPickOverlay">
@@ -699,7 +704,7 @@ html[data-lang="zh"] .homeBtn {
       <div class="settingsLabel" data-i18n="boxFx" style="margin-top:14px">箱子推动反馈</div>
       <div class="swatchRow" id="boxFxRow"></div>
     </div>
-    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.11.2</div>
+    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.11.3</div>
    </div>
    <button id="closeSettings" class="homeBtn panelClose" data-i18n="close" aria-label="Close">关闭</button>
   </div>
