@@ -1,7 +1,8 @@
 {
   "name": "BoxPusher",
   "short_name": "BoxPusher",
-  "description": "极简像素风推箱子小游戏，支持地板/墙壁/箱子自定义配色",
+  "description": "A minimalist pixel-art box-pushing puzzle game with customizable floor, wall and crate colors.",
+  "lang": "en",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
