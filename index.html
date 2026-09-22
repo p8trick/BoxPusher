@@ -532,34 +532,35 @@ html[data-lang="zh"] .homeBtn {
 #winTitle {
   position: absolute; left: 0; right: 0; top: 3.6%; text-align: center;
   font-family: 'KenneyFutureNarrow', 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif;
-  font-size: clamp(18px, 6.5vw, 26px); font-weight: 700; color: #fff;
+  font-size: clamp(20px, 7.2vw, 29px); font-weight: 700; color: #fff;
   -webkit-text-stroke: 0.09em #1d3f34; paint-order: stroke fill; letter-spacing: 1px;
 }
 #winBody {
   position: absolute; left: 8%; right: 8%; top: 16%; bottom: 24%;
   display: flex; flex-direction: column; align-items: center; justify-content: space-evenly;
 }
-#winStars { display: flex; gap: 8px; }
+#winStars { display: flex; gap: 14px; }
 /* 星星大小改用固定 clamp，不再用百分比：#winStars 本身没有显式宽度(shrink-to-fit的flex子项)，
    子元素却按它的宽度算百分比——这种循环依赖在 Chrome 里会让百分比宽度直接算成 0，星星等于隐形，这是真bug不是没显示对 */
-#winStars .ico { width: clamp(22px, 7.5vw, 32px); height: clamp(22px, 7.5vw, 32px); background: rgba(255,255,255,0.6); filter: drop-shadow(0 2px 0 rgba(29,63,52,0.5)); }
+#winStars .ico { width: clamp(40px, 15vw, 58px); height: clamp(40px, 15vw, 58px); background: rgba(255,255,255,0.6); filter: drop-shadow(0 2px 0 rgba(29,63,52,0.5)); } /* 故意比标题字号大：这是这张卡片的视觉重心 */
 #winStars .ico.filled { background: #f2c34e; }
 #winSteps, #winBest {
   font-family: 'KenneyFutureNarrow', 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif;
   color: #fff; -webkit-text-stroke: 0.06em #1d3f34; paint-order: stroke fill; text-align: center;
 }
-#winSteps { font-size: clamp(16px, 5.5vw, 22px); }
-#winBest { font-size: clamp(12px, 4vw, 16px); opacity: 0.85; }
-#winButtons { position: absolute; left: 0; right: 0; bottom: 7%; display: flex; justify-content: center; gap: 9%; }
+#winSteps { font-size: clamp(18px, 6.2vw, 25px); }
+#winBest { font-size: clamp(13px, 4.5vw, 18px); opacity: 0.85; }
+#winButtons { position: absolute; left: 0; right: 0; bottom: 6%; display: flex; justify-content: center; gap: 8%; }
 .winBadge {
-  width: 19%; aspect-ratio: 1; border-radius: 50%; border: none; padding: 0;
+  width: 22%; aspect-ratio: 1; border-radius: 50%; border: none; padding: 0;
   display: flex; align-items: center; justify-content: center;
   background: #8a7d63; color: #fff;
-  box-shadow: 0 4px 8px rgba(0,0,0,0.35), inset 0 2px 0 rgba(255,255,255,0.25);
+  /* 底部阴影加深加厚：更大的位移+模糊+更高不透明度，圆徽悬浮感更明显 */
+  box-shadow: 0 7px 4px -2px rgba(0,0,0,0.4), 0 10px 14px rgba(0,0,0,0.35), inset 0 2px 0 rgba(255,255,255,0.25);
 }
 .winBadge.next { background: #e0a83c; color: #2a2000; } /* 主操作(下一关)用金色，和次要的重试拉开层次 */
 .winBadge:active { filter: brightness(0.88); transform: translateY(1px); }
-.winBadge .ico { width: 46%; height: 46%; }
+.winBadge .ico { width: 58%; height: 58%; }
 .winBadge.hide { display: none; }
 #winButtons.single .winBadge.next { display: none; } /* 已经是最后一关：只留重试，见 openWinPanel */
 
@@ -609,7 +610,7 @@ html[data-lang="zh"] .homeBtn {
 }
 .lpTileWrap { display: flex; flex-direction: column; align-items: center; }
 .levelPickBtn {
-  position: relative; width: 100%; aspect-ratio: 384 / 449; /* = level_tile 素材的真实宽高比，别改成 4:5 会拉伸变形 */
+  position: relative; width: 100%; aspect-ratio: 1; /* 正方形木板素材(v1.14.2起)，不再是384/449的木箱比例 */
   padding: 0; border: 0; background: var(--lp-tile, url('assets/UI/level_tile_light.png')) center / 100% 100% no-repeat;
   display: flex; align-items: center; justify-content: center;
 }
@@ -710,7 +711,7 @@ html[data-lang="zh"] .homeBtn {
     <button class="homeBtn" id="homeSettings" data-i18n="settings">SETTINGS</button>
     <button class="homeBtn disabled" id="homeDev" disabled data-i18n="soon">COMING SOON</button>
   </div>
-  <div id="homeVersion">v1.14.1</div>
+  <div id="homeVersion">v1.14.2</div>
   <div id="homeCredit">Assets: Kenney Sokoban Pack (CC0)<br>Levels: David W. Skinner</div>
 </div>
 <div id="winOverlay">
@@ -863,7 +864,7 @@ html[data-lang="zh"] .homeBtn {
       <div class="settingsLabel" data-i18n="boxFx" style="margin-top:14px">箱子推动反馈</div>
       <div class="swatchRow" id="boxFxRow"></div>
     </div>
-    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.14.1</div>
+    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.14.2</div>
    </div>
    <button id="closeSettings" class="homeBtn panelClose" data-i18n="close" aria-label="Close">关闭</button>
   </div>
