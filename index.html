@@ -502,67 +502,111 @@ html[data-lang="zh"] .homeBtn {
   pointer-events: none; /* 这一条全宽横条不能吃掉点击 */
 }
 
-/* ===== 关卡选择 ===== */
+/* ===== 关卡选择：木框浮层，结构和设置面板(#settingsOverlay/.artPanel)同一套，宽度更大以放下木箱网格 =====
+   #levelPickWrap 是面板 + 底部木板的外层；面板本身可滚动，木板固定在外面(不随列表滚动)。
+   每关一块木箱(assets/UI/level_tile_light.png，9-slice四角不拉伸，中间纯色区域拉伸铺满格子——
+   实测边框占比小，直接拉伸不明显走样，比裁 9-slice 简单)；已解锁显示白字描边关卡号，未解锁盖一个 icon_lock 图标、
+   整块降饱和调暗；三星评分位置已经留好(.lpStars)，暂时是空的占位，等基准步数出来再点亮。
+   iPhone 竖屏固定 4 列；iPad(面板变宽后)用 JS 按面板内宽度算合适列数(4~8)，横屏通常落在 6 列左右。 */
 #levelPickOverlay {
   position: fixed; inset: 0;
   background: rgba(0,0,0,0.45);
-  display: flex; align-items: flex-end; justify-content: center;
+  -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+  display: flex; align-items: center; justify-content: center;
+  padding: max(5vh, env(safe-area-inset-top)) 14px 5vh;
   z-index: 250;
   opacity: 0; pointer-events: none;
   transition: opacity 0.2s ease;
 }
 #levelPickOverlay.show { opacity: 1; pointer-events: auto; }
-#levelPickSheet {
-  background: var(--panel);
-  width: 100%; max-width: 460px;
-  max-height: 80vh; /* 300关要能滚动，面板不能撑满屏幕 */
+#levelPickWrap {
+  position: relative;
+  width: 100%; max-width: 620px; /* 比设置面板(460)宽，好放下 4 列木箱；iPad 上还会再放宽，见下面 media */
+  max-height: 100%;
   display: flex; flex-direction: column;
-  border-radius: 20px 20px 0 0;
-  padding: 18px 18px 18px; /* 底部去掉env()，同上原因 */
-  box-shadow: 0 -6px 24px rgba(0,0,0,0.25);
-  transform: translateY(16px);
+  transform: scale(0.96);
   transition: transform 0.2s ease;
 }
-#levelPickList {
-  flex: 1; min-height: 0;
-  padding: 2px;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-  touch-action: pan-y; /* 全局touchstart拦截对这里放行，否则列表滚不动 */
+#levelPickOverlay.show #levelPickWrap { transform: scale(1); }
+#levelPickSheet {
+  width: 100%; min-height: 0;
+  padding: 10px 12px 26px; /* 底部多留一点，避免最后一排贴着木框下边 */
+  touch-action: pan-y;
+  overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
 }
+@media (min-width: 700px) { #levelPickWrap { max-width: 900px; } }
 .chapterHead {
   display: flex; justify-content: space-between; align-items: baseline;
-  font-size: 12px; font-weight: 700; color: var(--sub);
-  margin: 16px 2px 8px;
+  font-size: 13px; font-weight: 700; color: var(--sub);
+  margin: 18px 4px 10px;
 }
-.chapterHead:first-child { margin-top: 0; }
-#levelPickOverlay.show #levelPickSheet { transform: translateY(0); }
+.chapterHead:first-child { margin-top: 2px; }
 .levelPickGrid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(var(--lp-cols, 4), 1fr);
+  gap: 14px 10px;
 }
+.lpTileWrap { display: flex; flex-direction: column; align-items: center; }
 .levelPickBtn {
-  padding: 12px 0;
-  border-radius: 12px;
-  border: 1px solid var(--panel-border);
-  background: none;
-  color: var(--ink);
-  font-size: 15px;
-  font-weight: 700;
+  position: relative; width: 100%; aspect-ratio: 384 / 449; /* = level_tile 素材的真实宽高比，别改成 4:5 会拉伸变形 */
+  padding: 0; border: 0; background: var(--lp-tile, url('assets/UI/level_tile_light.png')) center / 100% 100% no-repeat;
+  display: flex; align-items: center; justify-content: center;
 }
-.levelPickBtn:active { background: var(--press); }
-.levelPickBtn.cleared { background: var(--cleared); }
-.levelPickBtn.current { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
-.levelPickBtn.locked { opacity: 0.35; }
+.levelPickBtn:active { filter: brightness(0.92); }
+.levelPickBtn .num {
+  font-family: 'KenneyFutureNarrow', 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif;
+  font-size: clamp(18px, 7vw, 30px); font-weight: 700; color: #fff;
+  -webkit-text-stroke: 3px #4a2f17; paint-order: stroke fill; letter-spacing: 0;
+}
+.levelPickBtn.current::after { /* 当前关：外圈一圈强调色描边，和选关小面板 .current 同一个视觉语言 */
+  content: ''; position: absolute; inset: -5px; border: 3px solid var(--accent); border-radius: 10px; pointer-events: none;
+}
+.levelPickBtn.locked { filter: saturate(0.5) brightness(0.8); }
+.levelPickBtn.locked .num { display: none; }
+.levelPickBtn .ico.lockIco { width: 34%; height: 34%; background: #f0dfc0; }
+.lpStars { height: 11px; margin-top: 5px; display: flex; gap: 2px; opacity: 0.55; } /* 占位：三星评级还没做，先放三个空心位置 */
+.lpStars i { width: 11px; height: 11px; background: var(--sub);
+  -webkit-mask: url('assets/UI/icons/icon_star_outline.svg') center/contain no-repeat; mask: url('assets/UI/icons/icon_star_outline.svg') center/contain no-repeat; }
+/* 底部固定木板：结构、九宫格切片都和设置面板的关闭木板(.panelClose)同一套，只是更宽、装两个图标键 */
+#lpPlank {
+  position: absolute; left: 0; right: 0; bottom: -22px; margin: 0 auto; z-index: 2;
+  width: 148px; height: 42px;
+  display: flex; align-items: stretch; justify-content: space-evenly;
+  border-style: solid; border-width: 12px 10px;
+  border-image-source: url('assets/UI/btn_wood_panel.png');
+  border-image-slice: 36 30 fill; border-image-width: 12px 10px;
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,0.35));
+}
+#lpPlank .ico-btn { flex: 1; padding: 0; border: 0; background: transparent; display: flex; align-items: center; justify-content: center; color: #fff; }
+#lpPlank .ico-btn:active { filter: brightness(0.8); }
+#lpPlank .ico { width: 26px; height: 26px; }
+@media (min-width: 700px) { #lpPlank { width: 164px; height: 46px; border-width: 13px 11px; border-image-width: 13px 11px; bottom: -24px; } #lpPlank .ico { width: 28px; height: 28px; } }
+/* 章节跳转：10 块小木板(2列5行)，同一张按钮素材缩小复用；点了滚动列表到那一章并关掉浮层 */
+#chapterJumpOverlay {
+  position: fixed; inset: 0; z-index: 260;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.3);
+  opacity: 0; pointer-events: none; transition: opacity 0.15s ease;
+}
+#chapterJumpOverlay.show { opacity: 1; pointer-events: auto; }
+#chapterJumpGrid {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px 14px;
+  padding: 16px;
+}
+.chapterJumpBtn {
+  width: 116px; height: 42px; padding: 0 0 2px;
+  border-style: solid; border-width: 12px 10px;
+  border-image-source: url('assets/UI/btn_wood_panel.png');
+  border-image-slice: 36 30 fill; border-image-width: 12px 10px;
+  font-family: 'KenneyFutureNarrow', 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 15px; font-weight: 700; color: #fff;
+  text-shadow: -1px 0 #3a2410, 1px 0 #3a2410, 0 -1px #3a2410, 0 1px #3a2410;
+  filter: drop-shadow(0 3px 4px rgba(0,0,0,0.3));
+}
+.chapterJumpBtn:active { filter: brightness(0.85); }
 .settingsHeader {
   display: flex; justify-content: space-between; align-items: center;
   font-weight: 700; font-size: 15px; margin-bottom: 14px;
-}
-#closeLevelPick {
-  border: none; background: transparent; font-size: 18px; color: var(--ink);
-  padding: 4px 8px;
 }
 .settingsSection { margin-bottom: 16px; }
 .settingsSection:last-child { margin-bottom: 0; }
@@ -599,17 +643,23 @@ html[data-lang="zh"] .homeBtn {
     <button class="homeBtn" id="homeSettings" data-i18n="settings">SETTINGS</button>
     <button class="homeBtn disabled" id="homeDev" disabled data-i18n="soon">COMING SOON</button>
   </div>
-  <div id="homeVersion">v1.12.4</div>
+  <div id="homeVersion">v1.13.0</div>
   <div id="homeCredit">Assets: Kenney Sokoban Pack (CC0)<br>Levels: David W. Skinner</div>
 </div>
 <div id="levelPickOverlay">
-  <div id="levelPickSheet">
-    <div class="settingsHeader">
-      <span id="levelPickTitle">选择关卡</span>
-      <button id="closeLevelPick">✕</button>
-    </div>
+ <div id="levelPickWrap">
+  <div id="levelPickSheet" class="artPanel">
+    <div class="settingsHeader"><span id="levelPickTitle">选择关卡</span></div>
     <div id="levelPickList"></div>
   </div>
+  <div id="lpPlank">
+    <button id="lpBack" class="ico-btn" aria-label="Back"><i class="ico" style="--ico:url(assets/UI/icons/icon_back.svg)"></i></button>
+    <button id="lpMenu" class="ico-btn" aria-label="Chapters"><i class="ico" style="--ico:url(assets/UI/icons/icon_menu.svg)"></i></button>
+  </div>
+ </div>
+ <div id="chapterJumpOverlay">
+  <div id="chapterJumpGrid"></div>
+ </div>
 </div>
 <div id="app">
   <div id="stage">
@@ -732,7 +782,7 @@ html[data-lang="zh"] .homeBtn {
       <div class="settingsLabel" data-i18n="boxFx" style="margin-top:14px">箱子推动反馈</div>
       <div class="swatchRow" id="boxFxRow"></div>
     </div>
-    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.12.4</div>
+    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.13.0</div>
    </div>
    <button id="closeSettings" class="homeBtn panelClose" data-i18n="close" aria-label="Close">关闭</button>
   </div>
@@ -770,7 +820,7 @@ const SPRITE = {
    用 CSS mask 当"模具"，背景色 = currentColor，颜色跟着按钮的 color 走，三个主题都不用另配一套。
    只看图形的透明度(alpha)，svg 里写什么颜色都无所谓，但必须有 viewBox(或 width+height)，背景透明。 */
 const ICON_DIR = 'assets/UI/icons/';
-const ICON_NAMES = ['restart', 'levels', 'home', 'settings', 'map', 'back'];
+const ICON_NAMES = ['restart', 'levels', 'home', 'settings', 'map', 'back', 'lock', 'menu', 'star', 'star_outline'];
 function iconSVG(name) {
   return `<i class="ico" style="--ico:url(${ICON_DIR}icon_${name}.svg)" aria-hidden="true"></i>`;
 }
@@ -783,7 +833,7 @@ const I18N = {
     start: '开始游戏', continue: '继续游戏', levels: '关卡选择', settings: '游戏设置', soon: '敬请期待',
     undo: '撤销', moves: n => `${n} 步`, levelTag: n => `第 ${n} 关`, chapter: n => `第 ${n} 章`,
     pickTitle: (c, total) => `选择关卡 · 已通关 ${c} / ${total}`,
-    lockedHint: n => `先通关第 ${n} 关`,
+    lockedHint: n => `先通关第 ${n} 关`, chapterShort: n => `第 ${n} 章`,
     cleared: m => `过关！用了 ${m} 步`, newBest: '（新纪录）', best: b => `（最佳 ${b}）`, allDone: '全部关卡完成 🎉',
     resumed: n => `已恢复上次进度（${n} 步）`,
     bestTag: b => `最佳 ${b}`,
@@ -804,7 +854,7 @@ const I18N = {
     start: 'START', continue: 'CONTINUE', levels: 'LEVELS', settings: 'SETTINGS', soon: 'COMING SOON',
     undo: 'UNDO', moves: n => `${n} ${n === 1 ? 'move' : 'moves'}`, levelTag: n => `Level ${n}`, chapter: n => `Chapter ${n}`,
     pickTitle: (c, total) => `Levels · ${c} / ${total} cleared`,
-    lockedHint: n => `Clear level ${n} first`,
+    lockedHint: n => `Clear level ${n} first`, chapterShort: n => `Ch ${n}`,
     cleared: m => `Cleared! ${m} ${m === 1 ? 'move' : 'moves'}`, newBest: ' (new best)', best: b => ` (best ${b})`, allDone: 'All levels cleared 🎉',
     resumed: n => `Progress restored (${n} ${n === 1 ? 'move' : 'moves'})`,
     bestTag: b => `Best ${b}`,
@@ -1123,13 +1173,24 @@ bindTap(document.getElementById('homeStart'), () => {
   if (resumedMoves) showToast(t('resumed', resumedMoves));
 });
 bindTap(document.getElementById('homeSettings'), openSettings);
+// 每排列数：手机固定 4 列(面板变宽也不加，太挤)；面板变宽到 iPad 断点后，按实际可用宽度反推一个 4~8 之间的列数，
+// 让格子保持接近 --lp-target-tile 的舒适大小，不是列数写死。每次 openLevelPick 都重算，横竖屏切换后再打开会跟着变。
+function lpColumnCount(sheetWidth) {
+  if (window.innerWidth < 700) return 4;
+  const targetTile = 150; // 目标"格子+间距"宽度，只用来反推列数，不是精确尺寸
+  return Math.max(4, Math.min(8, Math.round(sheetWidth / targetTile)));
+}
+const chapterHeads = []; // openLevelPick 每次重建时填充，章节跳转要用它们的位置
 function openLevelPick() {
   const list = document.getElementById('levelPickList');
+  const sheet = document.getElementById('levelPickSheet');
   list.innerHTML = '';
+  chapterHeads.length = 0;
   const cur = state ? state.levelIndex : firstUnclearedIndex();
   let clearedTotal = 0;
   LEVELS.forEach((_, i) => { if (isCleared(i)) clearedTotal++; });
   document.getElementById('levelPickTitle').textContent = t('pickTitle', clearedTotal, LEVELS.length);
+  sheet.style.setProperty('--lp-cols', lpColumnCount(sheet.clientWidth - 24)); // -24：#levelPickSheet 左右 padding
   let curBtn = null;
   let base = 0;
   LEVEL_CHAPTERS.forEach((ch, ci) => {
@@ -1139,14 +1200,19 @@ function openLevelPick() {
     head.className = 'chapterHead';
     head.innerHTML = `<span>${t('chapter', ci + 1)}</span><span>${done} / ${ch.levels.length}</span>`;
     list.appendChild(head);
+    chapterHeads.push(head);
     const grid = document.createElement('div');
     grid.className = 'levelPickGrid';
     ch.levels.forEach((_, li) => {
       const i = base + li;
       const unlocked = isUnlocked(i);
+      const wrap = document.createElement('div');
+      wrap.className = 'lpTileWrap';
       const btn = document.createElement('button');
-      btn.className = 'levelPickBtn' + (isCleared(i) ? ' cleared' : '') + (i === cur ? ' current' : '') + (unlocked ? '' : ' locked');
-      btn.textContent = String(i + 1);
+      btn.className = 'levelPickBtn' + (i === cur ? ' current' : '') + (unlocked ? '' : ' locked');
+      btn.innerHTML = unlocked
+        ? `<span class="num">${i + 1}</span>`
+        : `<i class="ico lockIco" style="--ico:url(${ICON_DIR}icon_lock.svg)"></i>`;
       // 列表要能滚动：这里不用bindTap(它会在touchstart里preventDefault把滚动吃掉)，用原生click
       btn.addEventListener('click', () => {
         if (!isUnlocked(i)) { showToast(t('lockedHint', i)); return; }
@@ -1154,23 +1220,52 @@ function openLevelPick() {
         closeLevelPick();
         hideHomeScreen();
       });
-      if (i === cur) curBtn = btn;
-      grid.appendChild(btn);
+      wrap.appendChild(btn);
+      const stars = document.createElement('div'); // 三星评级占位：暂时都是空心，等基准步数出来再点亮
+      stars.className = 'lpStars';
+      stars.innerHTML = '<i></i><i></i><i></i>';
+      wrap.appendChild(stars);
+      if (i === cur) curBtn = wrap;
+      grid.appendChild(wrap);
     });
     list.appendChild(grid);
     base += ch.levels.length;
   });
   document.getElementById('levelPickOverlay').classList.add('show');
-  if (curBtn) { // 把当前关滚动到列表中间
-    const lr = list.getBoundingClientRect(), br = curBtn.getBoundingClientRect();
-    list.scrollTop += br.top - lr.top - list.clientHeight / 2 + br.height / 2;
+  if (curBtn) { // 把当前关滚动到面板中间(滚动容器是 #levelPickSheet 本身，不是 list)
+    const sr = sheet.getBoundingClientRect(), br = curBtn.getBoundingClientRect();
+    sheet.scrollTop += br.top - sr.top - sheet.clientHeight / 2 + br.height / 2;
   }
 }
-function closeLevelPick() { document.getElementById('levelPickOverlay').classList.remove('show'); }
+function closeLevelPick() { document.getElementById('levelPickOverlay').classList.remove('show'); closeChapterJump(); }
 bindTap(document.getElementById('homeLevels'), openLevelPick);
-bindTap(document.getElementById('closeLevelPick'), closeLevelPick);
+bindTap(document.getElementById('lpBack'), closeLevelPick);
 document.getElementById('levelPickOverlay').addEventListener('click', (e) => {
   if (e.target.id === 'levelPickOverlay') closeLevelPick();
+});
+// 章节跳转：10 块小木板，点了把 #levelPickSheet 滚到那一章标题的位置，浮层本身不分页、只是快速定位
+function openChapterJump() {
+  const grid = document.getElementById('chapterJumpGrid');
+  if (!grid.childElementCount) {
+    LEVEL_CHAPTERS.forEach((_, ci) => {
+      const b = document.createElement('button');
+      b.className = 'chapterJumpBtn';
+      b.textContent = t('chapterShort', ci + 1);
+      b.addEventListener('click', () => {
+        const sheet = document.getElementById('levelPickSheet'), head = chapterHeads[ci];
+        const sr = sheet.getBoundingClientRect(), hr = head.getBoundingClientRect();
+        sheet.scrollTop += hr.top - sr.top - 8;
+        closeChapterJump();
+      });
+      grid.appendChild(b);
+    });
+  }
+  document.getElementById('chapterJumpOverlay').classList.add('show');
+}
+function closeChapterJump() { document.getElementById('chapterJumpOverlay').classList.remove('show'); }
+bindTap(document.getElementById('lpMenu'), openChapterJump);
+document.getElementById('chapterJumpOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'chapterJumpOverlay') closeChapterJump();
 });
 document.getElementById('settingsOverlay').addEventListener('click', (e) => {
   if (e.target.id === 'settingsOverlay') closeSettings();
@@ -1196,6 +1291,7 @@ function preloadAllAssets() {
   const paths = [
     'assets/UI/btn_wood_menu.png',
     'assets/UI/btn_wood_panel.png',
+    'assets/UI/level_tile_light.png',
     ...DPAD_FILES.map(f => DPAD_DIR + f),
     ...ICON_NAMES.map(n => `${ICON_DIR}icon_${n}.svg`),
     ...Object.values(PLAYER_FRAMES),
@@ -2004,7 +2100,7 @@ document.addEventListener('contextmenu', (e) => e.preventDefault()); // 拦长�
 // range滑块需要原生touch拖拽手势，排除在外，否则拖不动
 document.addEventListener('touchstart', (e) => {
   if (e.target.tagName === 'INPUT' && e.target.type === 'range') return;
-  if (e.target.closest && e.target.closest('#levelPickList, #settingsSheet')) return; // 关卡列表/设置面板要能滚动
+  if (e.target.closest && e.target.closest('#levelPickSheet, #settingsSheet')) return; // 选关面板(滚动容器是sheet本身，不是list)/设置面板要能滚动
   e.preventDefault();
 }, { passive: false });
 
