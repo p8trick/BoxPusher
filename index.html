@@ -280,6 +280,7 @@ body {
    这一排只在暂停时才创建、退出即删除：常驻的隐藏元素在iOS上会漏出投影(D-pad四周色差分界线的根因) */
 #controls { position: relative; }
 #app.paused #dpad, #app.paused #undo { visibility: hidden; pointer-events: none; }
+#app.winShown #dpad, #app.winShown #undo, #app.winShown #modeBtn { visibility: hidden; pointer-events: none; }
 #pauseRow {
   position: absolute; left: 50%; transform: translateX(-50%);
   top: calc(22px + (216px - 60px) / 2 - 12px); /* controls的padding-top(22) + 让60px高的一行在216px高的D-pad区域里垂直居中，再上提12px，和下面的按钮拉开一点距离 */
@@ -502,6 +503,64 @@ html[data-lang="zh"] .homeBtn {
   pointer-events: none; /* 这一条全宽横条不能吃掉点击 */
 }
 
+/* ===== 过关面板：青石板(assets/UI/panel_win_jade.png，640×814，由 IMG_7473 抠图改色而来，见 ASSETS_LICENSE.md) =====
+   不用九宫格：内容量固定(标题+三星+两行数字+两个按钮)，不像设置/选关那样要装下滚动列表，
+   所以直接把石板当整块背景图铺满一个固定宽高比的盒子(aspect-ratio跟素材原比例一致，不会被拉变形)，里面用绝对定位摆内容。
+   石板顶部天然有一条雕刻分割线(约在11.4%高度处)，标题文字卡在那条线上方的窄条里。
+   按钮用实心圆徽(和UNDO/预览按钮同一视觉语言)，不用纯描边贴在石头上——测过描边版本存在感太弱。
+   石板颜色固定不跟主题走(奖励时刻，特意跳出三套主题色，不需要再适配)，文字用白底深墨绿描边，同一套手绘描边语言。 */
+#winOverlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.5);
+  -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+  z-index: 260; /* 盖在暂停行等游戏内 UI 之上 */
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+#winOverlay.show { opacity: 1; pointer-events: auto; }
+#winPanel {
+  position: relative;
+  width: min(84vw, 360px); aspect-ratio: 640 / 814; /* 比例=素材原图，绝不拉伸变形 */
+  background: url('assets/UI/panel_win_jade.png') center / 100% 100% no-repeat;
+  transform: scale(0.9); opacity: 0;
+  transition: transform 0.25s cubic-bezier(.2,1.3,.4,1), opacity 0.2s ease;
+}
+#winOverlay.show #winPanel { transform: scale(1); opacity: 1; }
+@media (min-width: 700px) { #winPanel { width: min(50vw, 420px); } }
+#winTitle {
+  position: absolute; left: 0; right: 0; top: 3.6%; text-align: center;
+  font-family: 'KenneyFutureNarrow', 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif;
+  font-size: clamp(18px, 6.5vw, 26px); font-weight: 700; color: #fff;
+  -webkit-text-stroke: 0.09em #1d3f34; paint-order: stroke fill; letter-spacing: 1px;
+}
+#winBody {
+  position: absolute; left: 8%; right: 8%; top: 16%; bottom: 24%;
+  display: flex; flex-direction: column; align-items: center; justify-content: space-evenly;
+}
+#winStars { display: flex; gap: 10px; }
+#winStars .ico { width: 15%; aspect-ratio: 1; background: rgba(255,255,255,0.6); filter: drop-shadow(0 2px 0 rgba(29,63,52,0.5)); }
+#winStars .ico.filled { background: #f2c34e; }
+#winSteps, #winBest {
+  font-family: 'KenneyFutureNarrow', 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif;
+  color: #fff; -webkit-text-stroke: 0.06em #1d3f34; paint-order: stroke fill; text-align: center;
+}
+#winSteps { font-size: clamp(16px, 5.5vw, 22px); }
+#winBest { font-size: clamp(12px, 4vw, 16px); opacity: 0.85; }
+#winButtons { position: absolute; left: 0; right: 0; bottom: 7%; display: flex; justify-content: center; gap: 9%; }
+.winBadge {
+  width: 19%; aspect-ratio: 1; border-radius: 50%; border: none; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: #8a7d63; color: #fff;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.35), inset 0 2px 0 rgba(255,255,255,0.25);
+}
+.winBadge.next { background: #e0a83c; color: #2a2000; } /* 主操作(下一关)用金色，和次要的重试拉开层次 */
+.winBadge:active { filter: brightness(0.88); transform: translateY(1px); }
+.winBadge .ico { width: 46%; height: 46%; }
+.winBadge.hide { display: none; }
+#winButtons.single .winBadge.next { display: none; } /* 已经是最后一关：只留重试，见 openWinPanel */
+
 /* ===== 关卡选择：木框浮层，结构和设置面板(#settingsOverlay/.artPanel)同一套，宽度更大以放下木箱网格 =====
    #levelPickWrap 是面板 + 底部木板的外层；面板本身可滚动，木板固定在外面(不随列表滚动)。
    每关一块木箱(assets/UI/level_tile_light.png，9-slice四角不拉伸，中间纯色区域拉伸铺满格子——
@@ -649,8 +708,22 @@ html[data-lang="zh"] .homeBtn {
     <button class="homeBtn" id="homeSettings" data-i18n="settings">SETTINGS</button>
     <button class="homeBtn disabled" id="homeDev" disabled data-i18n="soon">COMING SOON</button>
   </div>
-  <div id="homeVersion">v1.13.3</div>
+  <div id="homeVersion">v1.14.0</div>
   <div id="homeCredit">Assets: Kenney Sokoban Pack (CC0)<br>Levels: David W. Skinner</div>
+</div>
+<div id="winOverlay">
+  <div id="winPanel">
+    <div id="winTitle" data-i18n="winTitle">通关！</div>
+    <div id="winBody">
+      <div id="winStars"><i class="ico" style="--ico:url(assets/UI/icons/icon_star_outline.svg)"></i><i class="ico" style="--ico:url(assets/UI/icons/icon_star_outline.svg)"></i><i class="ico" style="--ico:url(assets/UI/icons/icon_star_outline.svg)"></i></div>
+      <div id="winSteps"></div>
+      <div id="winBest"></div>
+    </div>
+    <div id="winButtons">
+      <button id="winRetry" class="winBadge" aria-label="Retry"><i class="ico" style="--ico:url(assets/UI/icons/icon_restart.svg)"></i></button>
+      <button id="winNext" class="winBadge next" aria-label="Next level"><i class="ico" style="--ico:url(assets/UI/icons/icon_next.svg)"></i></button>
+    </div>
+  </div>
 </div>
 <div id="levelPickOverlay">
  <div id="levelPickWrap">
@@ -788,7 +861,7 @@ html[data-lang="zh"] .homeBtn {
       <div class="settingsLabel" data-i18n="boxFx" style="margin-top:14px">箱子推动反馈</div>
       <div class="swatchRow" id="boxFxRow"></div>
     </div>
-    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.13.3</div>
+    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.14.0</div>
    </div>
    <button id="closeSettings" class="homeBtn panelClose" data-i18n="close" aria-label="Close">关闭</button>
   </div>
@@ -826,7 +899,7 @@ const SPRITE = {
    用 CSS mask 当"模具"，背景色 = currentColor，颜色跟着按钮的 color 走，三个主题都不用另配一套。
    只看图形的透明度(alpha)，svg 里写什么颜色都无所谓，但必须有 viewBox(或 width+height)，背景透明。 */
 const ICON_DIR = 'assets/UI/icons/';
-const ICON_NAMES = ['restart', 'levels', 'home', 'settings', 'map', 'back', 'lock', 'menu', 'star', 'star_outline'];
+const ICON_NAMES = ['restart', 'levels', 'home', 'settings', 'map', 'back', 'lock', 'menu', 'star', 'star_outline', 'next'];
 function iconSVG(name) {
   return `<i class="ico" style="--ico:url(${ICON_DIR}icon_${name}.svg)" aria-hidden="true"></i>`;
 }
@@ -841,6 +914,7 @@ const I18N = {
     pickTitle: (c, total) => `选择关卡 · 已通关 ${c} / ${total}`,
     lockedHint: n => `先通关第 ${n} 关`, chapterShort: n => `第 ${n} 章`,
     cleared: m => `过关！用了 ${m} 步`, newBest: '（新纪录）', best: b => `（最佳 ${b}）`, allDone: '全部关卡完成 🎉',
+    winTitle: '通关！', winSteps: m => `本局 ${m} 步`, winBest: b => `历史最佳 ${b} 步`, winNewBest: '新纪录！', winAllDone: '已是最后一关 🎉',
     resumed: n => `已恢复上次进度（${n} 步）`,
     bestTag: b => `最佳 ${b}`,
     devOn: '开发者模式：已开启（设置里有「高级」）', devOff: '开发者模式：已关闭',
@@ -862,6 +936,7 @@ const I18N = {
     pickTitle: (c, total) => `Levels · ${c} / ${total} cleared`,
     lockedHint: n => `Clear level ${n} first`, chapterShort: n => `Ch ${n}`,
     cleared: m => `Cleared! ${m} ${m === 1 ? 'move' : 'moves'}`, newBest: ' (new best)', best: b => ` (best ${b})`, allDone: 'All levels cleared 🎉',
+    winTitle: 'Level Clear!', winSteps: m => `${m} ${m === 1 ? 'move' : 'moves'} this run`, winBest: b => `Best: ${b}`, winNewBest: 'New record!', winAllDone: 'Last level 🎉',
     resumed: n => `Progress restored (${n} ${n === 1 ? 'move' : 'moves'})`,
     bestTag: b => `Best ${b}`,
     devOn: 'Developer mode on (Advanced is in Settings)', devOff: 'Developer mode off',
@@ -1294,6 +1369,7 @@ function preloadAllAssets() {
     'assets/UI/btn_wood_menu.png',
     'assets/UI/btn_wood_panel.png',
     'assets/UI/level_tile_light.png',
+    'assets/UI/panel_win_jade.png',
     ...DPAD_FILES.map(f => DPAD_DIR + f),
     ...ICON_NAMES.map(n => `${ICON_DIR}icon_${n}.svg`),
     ...Object.values(PLAYER_FRAMES),
@@ -1916,20 +1992,44 @@ function checkWin() {
     saveProgress();
     updateLevelInfo();
     updateNavButtons();
-    showToast(t('cleared', state.moves) + (best !== undefined ? (isNewBest ? t('newBest') : t('best', best)) : ''));
-    setTimeout(() => {
-      if (!state || state.levelIndex !== idxAtWin) return; // 等待期间已经手动切关，就不再自动跳
-      const next = idxAtWin + 1;
-      if (next < LEVELS.length) {
-        const newChapter = LEVEL_META[next].chapter !== meta.chapter;
-        loadLevel(next);
-        if (newChapter) showToast(t('chapter', LEVEL_META[next].chapter + 1));
-      } else {
-        showToast(t('allDone'));
-      }
-    }, 1100);
+    setTimeout(() => openWinPanel(idxAtWin, meta, state.moves, isNewBest, best), 500); // 留半拍看清最后一步落位，再弹石板
   }
 }
+// 过关石板：等玩家自己点「重试」或「下一关」，不再自动跳关(旧版本是1.1秒后自动跳)。
+// 三星暂时都是空心占位(见 winpanel CSS 注释)，等基准步数(par)出来后这里再按 moves/par 点亮。
+function openWinPanel(idxAtWin, meta, moves, isNewBest, best) {
+  document.getElementById('winSteps').textContent = t('winSteps', moves);
+  const bestEl = document.getElementById('winBest');
+  if (best === undefined) { bestEl.textContent = ''; bestEl.style.visibility = 'hidden'; } // 第一次通关这关，没有旧纪录可比，不留空行
+  else if (isNewBest) { bestEl.textContent = t('winNewBest'); bestEl.style.visibility = 'visible'; } // 破了旧纪录：用"新纪录"这行字，不重复念一遍数字
+  else { bestEl.textContent = t('winBest', best); bestEl.style.visibility = 'visible'; }
+  const hasNext = idxAtWin + 1 < LEVELS.length;
+  if (!hasNext) { bestEl.textContent = (bestEl.textContent ? bestEl.textContent + ' · ' : '') + t('winAllDone'); bestEl.style.visibility = 'visible'; }
+  document.getElementById('winButtons').classList.toggle('single', !hasNext);
+  document.getElementById('app').classList.add('winShown');
+  document.getElementById('winOverlay').classList.add('show');
+  document.getElementById('winOverlay').dataset.idx = idxAtWin; // 供重试/下一关按钮读取，避免闭包捕获旧值
+}
+function closeWinPanel() {
+  document.getElementById('winOverlay').classList.remove('show');
+  document.getElementById('app').classList.remove('winShown');
+}
+bindTap(document.getElementById('winRetry'), () => {
+  const idx = Number(document.getElementById('winOverlay').dataset.idx);
+  closeWinPanel();
+  loadLevel(idx);
+});
+bindTap(document.getElementById('winNext'), () => {
+  const idx = Number(document.getElementById('winOverlay').dataset.idx);
+  const meta = LEVEL_META[idx];
+  closeWinPanel();
+  const next = idx + 1;
+  if (next < LEVELS.length) {
+    const newChapter = LEVEL_META[next].chapter !== meta.chapter;
+    loadLevel(next);
+    if (newChapter) showToast(t('chapter', LEVEL_META[next].chapter + 1));
+  }
+});
 
 function showToast(msg) {
   const t = document.getElementById('toast');
