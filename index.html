@@ -649,7 +649,7 @@ html[data-lang="zh"] .homeBtn {
     <button class="homeBtn" id="homeSettings" data-i18n="settings">SETTINGS</button>
     <button class="homeBtn disabled" id="homeDev" disabled data-i18n="soon">COMING SOON</button>
   </div>
-  <div id="homeVersion">v1.13.2</div>
+  <div id="homeVersion">v1.13.3</div>
   <div id="homeCredit">Assets: Kenney Sokoban Pack (CC0)<br>Levels: David W. Skinner</div>
 </div>
 <div id="levelPickOverlay">
@@ -788,7 +788,7 @@ html[data-lang="zh"] .homeBtn {
       <div class="settingsLabel" data-i18n="boxFx" style="margin-top:14px">箱子推动反馈</div>
       <div class="swatchRow" id="boxFxRow"></div>
     </div>
-    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.13.2</div>
+    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.13.3</div>
    </div>
    <button id="closeSettings" class="homeBtn panelClose" data-i18n="close" aria-label="Close">关闭</button>
   </div>
@@ -1260,7 +1260,7 @@ function openChapterJump() {
       bindTap(b, () => {
         const sheet = document.getElementById('levelPickSheet'), head = chapterHeads[ci];
         const sr = sheet.getBoundingClientRect(), hr = head.getBoundingClientRect();
-        sheet.scrollTop += hr.top - sr.top - 8;
+        sheet.scrollTop += hr.top - sr.top - sheet.clientTop - 8; // sheet自己就是木框(border画在它上面)，clientTop是上边框厚度，不减掉标题会被压在木框底下
         closeChapterJump();
       });
       grid.appendChild(b);
