@@ -555,15 +555,19 @@ html[data-lang="zh"] .homeBtn {
 .levelPickBtn:active { filter: brightness(0.92); }
 .levelPickBtn .num {
   font-family: 'KenneyFutureNarrow', 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif;
-  font-size: clamp(18px, 7vw, 30px); font-weight: 700; color: #fff;
-  -webkit-text-stroke: 3px #4a2f17; paint-order: stroke fill; letter-spacing: 0;
+  font-weight: 700; color: #fff;
+  -webkit-text-stroke: 0.1em #4a2f17; paint-order: stroke fill; letter-spacing: 0; /* 描边用em：字号变了描边粗细跟着变，不会显得过粗或过细 */
 }
+/* 按位数动态调字号：1/2 位数字放大(木箱显得没那么空)，3 位数保持不变 */
+.levelPickBtn .num.d1 { font-size: clamp(30px, 12vw, 44px); }
+.levelPickBtn .num.d2 { font-size: clamp(25px, 9.5vw, 37px); }
+.levelPickBtn .num.d3 { font-size: clamp(18px, 7vw, 30px); }
 .levelPickBtn.current::after { /* 当前关：外圈一圈强调色描边，和选关小面板 .current 同一个视觉语言 */
   content: ''; position: absolute; inset: -5px; border: 3px solid var(--accent); border-radius: 10px; pointer-events: none;
 }
 .levelPickBtn.locked { filter: saturate(0.5) brightness(0.8); }
 .levelPickBtn.locked .num { display: none; }
-.levelPickBtn .ico.lockIco { width: 34%; height: 34%; background: #f0dfc0; }
+.levelPickBtn .ico.lockIco { width: 50%; height: 50%; background: #e8b866; filter: drop-shadow(0 2px 0 rgba(58,36,16,0.45)); }
 .lpStars { height: 11px; margin-top: 5px; display: flex; gap: 2px; opacity: 0.55; } /* 占位：三星评级还没做，先放三个空心位置 */
 .lpStars i { width: 11px; height: 11px; background: var(--sub);
   -webkit-mask: url('assets/UI/icons/icon_star_outline.svg') center/contain no-repeat; mask: url('assets/UI/icons/icon_star_outline.svg') center/contain no-repeat; }
@@ -598,12 +602,14 @@ html[data-lang="zh"] .homeBtn {
   border-style: solid; border-width: 12px 10px;
   border-image-source: url('assets/UI/btn_wood_panel.png');
   border-image-slice: 36 30 fill; border-image-width: 12px 10px;
+  background: #aa733c; background-clip: padding-box; /* 素材四角是切角的，外面是透明像素；没有底色兜底就会露出面板后面的主题色 */
   font-family: 'KenneyFutureNarrow', 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif;
   font-size: 15px; font-weight: 700; color: #fff;
   text-shadow: -1px 0 #3a2410, 1px 0 #3a2410, 0 -1px #3a2410, 0 1px #3a2410;
   filter: drop-shadow(0 3px 4px rgba(0,0,0,0.3));
 }
 .chapterJumpBtn:active { filter: brightness(0.85); }
+.chapterJumpBtn.locked { filter: saturate(0.45) brightness(0.7) drop-shadow(0 3px 4px rgba(0,0,0,0.3)); } /* 该章第一关还没解锁：整块变灰暗，仍可点(只是跳过去看看，不解锁任何东西) */
 .settingsHeader {
   display: flex; justify-content: space-between; align-items: center;
   font-weight: 700; font-size: 15px; margin-bottom: 14px;
@@ -643,7 +649,7 @@ html[data-lang="zh"] .homeBtn {
     <button class="homeBtn" id="homeSettings" data-i18n="settings">SETTINGS</button>
     <button class="homeBtn disabled" id="homeDev" disabled data-i18n="soon">COMING SOON</button>
   </div>
-  <div id="homeVersion">v1.13.0</div>
+  <div id="homeVersion">v1.13.2</div>
   <div id="homeCredit">Assets: Kenney Sokoban Pack (CC0)<br>Levels: David W. Skinner</div>
 </div>
 <div id="levelPickOverlay">
@@ -782,7 +788,7 @@ html[data-lang="zh"] .homeBtn {
       <div class="settingsLabel" data-i18n="boxFx" style="margin-top:14px">箱子推动反馈</div>
       <div class="swatchRow" id="boxFxRow"></div>
     </div>
-    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.13.0</div>
+    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.13.2</div>
    </div>
    <button id="closeSettings" class="homeBtn panelClose" data-i18n="close" aria-label="Close">关闭</button>
   </div>
@@ -1211,7 +1217,7 @@ function openLevelPick() {
       const btn = document.createElement('button');
       btn.className = 'levelPickBtn' + (i === cur ? ' current' : '') + (unlocked ? '' : ' locked');
       btn.innerHTML = unlocked
-        ? `<span class="num">${i + 1}</span>`
+        ? `<span class="num d${String(i + 1).length}">${i + 1}</span>` // 1/2/3 位数字用不同字号(见 .num.d1/.d2/.d3)
         : `<i class="ico lockIco" style="--ico:url(${ICON_DIR}icon_lock.svg)"></i>`;
       // 列表要能滚动：这里不用bindTap(它会在touchstart里preventDefault把滚动吃掉)，用原生click
       btn.addEventListener('click', () => {
@@ -1240,18 +1246,18 @@ function openLevelPick() {
 function closeLevelPick() { document.getElementById('levelPickOverlay').classList.remove('show'); closeChapterJump(); }
 bindTap(document.getElementById('homeLevels'), openLevelPick);
 bindTap(document.getElementById('lpBack'), closeLevelPick);
-document.getElementById('levelPickOverlay').addEventListener('click', (e) => {
-  if (e.target.id === 'levelPickOverlay') closeLevelPick();
-});
+bindBackdropClose(document.getElementById('levelPickOverlay'), closeLevelPick);
 // 章节跳转：10 块小木板，点了把 #levelPickSheet 滚到那一章标题的位置，浮层本身不分页、只是快速定位
 function openChapterJump() {
   const grid = document.getElementById('chapterJumpGrid');
   if (!grid.childElementCount) {
     LEVEL_CHAPTERS.forEach((_, ci) => {
+      const chapterStart = LEVEL_CHAPTERS.slice(0, ci).reduce((n, c) => n + c.levels.length, 0);
       const b = document.createElement('button');
-      b.className = 'chapterJumpBtn';
+      b.className = 'chapterJumpBtn' + (isUnlocked(chapterStart) ? '' : ' locked'); // 该章第一关没解锁：变暗，仍可点开去看看
       b.textContent = t('chapterShort', ci + 1);
-      b.addEventListener('click', () => {
+      // 面板本身不滚动，不用像木箱格子那样避开bindTap，用它才能保证在真机触屏上点得到(不然会被全局touchstart拦截吃掉合成的click)
+      bindTap(b, () => {
         const sheet = document.getElementById('levelPickSheet'), head = chapterHeads[ci];
         const sr = sheet.getBoundingClientRect(), hr = head.getBoundingClientRect();
         sheet.scrollTop += hr.top - sr.top - 8;
@@ -1264,12 +1270,8 @@ function openChapterJump() {
 }
 function closeChapterJump() { document.getElementById('chapterJumpOverlay').classList.remove('show'); }
 bindTap(document.getElementById('lpMenu'), openChapterJump);
-document.getElementById('chapterJumpOverlay').addEventListener('click', (e) => {
-  if (e.target.id === 'chapterJumpOverlay') closeChapterJump();
-});
-document.getElementById('settingsOverlay').addEventListener('click', (e) => {
-  if (e.target.id === 'settingsOverlay') closeSettings();
-});
+bindBackdropClose(document.getElementById('chapterJumpOverlay'), closeChapterJump);
+bindBackdropClose(document.getElementById('settingsOverlay'), closeSettings);
 
 /* ---------- 贴图预加载：页面一打开就把所有会用到的图片抓进浏览器缓存 ----------
    之前每张贴图都是第一次被用到(第一次往某个方向走、第一次切某个配色)才发请求，
@@ -2104,6 +2106,21 @@ document.addEventListener('touchstart', (e) => {
   e.preventDefault();
 }, { passive: false });
 
+// bindBackdropClose：遮罩层(点空白处关闭)专用。不能像内容按钮一样直接 bindTap 整个遮罩——那样会连点在
+// 子元素(面板/按钮)上也一起触发关闭；这里手动判 e.target===overlay，且用 touchend 而不是 click，
+// 原因和 bindTap 一样：真机上遮罩没在触屏白名单里，全局 touchstart 已 preventDefault，合成不出 click。
+function bindBackdropClose(overlay, closeFn) {
+  let touched = false;
+  overlay.addEventListener('touchend', (e) => {
+    if (e.target !== overlay) return;
+    e.preventDefault(); touched = true; closeFn();
+    setTimeout(() => { touched = false; }, 400);
+  }, { passive: false });
+  overlay.addEventListener('click', (e) => {
+    if (touched) { touched = false; return; }
+    if (e.target === overlay) closeFn();
+  });
+}
 // bindTap: touchstart只拦手势，动作在touchend触发；click监听作桌面兜底，touched标记防重复
 function bindTap(el, handler) {
   let touched = false;
