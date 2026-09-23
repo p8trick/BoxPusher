@@ -606,7 +606,7 @@ html[data-lang="zh"] .homeBtn {
 .levelPickGrid {
   display: grid;
   grid-template-columns: repeat(var(--lp-cols, 4), 1fr);
-  gap: 14px 10px;
+  gap: 18px 20px; /* 列间距加大，格子跟着变小(4列不变，靠间距挤出空间) */
 }
 .lpTileWrap { display: flex; flex-direction: column; align-items: center; }
 .levelPickBtn {
@@ -621,15 +621,15 @@ html[data-lang="zh"] .homeBtn {
   -webkit-text-stroke: 0.1em #4a2f17; paint-order: stroke fill; letter-spacing: 0; /* 描边用em：字号变了描边粗细跟着变，不会显得过粗或过细 */
 }
 /* 按位数动态调字号：1/2 位数字放大(木箱显得没那么空)，3 位数保持不变 */
-.levelPickBtn .num.d1 { font-size: clamp(30px, 12vw, 44px); }
-.levelPickBtn .num.d2 { font-size: clamp(25px, 9.5vw, 37px); }
-.levelPickBtn .num.d3 { font-size: clamp(18px, 7vw, 30px); }
+.levelPickBtn .num.d1 { font-size: clamp(32px, 15vw, 46px); }
+.levelPickBtn .num.d2 { font-size: clamp(27px, 12vw, 39px); }
+.levelPickBtn .num.d3 { font-size: clamp(20px, 9vw, 31px); } /* 格子缩小了，数字比例再往上提一点，不然显得字变小了 */
 .levelPickBtn.current::after { /* 当前关：外圈一圈强调色描边，和选关小面板 .current 同一个视觉语言 */
   content: ''; position: absolute; inset: -5px; border: 3px solid var(--accent); border-radius: 10px; pointer-events: none;
 }
 .levelPickBtn.locked { filter: saturate(0.5) brightness(0.8); }
 .levelPickBtn.locked .num { display: none; }
-.levelPickBtn .ico.lockIco { width: 50%; height: 50%; background: #e8b866; filter: drop-shadow(0 2px 0 rgba(58,36,16,0.45)); }
+.levelPickBtn .ico.lockIco { width: 65%; height: 65%; background: #fff; filter: drop-shadow(0 2px 0 rgba(0,0,0,0.35)); } /* 纯白+更大，和木箱格子的金色(奖励语义)分开，专指「还没解锁」*/
 .lpStars { height: 11px; margin-top: 5px; display: flex; gap: 2px; opacity: 0.55; } /* 占位：三星评级还没做，先放三个空心位置 */
 .lpStars i { width: 11px; height: 11px; background: var(--sub);
   -webkit-mask: url('assets/UI/icons/icon_star_outline.svg') center/contain no-repeat; mask: url('assets/UI/icons/icon_star_outline.svg') center/contain no-repeat; }
@@ -711,7 +711,7 @@ html[data-lang="zh"] .homeBtn {
     <button class="homeBtn" id="homeSettings" data-i18n="settings">SETTINGS</button>
     <button class="homeBtn disabled" id="homeDev" disabled data-i18n="soon">COMING SOON</button>
   </div>
-  <div id="homeVersion">v1.14.2</div>
+  <div id="homeVersion">v1.14.3</div>
   <div id="homeCredit">Assets: Kenney Sokoban Pack (CC0)<br>Levels: David W. Skinner</div>
 </div>
 <div id="winOverlay">
@@ -864,7 +864,7 @@ html[data-lang="zh"] .homeBtn {
       <div class="settingsLabel" data-i18n="boxFx" style="margin-top:14px">箱子推动反馈</div>
       <div class="swatchRow" id="boxFxRow"></div>
     </div>
-    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.14.2</div>
+    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.14.3</div>
    </div>
    <button id="closeSettings" class="homeBtn panelClose" data-i18n="close" aria-label="Close">关闭</button>
   </div>
