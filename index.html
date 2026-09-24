@@ -545,8 +545,10 @@ html[data-lang="zh"] .homeBtn {
 #winStars .ico { width: clamp(40px, 15vw, 58px); height: clamp(40px, 15vw, 58px); filter: drop-shadow(0 2px 0 rgba(29,63,52,0.5)); } /* 故意比标题字号大：这是这张卡片的视觉重心 */
 #winStars .ico { -webkit-mask: none; mask: none; background: var(--ico) center/contain no-repeat; } /* 星星素材自带配色，不走全局 .ico 的遮罩上色 */
 #winStars .ico:not(.filled) { opacity: 0.9; }
-#winStars.perfect .ico.filled { filter: drop-shadow(0 0 10px rgba(255,214,90,0.95)) drop-shadow(0 2px 0 rgba(29,63,52,0.5)); }
 #winTitle.perfect { color: #ffe08a; }
+#winStars.perfect .ico { display: none; } /* 完美通关：三颗星换成一枚大皇冠(大小是星星的 1.5 倍，用负 margin 把高度补回去，卡片布局不动) */
+#winStars.perfect::after { content: ''; --ws: clamp(40px, 15vw, 58px); width: calc(var(--ws) * 1.5); height: calc(var(--ws) * 1.5); margin: calc(var(--ws) * -0.25) 0;
+  background: url('assets/UI/icons/icon_crown.svg') center/contain no-repeat; filter: drop-shadow(0 2px 0 rgba(29,63,52,0.5)); }
 #winSteps, #winBest {
   font-family: 'KenneyFutureNarrow', 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif;
   color: #fff; -webkit-text-stroke: 0.06em #1d3f34; paint-order: stroke fill; text-align: center;
@@ -635,14 +637,17 @@ html[data-lang="zh"] .homeBtn {
 .levelPickBtn .ico.lockIco { width: 65%; height: 65%; background: #fff; filter: drop-shadow(0 2px 0 rgba(0,0,0,0.35)); } /* 纯白+更大，和木箱格子的金色(奖励语义)分开，专指「还没解锁」*/
 .lpStars { width: 100%; margin-top: 6px; display: flex; justify-content: space-between; } /* 三颗星总宽≤格子宽：星星按格子宽度均分(向下取整到整像素)，不同屏幕宽度自动缩放。锁定的关卡放三个隐藏占位星(.ph)，行高保持一致 */
 .lpStars i { flex: none; align-self: flex-start; aspect-ratio: 1;
-  width: calc(100% / 3 - 1px); width: round(down, calc(100% / 3 - 1px), 1px); /* 取整像素，三颗星大小完全一致，不会因小数像素被渲染得忽大忽小；旧浏览器不认 round() 就用上一行 */ /* 空星：icon_star_empty.svg 是白色描边的空心星，白色在米色面板上看不见，所以当遮罩用，涂成主题副色 var(--sub) */
-  background: var(--sub); opacity: 0.75;
+  width: calc(100% / 3 - 1px); width: round(down, calc(100% / 3 - 1px), 1px); /* 取整像素，三颗星大小完全一致，不会因小数像素被渲染得忽大忽小；旧浏览器不认 round() 就用上一行 */ /* 空星：icon_star_empty.svg 是白色描边的空心星，白色在浅色面板上看不见，所以当遮罩用，涂成面板文字色 var(--ink)：浅色主题是深棕，黑色主题是近白，随主题自动换 */
+  background: var(--ink); opacity: 0.9;
   -webkit-mask: url('assets/UI/icons/icon_star_empty.svg') center/contain no-repeat; mask: url('assets/UI/icons/icon_star_empty.svg') center/contain no-repeat; }
 .lpStars i.ph { visibility: hidden; }
 @media (min-width: 700px) { .lpStars i { width: calc(100% / 3 - 6px); width: round(down, calc(100% / 3 - 6px), 1px); } } /* iPad 格子大，星星之间的空隙也放宽一点 */
 .lpStars i.on { opacity: 1; background: url('assets/UI/icons/icon_star.svg') center/contain no-repeat; -webkit-mask: none; mask: none; } /* 点亮的星直接用金色实心素材自带配色 */
-.lpTileWrap.perfect .levelPickBtn .num { color: #ffd95a; } /* 完美(步数≤par)的关：数字金色 + 星星光晕 */
-.lpTileWrap.perfect .lpStars i.on { filter: drop-shadow(0 0 3px rgba(255,205,60,0.95)); }
+.lpStars { --lp-crown: 24px; } /* 完美的关：三颗星换成一枚皇冠，尺寸改这个变量(手机 24px，iPad 见下面的媒体查询) */
+.lpStars.perfect { position: relative; } /* 里面仍放三个隐藏占位星撑住行高，皇冠绝对定位居中，各行间距不受皇冠大小影响 */
+.lpStars i.crown { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: var(--lp-crown); height: var(--lp-crown); aspect-ratio: auto; opacity: 1;
+  background: url('assets/UI/icons/icon_crown.svg') center/contain no-repeat; -webkit-mask: none; mask: none; }
+@media (min-width: 700px) { .lpStars { --lp-crown: 44px; } }
 /* 底部固定木板：结构、九宫格切片都和设置面板的关闭木板(.panelClose)同一套，只是更宽、装两个图标键 */
 #lpPlank {
   position: absolute; left: 0; right: 0; bottom: -22px; margin: 0 auto; z-index: 2;
@@ -721,7 +726,7 @@ html[data-lang="zh"] .homeBtn {
     <button class="homeBtn" id="homeSettings" data-i18n="settings">SETTINGS</button>
     <button class="homeBtn disabled" id="homeDev" disabled data-i18n="soon">COMING SOON</button>
   </div>
-  <div id="homeVersion">v1.15.6</div>
+  <div id="homeVersion">v1.15.8</div>
   <div id="homeCredit">Assets: Kenney Sokoban Pack (CC0)<br>Levels: David W. Skinner</div>
 </div>
 <div id="winOverlay">
@@ -874,7 +879,7 @@ html[data-lang="zh"] .homeBtn {
       <div class="settingsLabel" data-i18n="boxFx" style="margin-top:14px">箱子推动反馈</div>
       <div class="swatchRow" id="boxFxRow"></div>
     </div>
-    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.15.6</div>
+    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.15.8</div>
    </div>
    <button id="closeSettings" class="homeBtn panelClose" data-i18n="close" aria-label="Close">关闭</button>
   </div>
@@ -1316,11 +1321,11 @@ function openLevelPick() {
       });
       wrap.appendChild(btn);
       const stars = document.createElement('div'); // 三星评级：按历史最佳步数/par 点亮，没通关就是三颗空星
-      stars.className = 'lpStars';
       const bestMoves = progress.cleared[LEVEL_META[i].id];
       const n = starsFor(bestMoves, LEVEL_META[i].par);
-      if (unlocked && isPerfect(bestMoves, LEVEL_META[i].par)) wrap.classList.add('perfect'); // 达到 par：数字变金、星星发光
-      stars.innerHTML = [0, 1, 2].map(k => `<i class="${!unlocked ? 'ph' : k < n ? 'on' : ''}"></i>`).join(''); // 锁定的关卡不显示星星(连空星也不画)，但放隐藏占位保持行高
+      const perfectLv = unlocked && isPerfect(bestMoves, LEVEL_META[i].par); // 达到 par：三颗星换成一枚皇冠
+      stars.className = 'lpStars' + (perfectLv ? ' perfect' : '');
+      stars.innerHTML = [0, 1, 2].map(k => `<i class="${!unlocked || perfectLv ? 'ph' : k < n ? 'on' : ''}"></i>`).join('') + (perfectLv ? '<i class="crown"></i>' : ''); // 锁定的关卡不显示星星(连空星也不画)，但放隐藏占位保持行高
       wrap.appendChild(stars);
       if (i === cur) curBtn = wrap;
       grid.appendChild(wrap);
