@@ -542,8 +542,9 @@ html[data-lang="zh"] .homeBtn {
 #winStars { display: flex; gap: 14px; }
 /* 星星大小改用固定 clamp，不再用百分比：#winStars 本身没有显式宽度(shrink-to-fit的flex子项)，
    子元素却按它的宽度算百分比——这种循环依赖在 Chrome 里会让百分比宽度直接算成 0，星星等于隐形，这是真bug不是没显示对 */
-#winStars .ico { width: clamp(40px, 15vw, 58px); height: clamp(40px, 15vw, 58px); background: rgba(255,255,255,0.6); filter: drop-shadow(0 2px 0 rgba(29,63,52,0.5)); } /* 故意比标题字号大：这是这张卡片的视觉重心 */
-#winStars .ico.filled { background: #f2c34e; }
+#winStars .ico { width: clamp(40px, 15vw, 58px); height: clamp(40px, 15vw, 58px); filter: drop-shadow(0 2px 0 rgba(29,63,52,0.5)); } /* 故意比标题字号大：这是这张卡片的视觉重心 */
+#winStars .ico { -webkit-mask: none; mask: none; background: var(--ico) center/contain no-repeat; } /* 星星素材自带配色，不走全局 .ico 的遮罩上色 */
+#winStars .ico:not(.filled) { opacity: 0.75; }
 #winSteps, #winBest {
   font-family: 'KenneyFutureNarrow', 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif;
   color: #fff; -webkit-text-stroke: 0.06em #1d3f34; paint-order: stroke fill; text-align: center;
@@ -630,9 +631,11 @@ html[data-lang="zh"] .homeBtn {
 .levelPickBtn.locked { filter: saturate(0.5) brightness(0.8); }
 .levelPickBtn.locked .num { display: none; }
 .levelPickBtn .ico.lockIco { width: 65%; height: 65%; background: #fff; filter: drop-shadow(0 2px 0 rgba(0,0,0,0.35)); } /* 纯白+更大，和木箱格子的金色(奖励语义)分开，专指「还没解锁」*/
-.lpStars { height: 11px; margin-top: 5px; display: flex; gap: 2px; opacity: 0.55; } /* 占位：三星评级还没做，先放三个空心位置 */
-.lpStars i { width: 11px; height: 11px; background: var(--sub);
-  -webkit-mask: url('assets/UI/icons/icon_star_outline.svg') center/contain no-repeat; mask: url('assets/UI/icons/icon_star_outline.svg') center/contain no-repeat; }
+.lpStars { height: 17px; margin-top: 6px; display: flex; justify-content: center; gap: 2px; } /* 锁定的关卡不画星，但这一行的高度留着，保持各行间距一致 */ /* 空星半透明，点亮的星(.on)是实心金色 */
+.lpStars i { width: 17px; height: 17px; opacity: 0.7; /* 星星素材自带配色(金色实心/灰白空位)，直接当背景图，不再当遮罩上色 */
+  background: url('assets/UI/icons/icon_star_outline.svg') center/contain no-repeat; }
+.lpStars i.on { opacity: 1; background-image: url('assets/UI/icons/icon_star.svg'); }
+@media (min-width: 700px) { .lpStars { height: 26px; gap: 4px; } .lpStars i { width: 26px; height: 26px; } } /* iPad 格子更大，星星跟着放大 */
 /* 底部固定木板：结构、九宫格切片都和设置面板的关闭木板(.panelClose)同一套，只是更宽、装两个图标键 */
 #lpPlank {
   position: absolute; left: 0; right: 0; bottom: -22px; margin: 0 auto; z-index: 2;
@@ -711,7 +714,7 @@ html[data-lang="zh"] .homeBtn {
     <button class="homeBtn" id="homeSettings" data-i18n="settings">SETTINGS</button>
     <button class="homeBtn disabled" id="homeDev" disabled data-i18n="soon">COMING SOON</button>
   </div>
-  <div id="homeVersion">v1.14.3</div>
+  <div id="homeVersion">v1.15.2</div>
   <div id="homeCredit">Assets: Kenney Sokoban Pack (CC0)<br>Levels: David W. Skinner</div>
 </div>
 <div id="winOverlay">
@@ -864,7 +867,7 @@ html[data-lang="zh"] .homeBtn {
       <div class="settingsLabel" data-i18n="boxFx" style="margin-top:14px">箱子推动反馈</div>
       <div class="swatchRow" id="boxFxRow"></div>
     </div>
-    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.14.3</div>
+    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.15.2</div>
    </div>
    <button id="closeSettings" class="homeBtn panelClose" data-i18n="close" aria-label="Close">关闭</button>
   </div>
@@ -1305,9 +1308,10 @@ function openLevelPick() {
         hideHomeScreen();
       });
       wrap.appendChild(btn);
-      const stars = document.createElement('div'); // 三星评级占位：暂时都是空心，等基准步数出来再点亮
+      const stars = document.createElement('div'); // 三星评级：按历史最佳步数/par 点亮，没通关就是三颗空星
       stars.className = 'lpStars';
-      stars.innerHTML = '<i></i><i></i><i></i>';
+      const n = starsFor(progress.cleared[LEVEL_META[i].id], LEVEL_META[i].par);
+      stars.innerHTML = unlocked ? [0, 1, 2].map(k => `<i${k < n ? ' class="on"' : ''}></i>`).join('') : ''; // 锁定的关卡不显示星星(连空星也不画)
       wrap.appendChild(stars);
       if (i === cur) curBtn = wrap;
       grid.appendChild(wrap);
@@ -1397,7 +1401,7 @@ const LEVELS = [];      // 每关的 XSB 文本
 const LEVEL_META = [];  // 每关的 {id, chapter, pos}，和 LEVELS 下标一一对应
 LEVEL_CHAPTERS.forEach((ch, ci) => ch.levels.forEach((lv, li) => {
   LEVELS.push(lv.xsb);
-  LEVEL_META.push({ id: lv.id, chapter: ci, pos: li });
+  LEVEL_META.push({ id: lv.id, chapter: ci, pos: li, par: lv.par }); // par = 最少人物总步数(levels.js 里的 par 字段)
 }));
 
 /* ---------- 进度：顺序解锁 ----------
@@ -1417,6 +1421,15 @@ function loadProgress() {
 let progress = loadProgress();
 function saveProgress() {
   try { localStorage.setItem(PROGRESS_KEY, JSON.stringify(progress)); } catch (e) {}
+}
+/* 星级：按 步数/par 算，par 是每关最少人物总步(moves，不是 pushes)。
+   ≤110% = 3星，≤130% = 2星，超过 130% 一律 1星(不封顶)；没通关 = 0星(三颗空星)。通关至少 1 星。
+   用整数乘法比较，避免浮点边界误差；选关页按历史最佳步数算，过关面板按本局步数算，不额外存星级。 */
+function starsFor(moves, par) {
+  if (moves === undefined) return 0;
+  if (!par) return 1;
+  const m = moves * 100;
+  return m <= par * 110 ? 3 : m <= par * 130 ? 2 : 1;
 }
 function isCleared(i) { return progress.cleared[LEVEL_META[i].id] !== undefined; }
 function isUnlocked(i) { return progress.debugUnlock || i === 0 || isCleared(i - 1); }
@@ -1999,8 +2012,14 @@ function checkWin() {
   }
 }
 // 过关石板：等玩家自己点「重试」或「下一关」，不再自动跳关(旧版本是1.1秒后自动跳)。
-// 三星暂时都是空心占位(见 winpanel CSS 注释)，等基准步数(par)出来后这里再按 moves/par 点亮。
+// 三星按本局步数/par 点亮(见 starsFor)，通关至少 1 星。
 function openWinPanel(idxAtWin, meta, moves, isNewBest, best) {
+  const nStars = starsFor(moves, meta.par);
+  document.querySelectorAll('#winStars .ico').forEach((el, k) => {
+    const on = k < nStars;
+    el.classList.toggle('filled', on);
+    el.style.setProperty('--ico', `url(${ICON_DIR}${on ? 'icon_star.svg' : 'icon_star_outline.svg'})`);
+  });
   document.getElementById('winSteps').textContent = t('winSteps', moves);
   const bestEl = document.getElementById('winBest');
   if (best === undefined) { bestEl.textContent = ''; bestEl.style.visibility = 'hidden'; } // 第一次通关这关，没有旧纪录可比，不留空行
