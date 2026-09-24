@@ -545,6 +545,8 @@ html[data-lang="zh"] .homeBtn {
 #winStars .ico { width: clamp(40px, 15vw, 58px); height: clamp(40px, 15vw, 58px); filter: drop-shadow(0 2px 0 rgba(29,63,52,0.5)); } /* 故意比标题字号大：这是这张卡片的视觉重心 */
 #winStars .ico { -webkit-mask: none; mask: none; background: var(--ico) center/contain no-repeat; } /* 星星素材自带配色，不走全局 .ico 的遮罩上色 */
 #winStars .ico:not(.filled) { opacity: 0.75; }
+#winStars.perfect .ico.filled { filter: drop-shadow(0 0 10px rgba(255,214,90,0.95)) drop-shadow(0 2px 0 rgba(29,63,52,0.5)); }
+#winTitle.perfect { color: #ffe08a; }
 #winSteps, #winBest {
   font-family: 'KenneyFutureNarrow', 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif;
   color: #fff; -webkit-text-stroke: 0.06em #1d3f34; paint-order: stroke fill; text-align: center;
@@ -609,7 +611,7 @@ html[data-lang="zh"] .homeBtn {
   grid-template-columns: repeat(var(--lp-cols, 4), 1fr);
   gap: 18px 20px; /* 列间距加大，格子跟着变小(4列不变，靠间距挤出空间) */
 }
-.lpTileWrap { display: flex; flex-direction: column; align-items: center; }
+.lpTileWrap { display: flex; flex-direction: column; align-items: center; min-width: 0; } /* min-width:0：星星一行比格子宽，不能把网格列撑宽 */
 .levelPickBtn {
   position: relative; width: 100%; aspect-ratio: 1; /* 正方形木板素材(v1.14.2起)，不再是384/449的木箱比例 */
   padding: 0; border: 0; background: var(--lp-tile, url('assets/UI/level_tile_light.png')) center / 100% 100% no-repeat;
@@ -631,11 +633,14 @@ html[data-lang="zh"] .homeBtn {
 .levelPickBtn.locked { filter: saturate(0.5) brightness(0.8); }
 .levelPickBtn.locked .num { display: none; }
 .levelPickBtn .ico.lockIco { width: 65%; height: 65%; background: #fff; filter: drop-shadow(0 2px 0 rgba(0,0,0,0.35)); } /* 纯白+更大，和木箱格子的金色(奖励语义)分开，专指「还没解锁」*/
-.lpStars { height: 17px; margin-top: 6px; display: flex; justify-content: center; gap: 2px; } /* 锁定的关卡不画星，但这一行的高度留着，保持各行间距一致 */ /* 空星半透明，点亮的星(.on)是实心金色 */
-.lpStars i { width: 17px; height: 17px; opacity: 0.7; /* 星星素材自带配色(金色实心/灰白空位)，直接当背景图，不再当遮罩上色 */
-  background: url('assets/UI/icons/icon_star_outline.svg') center/contain no-repeat; }
-.lpStars i.on { opacity: 1; background-image: url('assets/UI/icons/icon_star.svg'); }
-@media (min-width: 700px) { .lpStars { height: 26px; gap: 4px; } .lpStars i { width: 26px; height: 26px; } } /* iPad 格子更大，星星跟着放大 */
+.lpStars { height: 22px; margin-top: 6px; display: flex; justify-content: center; gap: 2px; width: max-content; } /* 星星一行(70px)比格子(约61px)略宽，会伸进左右 20px 的列间距里，居中所以两边对称。锁定的关卡不画星，但这一行的高度留着，保持各行间距一致 */
+.lpStars i { flex: none; width: 22px; height: 22px; /* 空星：icon_star_outline.svg 本身是「浅灰实心星」(灰蓝底+白边，不是镂空)，在米色面板上和金星分不出来，所以只拿它的形状当遮罩，涂成主题的深色副色，看起来像凹进面板的星星槽 */
+  background: var(--sub); opacity: 0.5;
+  -webkit-mask: url('assets/UI/icons/icon_star_outline.svg') center/contain no-repeat; mask: url('assets/UI/icons/icon_star_outline.svg') center/contain no-repeat; }
+.lpStars i.on { opacity: 1; background: url('assets/UI/icons/icon_star.svg') center/contain no-repeat; -webkit-mask: none; mask: none; } /* 点亮的星直接用金色实心素材自带配色 */
+.lpTileWrap.perfect .levelPickBtn .num { color: #ffd95a; } /* 完美(步数≤par)的关：数字金色 + 星星光晕 */
+.lpTileWrap.perfect .lpStars i.on { filter: drop-shadow(0 0 3px rgba(255,205,60,0.95)); }
+@media (min-width: 700px) { .lpStars { height: 34px; gap: 4px; } .lpStars i { width: 34px; height: 34px; } } /* iPad 格子更大，星星跟着放大 */
 /* 底部固定木板：结构、九宫格切片都和设置面板的关闭木板(.panelClose)同一套，只是更宽、装两个图标键 */
 #lpPlank {
   position: absolute; left: 0; right: 0; bottom: -22px; margin: 0 auto; z-index: 2;
@@ -714,7 +719,7 @@ html[data-lang="zh"] .homeBtn {
     <button class="homeBtn" id="homeSettings" data-i18n="settings">SETTINGS</button>
     <button class="homeBtn disabled" id="homeDev" disabled data-i18n="soon">COMING SOON</button>
   </div>
-  <div id="homeVersion">v1.15.2</div>
+  <div id="homeVersion">v1.15.4</div>
   <div id="homeCredit">Assets: Kenney Sokoban Pack (CC0)<br>Levels: David W. Skinner</div>
 </div>
 <div id="winOverlay">
@@ -867,7 +872,7 @@ html[data-lang="zh"] .homeBtn {
       <div class="settingsLabel" data-i18n="boxFx" style="margin-top:14px">箱子推动反馈</div>
       <div class="swatchRow" id="boxFxRow"></div>
     </div>
-    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.15.2</div>
+    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.15.4</div>
    </div>
    <button id="closeSettings" class="homeBtn panelClose" data-i18n="close" aria-label="Close">关闭</button>
   </div>
@@ -920,7 +925,7 @@ const I18N = {
     pickTitle: (c, total) => `选择关卡 · 已通关 ${c} / ${total}`,
     lockedHint: n => `先通关第 ${n} 关`, chapterShort: n => `第 ${n} 章`,
     cleared: m => `过关！用了 ${m} 步`, newBest: '（新纪录）', best: b => `（最佳 ${b}）`, allDone: '全部关卡完成 🎉',
-    winTitle: '通关！', winSteps: m => `本局 ${m} 步`, winBest: b => `历史最佳 ${b} 步`, winNewBest: '新纪录！', winAllDone: '已是最后一关 🎉',
+    winTitle: '通关！', winPerfect: '完美通关！', winSteps: m => `本局 ${m} 步`, winBest: b => `历史最佳 ${b} 步`, winNewBest: '新纪录！', winAllDone: '已是最后一关 🎉',
     resumed: n => `已恢复上次进度（${n} 步）`,
     bestTag: b => `最佳 ${b}`,
     devOn: '开发者模式：已开启（设置里有「高级」）', devOff: '开发者模式：已关闭',
@@ -942,7 +947,7 @@ const I18N = {
     pickTitle: (c, total) => `Levels · ${c} / ${total} cleared`,
     lockedHint: n => `Clear level ${n} first`, chapterShort: n => `Ch ${n}`,
     cleared: m => `Cleared! ${m} ${m === 1 ? 'move' : 'moves'}`, newBest: ' (new best)', best: b => ` (best ${b})`, allDone: 'All levels cleared 🎉',
-    winTitle: 'Level Clear!', winSteps: m => `${m} ${m === 1 ? 'move' : 'moves'} this run`, winBest: b => `Best: ${b}`, winNewBest: 'New record!', winAllDone: 'Last level 🎉',
+    winTitle: 'Level Clear!', winPerfect: 'Perfect!', winSteps: m => `${m} ${m === 1 ? 'move' : 'moves'} this run`, winBest: b => `Best: ${b}`, winNewBest: 'New record!', winAllDone: 'Last level 🎉',
     resumed: n => `Progress restored (${n} ${n === 1 ? 'move' : 'moves'})`,
     bestTag: b => `Best ${b}`,
     devOn: 'Developer mode on (Advanced is in Settings)', devOff: 'Developer mode off',
@@ -1310,7 +1315,9 @@ function openLevelPick() {
       wrap.appendChild(btn);
       const stars = document.createElement('div'); // 三星评级：按历史最佳步数/par 点亮，没通关就是三颗空星
       stars.className = 'lpStars';
-      const n = starsFor(progress.cleared[LEVEL_META[i].id], LEVEL_META[i].par);
+      const bestMoves = progress.cleared[LEVEL_META[i].id];
+      const n = starsFor(bestMoves, LEVEL_META[i].par);
+      if (unlocked && isPerfect(bestMoves, LEVEL_META[i].par)) wrap.classList.add('perfect'); // 达到 par：数字变金、星星发光
       stars.innerHTML = unlocked ? [0, 1, 2].map(k => `<i${k < n ? ' class="on"' : ''}></i>`).join('') : ''; // 锁定的关卡不显示星星(连空星也不画)
       wrap.appendChild(stars);
       if (i === cur) curBtn = wrap;
@@ -1431,6 +1438,8 @@ function starsFor(moves, par) {
   const m = moves * 100;
   return m <= par * 110 ? 3 : m <= par * 130 ? 2 : 1;
 }
+// 完美：步数达到(或低于)par。par 只有一部分关是求解器证明的最优，其余是社区已知最佳，所以文案叫「完美」不叫「最优」。
+function isPerfect(moves, par) { return moves !== undefined && !!par && moves <= par; }
 function isCleared(i) { return progress.cleared[LEVEL_META[i].id] !== undefined; }
 function isUnlocked(i) { return progress.debugUnlock || i === 0 || isCleared(i - 1); }
 function firstUnclearedIndex() {
@@ -2015,6 +2024,12 @@ function checkWin() {
 // 三星按本局步数/par 点亮(见 starsFor)，通关至少 1 星。
 function openWinPanel(idxAtWin, meta, moves, isNewBest, best) {
   const nStars = starsFor(moves, meta.par);
+  const perfect = isPerfect(moves, meta.par);
+  const titleEl = document.getElementById('winTitle'); // 完美通关：标题换成「完美通关！」+ 金色，星星加光晕
+  titleEl.dataset.i18n = perfect ? 'winPerfect' : 'winTitle';
+  titleEl.textContent = t(titleEl.dataset.i18n);
+  titleEl.classList.toggle('perfect', perfect);
+  document.getElementById('winStars').classList.toggle('perfect', perfect);
   document.querySelectorAll('#winStars .ico').forEach((el, k) => {
     const on = k < nStars;
     el.classList.toggle('filled', on);
