@@ -533,6 +533,7 @@ html[data-lang="zh"] .homeBtn {
   --wp-icon-h: 1.15em;   /* 脚印/皇冠图标高度，相对各自那一行的字号 */
   --wp-btn-width: 28%;
   --wp-btn-bottom: 9%;   /* 按钮离底边的距离，之前贴太死了 */
+  --wp-div-w: 55%; --wp-div-h: 1px; --wp-div-color: #8a6a45; --wp-div-my: 10px; /* 「本局」和「最佳」中间那条分隔线 */
   /* ↑↑↑ ------------------------------------------------------------------- ↑↑↑ */
   position: relative;
   width: min(64vw, 280px); aspect-ratio: 864 / 1301; /* 比例=素材原图(panel_win_wood.webp 864×1301)，绝不拉伸变形；手机上一开始给到84vw太占屏幕，缩到64vw像张奖励卡片 */
@@ -582,6 +583,7 @@ html[data-lang="zh"] .homeBtn {
   display: flex; align-items: center; justify-content: center; gap: 7px;
 }
 #winSteps { font-size: var(--wp-steps-size); }
+#winDivider { width: var(--wp-div-w); height: var(--wp-div-h); background: var(--wp-div-color); opacity: 0.6; margin: var(--wp-div-my) 0; } /* 「本局」「最佳」中间那条线，照 grok 预览图加的 */
 #winBest { font-size: var(--wp-best-size); opacity: 0.85; }
 #winSteps::before, #winBest::before { content: ''; flex: none; height: var(--wp-icon-h); align-self: center;
   filter: drop-shadow(0 1px 1px rgba(74,47,23,0.3)); } /* 图标也配一层阴影，跟文字的立体感统一 */
@@ -768,7 +770,7 @@ html[data-lang="zh"] .homeBtn {
     <button class="homeBtn" id="homeSettings" data-i18n="settings">SETTINGS</button>
     <button class="homeBtn disabled" id="homeDev" disabled data-i18n="soon">COMING SOON</button>
   </div>
-  <div id="homeVersion">v1.16.3</div>
+  <div id="homeVersion">v1.16.4</div>
   <div id="homeCredit">Assets: Kenney Sokoban Pack (CC0)<br>Levels: David W. Skinner</div>
 </div>
 <div id="winOverlay">
@@ -778,6 +780,7 @@ html[data-lang="zh"] .homeBtn {
     <div id="winBody">
       <div id="winStars"><span class="winSparkle a"></span><span class="winSparkle dot c"></span><i class="ico" style="--ico:url(assets/UI/icons/icon_star_empty.svg)"></i><i class="ico" style="--ico:url(assets/UI/icons/icon_star_empty.svg)"></i><i class="ico" style="--ico:url(assets/UI/icons/icon_star_empty.svg)"></i><span class="winSparkle b"></span><span class="winSparkle dot d"></span></div>
       <div id="winSteps"></div>
+      <div id="winDivider"></div>
       <div id="winBest"></div>
     </div>
     <div id="winButtons">
@@ -922,7 +925,7 @@ html[data-lang="zh"] .homeBtn {
       <div class="settingsLabel" data-i18n="boxFx" style="margin-top:14px">箱子推动反馈</div>
       <div class="swatchRow" id="boxFxRow"></div>
     </div>
-    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.16.3</div>
+    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.16.4</div>
    </div>
    <button id="closeSettings" class="homeBtn panelClose" data-i18n="close" aria-label="Close">关闭</button>
   </div>
@@ -975,7 +978,7 @@ const I18N = {
     pickTitle: (c, total) => `选择关卡 · 已通关 ${c} / ${total}`,
     lockedHint: n => `先通关第 ${n} 关`, chapterShort: n => `第 ${n} 章`,
     cleared: m => `过关！用了 ${m} 步`, newBest: '（新纪录）', best: b => `（最佳 ${b}）`, allDone: '全部关卡完成 🎉',
-    winTitle: '通关！', winPerfect: '完美通关！', winSteps: m => `本局 ${m} 步`, winBest: b => `历史最佳 ${b} 步`, winNewBest: '新纪录！', winAllDone: '已是最后一关 🎉',
+    winTitle: '通关', winPerfect: '完美通关', winSteps: m => `本局 ${m} 步`, winBest: b => `最佳 ${b} 步`, winNewBest: '新纪录！', winAllDone: '已是最后一关 🎉',
     resumed: n => `已恢复上次进度（${n} 步）`,
     bestTag: b => `最佳 ${b}`,
     devOn: '开发者模式：已开启（设置里有「高级」）', devOff: '开发者模式：已关闭',
