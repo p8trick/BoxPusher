@@ -521,6 +521,19 @@ html[data-lang="zh"] .homeBtn {
 }
 #winOverlay.show { opacity: 1; pointer-events: auto; }
 #winPanel {
+  /* ↓↓↓ 自己调过关面板的文字/图标大小/位置，只改这些数字，不用动下面的具体规则。
+     调的时候：把整个项目文件夹(index.html + assets/ 放一起)拖进电脑版 Chrome，
+     F12 或右键"检查"打开开发者工具，Elements 里点中 #winPanel，Styles 面板能直接改这些变量、实时看效果，
+     满意了再把改好的数字抄回这里，不用每次都发我。 ↓↓↓ */
+  --wp-title-size: clamp(23px, 8.4vw, 33px);
+  --wp-title-weight: 900;
+  --wp-steps-size: clamp(19px, 6.6vw, 27px);
+  --wp-best-size: clamp(14px, 4.9vw, 19px);
+  --wp-star-size: clamp(36px, 13vw, 53px);
+  --wp-icon-h: 1.15em;   /* 脚印/皇冠图标高度，相对各自那一行的字号 */
+  --wp-btn-width: 28%;
+  --wp-btn-bottom: 9%;   /* 按钮离底边的距离，之前贴太死了 */
+  /* ↑↑↑ ------------------------------------------------------------------- ↑↑↑ */
   position: relative;
   width: min(64vw, 280px); aspect-ratio: 864 / 1301; /* 比例=素材原图(panel_win_wood.webp 864×1301)，绝不拉伸变形；手机上一开始给到84vw太占屏幕，缩到64vw像张奖励卡片 */
   background: url('assets/UI/panel_win_wood.webp') center / 100% 100% no-repeat;
@@ -529,12 +542,13 @@ html[data-lang="zh"] .homeBtn {
 }
 #winOverlay.show #winPanel { transform: scale(1); opacity: 1; }
 @media (min-width: 700px) { #winPanel { width: min(50vw, 420px); } } /* iPad 横屏这个比例看着还行，保持不变 */
-#winTitle { /* 木牌上刻字：深棕实心字 + 一条极浅的高光描边，做出刻进木头里的凹陷感，不再是jade版的白字深描边 */
-  position: absolute; left: 0; right: 0; top: 8.5%; text-align: center;
-  font-family: 'KenneyFutureNarrow', 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif;
-  font-size: clamp(20px, 7.2vw, 29px); font-weight: 700; color: #3a2415;
-  -webkit-text-stroke: 0.03em rgba(255,235,205,0.35); paint-order: stroke fill; letter-spacing: 1px;
-  text-shadow: 0 1px 0 rgba(255,240,215,0.5);
+#winTitle { /* 木牌上刻字：深棕实心字 + 一条极浅的高光描边，做出刻进木头里的凹陷感；中文没有KenneyFutureNarrow字形会自动退到系统黑体，
+     所以"游戏感"靠加粗(900)+字距+双层阴影(上浅下深，模拟刻痕的立体感)做出来，不是靠换字体 */
+  position: absolute; left: 0; right: 0; top: 8%; text-align: center;
+  font-family: 'KenneyFutureNarrow', 'PingFang SC', 'Heiti SC', 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif;
+  font-size: var(--wp-title-size); font-weight: var(--wp-title-weight); color: #3a2415;
+  -webkit-text-stroke: 0.035em rgba(255,235,205,0.4); paint-order: stroke fill; letter-spacing: 2px;
+  text-shadow: 0 1px 0 rgba(255,240,215,0.6), 0 3px 4px rgba(74,47,23,0.28);
 }
 #winBody {
   position: absolute; left: 12%; right: 12%; top: 21%; bottom: 27%;
@@ -543,36 +557,41 @@ html[data-lang="zh"] .homeBtn {
 #winStars { display: flex; gap: 12px; }
 /* 星星大小改用固定 clamp，不再用百分比：#winStars 本身没有显式宽度(shrink-to-fit的flex子项)，
    子元素却按它的宽度算百分比——这种循环依赖在 Chrome 里会让百分比宽度直接算成 0，星星等于隐形，这是真bug不是没显示对 */
-#winStars .ico { width: clamp(34px, 12.3vw, 50px); height: clamp(34px, 12.3vw, 50px); filter: drop-shadow(0 2px 1px rgba(74,47,23,0.35)); } /* 故意比标题字号大：这是这张卡片的视觉重心 */
+#winStars .ico { width: var(--wp-star-size); height: var(--wp-star-size); filter: drop-shadow(0 2px 1px rgba(74,47,23,0.35)); } /* 故意比标题字号大：这是这张卡片的视觉重心 */
 #winStars .ico { -webkit-mask: none; mask: none; background: var(--ico) center/contain no-repeat; } /* 星星素材自带配色，不走全局 .ico 的遮罩上色 */
 #winStars .ico:not(.filled) { background: #7a5630; -webkit-mask: var(--ico) center/contain no-repeat; mask: var(--ico) center/contain no-repeat; opacity: 0.8; } /* 空星在浅色木牌上：白描边太弱，改成深棕描边(icon_star_empty 当遮罩) */
 #winTitle.perfect { color: #8a5a1e; -webkit-text-stroke: 0.03em rgba(255,220,140,0.55); }
 #winStars.perfect .ico { display: none; } /* 完美通关：三颗星换成一枚大皇冠(大小是星星的 1.5 倍，用负 margin 把高度补回去，卡片布局不动) */
-#winStars.perfect::after { content: ''; --ws: clamp(34px, 12.3vw, 50px); width: calc(var(--ws) * 1.5); height: calc(var(--ws) * 1.5); margin: calc(var(--ws) * -0.25) 0;
+#winStars.perfect::after { content: ''; --ws: var(--wp-star-size); width: calc(var(--ws) * 1.5); height: calc(var(--ws) * 1.5); margin: calc(var(--ws) * -0.25) 0;
   background: url('assets/UI/icons/icon_crown.svg') center/contain no-repeat; filter: drop-shadow(0 2px 1px rgba(74,47,23,0.35)); }
 /* 星星两侧的装饰小闪光：四角星形状(clip-path画，不需要贴图)，纯装饰，星级/皇冠状态都会显示；轻微呼吸动画，慢且弱，不抢视线 */
 #winStars { position: relative; }
 .winSparkle { position: absolute; width: 12px; height: 12px; background: var(--accent);
   clip-path: polygon(50% 0%, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0% 50%, 39% 39%);
   opacity: 0.85; pointer-events: none; animation: winSparkleTwinkle 2.6s ease-in-out infinite; }
-.winSparkle.a { top: -9px; left: -4px; width: 9px; height: 9px; animation-delay: 0.6s; }
-.winSparkle.b { bottom: -7px; right: -5px; animation-delay: 0s; }
-@keyframes winSparkleTwinkle { 0%, 100% { opacity: 0.55; transform: scale(0.85); } 50% { opacity: 1; transform: scale(1.1); } }
-#winSteps, #winBest { /* 木牌上的文字改深棕实色，不再套jade版的白字深绿描边；图标+文字一行，用 flex 排 */
-  font-family: 'KenneyFutureNarrow', 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif;
-  color: #4a2f17; text-align: center;
-  display: flex; align-items: center; justify-content: center; gap: 6px;
+.winSparkle.dot { clip-path: circle(50%); } /* 换个圆点形状，不是每颗都用四角星，看着更随意自然 */
+.winSparkle.a { top: -10px; left: -6px; width: 9px; height: 9px; animation-delay: 0.6s; }
+.winSparkle.b { bottom: -8px; right: -7px; animation-delay: 0s; }
+.winSparkle.c { top: 14%; right: -14px; width: 6px; height: 6px; animation-delay: 1.3s; }
+.winSparkle.d { bottom: 10%; left: -16px; width: 7px; height: 7px; animation-delay: 1.9s; }
+@keyframes winSparkleTwinkle { 0%, 100% { opacity: 0.5; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.15); } }
+#winSteps, #winBest { /* 木牌上的文字改深棕实色，不再套jade版的白字深绿描边；图标+文字一行，用 flex 排；字重/阴影跟标题同一套语言，图标也加阴影配套 */
+  font-family: 'KenneyFutureNarrow', 'PingFang SC', 'Heiti SC', 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif;
+  color: #4a2f17; text-align: center; font-weight: 700; letter-spacing: 0.5px;
+  text-shadow: 0 1px 0 rgba(255,240,215,0.5);
+  display: flex; align-items: center; justify-content: center; gap: 7px;
 }
-#winSteps { font-size: clamp(18px, 6.2vw, 25px); }
-#winBest { font-size: clamp(13px, 4.5vw, 18px); opacity: 0.85; }
-#winSteps::before, #winBest::before { content: ''; flex: none; height: 0.85em; align-self: center; }
-#winSteps::before { width: 0.76em; } /* 脚印 128×143(补上被误删的两只小拇指后，图更宽了) */
-#winBest::before { width: 0.98em; } /* 皇冠 96×83 */
+#winSteps { font-size: var(--wp-steps-size); }
+#winBest { font-size: var(--wp-best-size); opacity: 0.85; }
+#winSteps::before, #winBest::before { content: ''; flex: none; height: var(--wp-icon-h); align-self: center;
+  filter: drop-shadow(0 1px 1px rgba(74,47,23,0.3)); } /* 图标也配一层阴影，跟文字的立体感统一 */
+#winSteps::before { width: calc(var(--wp-icon-h) * 0.895); } /* 脚印 128×143 的宽高比 */
+#winBest::before { width: calc(var(--wp-icon-h) * 1.157); } /* 皇冠 96×83 的宽高比 */
 #winSteps::before { background: url('assets/UI/icons/icon_footstep.png') center/contain no-repeat; } /* 本局步数：脚印图标 */
 #winBest::before { background: url('assets/UI/icons/icon_crown_brown.png') center/contain no-repeat; } /* 历史最佳：深棕皇冠(和木牌上刻字同色系)；金色那枚 icon_crown.svg 只用于完美通关 */
-#winButtons { position: absolute; left: 0; right: 0; bottom: 6%; display: flex; justify-content: center; gap: 8%; }
+#winButtons { position: absolute; left: 0; right: 0; bottom: var(--wp-btn-bottom); display: flex; justify-content: center; gap: 8%; }
 .winBadge { /* 两颗按钮换成木质方按钮贴图(图标已经画在贴图里)，不再是纯色圆徽+单独图标叠加 */
-  width: 30%; aspect-ratio: 256 / 211; border: none; padding: 0; /* 按钮贴图 256×211，不是正方形；阴影用 drop-shadow 跟着贴图轮廓走，不用 box-shadow */
+  width: var(--wp-btn-width); aspect-ratio: 256 / 211; border: none; padding: 0; /* 按钮贴图 256×211，不是正方形；阴影用 drop-shadow 跟着贴图轮廓走，不用 box-shadow */
   background: url('assets/UI/btn_win_retry.png') center/contain no-repeat;
   filter: drop-shadow(0 5px 3px rgba(60,35,12,0.4));
 }
@@ -582,6 +601,15 @@ html[data-lang="zh"] .homeBtn {
 .winBadge.next:active { filter: drop-shadow(0 2px 2px rgba(60,35,12,0.4)) brightness(0.78) saturate(1.05); }
 .winBadge.hide { display: none; }
 #winButtons.single .winBadge.next { display: none; } /* 已经是最后一关：只留重试，见 openWinPanel */
+/* 五彩纸屑：只在「完美通关」时放一次，普通通关/三星都不放——每关都放的话 300 关刷下来会腻，
+   完美(达到par)本来就比三星难拿(见 isPerfect)，值得单独这一下庆祝感。想连三星也放，见 openWinPanel 里的调用条件。 */
+#winConfetti { position: absolute; inset: 0; overflow: visible; pointer-events: none; z-index: 5; }
+.winConfettiPiece { position: absolute; top: -10px; width: 7px; height: 12px; opacity: 0.95;
+  animation: winConfettiFall linear forwards; border-radius: 1px; }
+@keyframes winConfettiFall {
+  0%   { transform: translate(0, 0) rotate(0deg); opacity: 1; }
+  100% { transform: translate(var(--cx), 420px) rotate(var(--cr)); opacity: 0.15; }
+}
 
 /* ===== 关卡选择：木框浮层，结构和设置面板(#settingsOverlay/.artPanel)同一套，宽度更大以放下木箱网格 =====
    #levelPickWrap 是面板 + 底部木板的外层；面板本身可滚动，木板固定在外面(不随列表滚动)。
@@ -740,14 +768,15 @@ html[data-lang="zh"] .homeBtn {
     <button class="homeBtn" id="homeSettings" data-i18n="settings">SETTINGS</button>
     <button class="homeBtn disabled" id="homeDev" disabled data-i18n="soon">COMING SOON</button>
   </div>
-  <div id="homeVersion">v1.16.2</div>
+  <div id="homeVersion">v1.16.3</div>
   <div id="homeCredit">Assets: Kenney Sokoban Pack (CC0)<br>Levels: David W. Skinner</div>
 </div>
 <div id="winOverlay">
   <div id="winPanel">
+      <div id="winConfetti"></div>
     <div id="winTitle" data-i18n="winTitle">通关！</div>
     <div id="winBody">
-      <div id="winStars"><span class="winSparkle a"></span><i class="ico" style="--ico:url(assets/UI/icons/icon_star_empty.svg)"></i><i class="ico" style="--ico:url(assets/UI/icons/icon_star_empty.svg)"></i><i class="ico" style="--ico:url(assets/UI/icons/icon_star_empty.svg)"></i><span class="winSparkle b"></span></div>
+      <div id="winStars"><span class="winSparkle a"></span><span class="winSparkle dot c"></span><i class="ico" style="--ico:url(assets/UI/icons/icon_star_empty.svg)"></i><i class="ico" style="--ico:url(assets/UI/icons/icon_star_empty.svg)"></i><i class="ico" style="--ico:url(assets/UI/icons/icon_star_empty.svg)"></i><span class="winSparkle b"></span><span class="winSparkle dot d"></span></div>
       <div id="winSteps"></div>
       <div id="winBest"></div>
     </div>
@@ -893,7 +922,7 @@ html[data-lang="zh"] .homeBtn {
       <div class="settingsLabel" data-i18n="boxFx" style="margin-top:14px">箱子推动反馈</div>
       <div class="swatchRow" id="boxFxRow"></div>
     </div>
-    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.16.2</div>
+    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.16.3</div>
    </div>
    <button id="closeSettings" class="homeBtn panelClose" data-i18n="close" aria-label="Close">关闭</button>
   </div>
@@ -2068,6 +2097,26 @@ function openWinPanel(idxAtWin, meta, moves, isNewBest, best) {
   document.getElementById('app').classList.add('winShown');
   document.getElementById('winOverlay').classList.add('show');
   document.getElementById('winOverlay').dataset.idx = idxAtWin; // 供重试/下一关按钮读取，避免闭包捕获旧值
+  if (perfect) burstConfetti(); // 只在完美通关放彩纸；想连三星也放，把这行的条件改成 nStars === 3
+}
+// 五彩纸屑：随机生成一把小色块，从顶部往下落 + 旋转，1.6s 后自己清空。不用任何库，纯 CSS animation 做下落，JS 只负责生成/清理。
+function burstConfetti() {
+  const box = document.getElementById('winConfetti');
+  box.innerHTML = '';
+  const colors = ['#ffce54', '#e8543e', '#4fb0a5', '#5b8bd4', '#f2f2f2', '#c97b3a'];
+  const n = 26; // 纸屑数量，嫌多/嫌少改这个数
+  for (let i = 0; i < n; i++) {
+    const p = document.createElement('i');
+    p.className = 'winConfettiPiece';
+    p.style.left = (Math.random() * 100) + '%';
+    p.style.background = colors[i % colors.length];
+    p.style.setProperty('--cx', (Math.random() * 80 - 40) + 'px'); // 落下过程中左右飘一点
+    p.style.setProperty('--cr', (Math.random() * 520 - 260) + 'deg');
+    p.style.animationDuration = (1.1 + Math.random() * 0.6) + 's';
+    p.style.animationDelay = (Math.random() * 0.25) + 's';
+    box.appendChild(p);
+  }
+  setTimeout(() => { box.innerHTML = ''; }, 2000);
 }
 function closeWinPanel() {
   document.getElementById('winOverlay').classList.remove('show');
