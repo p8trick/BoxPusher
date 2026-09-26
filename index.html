@@ -534,6 +534,9 @@ html[data-lang="zh"] .homeBtn {
   --wp-btn-width: 28%;
   --wp-btn-bottom: 9%;   /* 按钮离底边的距离，之前贴太死了 */
   --wp-div-w: 55%; --wp-div-h: 1px; --wp-div-color: #8a6a45; --wp-div-my: 10px; /* 「本局」和「最佳」中间那条分隔线 */
+  --wp-title-top: 8%;   /* 标题上下位置(离卡片顶部) */
+  --wp-star-gap: 12px;  /* 三颗星之间的间距 */
+  --wp-btn-gap: 8%;     /* 两颗按钮之间的间距 */
   /* ↑↑↑ ------------------------------------------------------------------- ↑↑↑ */
   position: relative;
   width: min(64vw, 280px); aspect-ratio: 864 / 1301; /* 比例=素材原图(panel_win_wood.webp 864×1301)，绝不拉伸变形；手机上一开始给到84vw太占屏幕，缩到64vw像张奖励卡片 */
@@ -545,7 +548,7 @@ html[data-lang="zh"] .homeBtn {
 @media (min-width: 700px) { #winPanel { width: min(50vw, 420px); } } /* iPad 横屏这个比例看着还行，保持不变 */
 #winTitle { /* 木牌上刻字：深棕实心字 + 一条极浅的高光描边，做出刻进木头里的凹陷感；中文没有KenneyFutureNarrow字形会自动退到系统黑体，
      所以"游戏感"靠加粗(900)+字距+双层阴影(上浅下深，模拟刻痕的立体感)做出来，不是靠换字体 */
-  position: absolute; left: 0; right: 0; top: 8%; text-align: center;
+  position: absolute; left: 0; right: 0; top: var(--wp-title-top); text-align: center;
   font-family: 'KenneyFutureNarrow', 'PingFang SC', 'Heiti SC', 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif;
   font-size: var(--wp-title-size); font-weight: var(--wp-title-weight); color: #3a2415;
   -webkit-text-stroke: 0.035em rgba(255,235,205,0.4); paint-order: stroke fill; letter-spacing: 2px;
@@ -555,7 +558,7 @@ html[data-lang="zh"] .homeBtn {
   position: absolute; left: 12%; right: 12%; top: 21%; bottom: 27%;
   display: flex; flex-direction: column; align-items: center; justify-content: space-evenly;
 }
-#winStars { display: flex; gap: 12px; }
+#winStars { display: flex; gap: var(--wp-star-gap); }
 /* 星星大小改用固定 clamp，不再用百分比：#winStars 本身没有显式宽度(shrink-to-fit的flex子项)，
    子元素却按它的宽度算百分比——这种循环依赖在 Chrome 里会让百分比宽度直接算成 0，星星等于隐形，这是真bug不是没显示对 */
 #winStars .ico { width: var(--wp-star-size); height: var(--wp-star-size); filter: drop-shadow(0 2px 1px rgba(74,47,23,0.35)); } /* 故意比标题字号大：这是这张卡片的视觉重心 */
@@ -583,15 +586,15 @@ html[data-lang="zh"] .homeBtn {
   display: flex; align-items: center; justify-content: center; gap: 7px;
 }
 #winSteps { font-size: var(--wp-steps-size); }
-#winDivider { width: var(--wp-div-w); height: var(--wp-div-h); background: var(--wp-div-color); opacity: 0.6; margin: var(--wp-div-my) 0; } /* 「本局」「最佳」中间那条线，照 grok 预览图加的 */
-#winBest { font-size: var(--wp-best-size); opacity: 0.85; }
+#winDivider { width: var(--wp-div-w); height: var(--wp-div-h); background: var(--wp-div-color); opacity: 0.6; margin: var(--wp-div-my) 0; border-radius: 999px; } /* 「本局」「最佳」中间那条线，两端做成圆头 */
+#winBest { font-size: var(--wp-best-size); } /* 跟「本局」同色同不透明度，之前 0.85 的偏灰效果去掉了 */
 #winSteps::before, #winBest::before { content: ''; flex: none; height: var(--wp-icon-h); align-self: center;
   filter: drop-shadow(0 1px 1px rgba(74,47,23,0.3)); } /* 图标也配一层阴影，跟文字的立体感统一 */
 #winSteps::before { width: calc(var(--wp-icon-h) * 0.895); } /* 脚印 128×143 的宽高比 */
 #winBest::before { width: calc(var(--wp-icon-h) * 1.157); } /* 皇冠 96×83 的宽高比 */
 #winSteps::before { background: url('assets/UI/icons/icon_footstep.png') center/contain no-repeat; } /* 本局步数：脚印图标 */
 #winBest::before { background: url('assets/UI/icons/icon_crown_brown.png') center/contain no-repeat; } /* 历史最佳：深棕皇冠(和木牌上刻字同色系)；金色那枚 icon_crown.svg 只用于完美通关 */
-#winButtons { position: absolute; left: 0; right: 0; bottom: var(--wp-btn-bottom); display: flex; justify-content: center; gap: 8%; }
+#winButtons { position: absolute; left: 0; right: 0; bottom: var(--wp-btn-bottom); display: flex; justify-content: center; gap: var(--wp-btn-gap); }
 .winBadge { /* 两颗按钮换成木质方按钮贴图(图标已经画在贴图里)，不再是纯色圆徽+单独图标叠加 */
   width: var(--wp-btn-width); aspect-ratio: 256 / 211; border: none; padding: 0; /* 按钮贴图 256×211，不是正方形；阴影用 drop-shadow 跟着贴图轮廓走，不用 box-shadow */
   background: url('assets/UI/btn_win_retry.png') center/contain no-repeat;
@@ -770,7 +773,7 @@ html[data-lang="zh"] .homeBtn {
     <button class="homeBtn" id="homeSettings" data-i18n="settings">SETTINGS</button>
     <button class="homeBtn disabled" id="homeDev" disabled data-i18n="soon">COMING SOON</button>
   </div>
-  <div id="homeVersion">v1.16.4</div>
+  <div id="homeVersion">v1.16.5</div>
   <div id="homeCredit">Assets: Kenney Sokoban Pack (CC0)<br>Levels: David W. Skinner</div>
 </div>
 <div id="winOverlay">
@@ -925,7 +928,7 @@ html[data-lang="zh"] .homeBtn {
       <div class="settingsLabel" data-i18n="boxFx" style="margin-top:14px">箱子推动反馈</div>
       <div class="swatchRow" id="boxFxRow"></div>
     </div>
-    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.16.4</div>
+    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.16.5</div>
    </div>
    <button id="closeSettings" class="homeBtn panelClose" data-i18n="close" aria-label="Close">关闭</button>
   </div>
