@@ -525,18 +525,19 @@ html[data-lang="zh"] .homeBtn {
      调的时候：把整个项目文件夹(index.html + assets/ 放一起)拖进电脑版 Chrome，
      F12 或右键"检查"打开开发者工具，Elements 里点中 #winPanel，Styles 面板能直接改这些变量、实时看效果，
      满意了再把改好的数字抄回这里，不用每次都发我。 ↓↓↓ */
-  --wp-title-size: clamp(23px, 8.4vw, 33px);
+  --wp-title-size: 44px;
   --wp-title-weight: 900;
-  --wp-steps-size: clamp(19px, 6.6vw, 27px);
-  --wp-best-size: clamp(14px, 4.9vw, 19px);
-  --wp-star-size: clamp(36px, 13vw, 53px);
-  --wp-icon-h: 1.15em;   /* 脚印/皇冠图标高度，相对各自那一行的字号 */
-  --wp-btn-width: 28%;
+  --wp-steps-size: 24px;
+  --wp-best-size: 23px;
+  --wp-star-size: 66px;
+  --wp-foot-icon-h: 32px;  /* 脚印图标高度，定死的px，不再跟着字号走(调参工具里量出来的) */
+  --wp-crown-icon-h: 25px; /* 「最佳」那行皇冠图标高度 */
+  --wp-btn-width: 33%;
   --wp-btn-bottom: 9%;   /* 按钮离底边的距离，之前贴太死了 */
-  --wp-div-w: 55%; --wp-div-h: 1px; --wp-div-color: #8a6a45; --wp-div-my: 10px; /* 「本局」和「最佳」中间那条分隔线 */
+  --wp-div-w: 90%; --wp-div-h: 5px; --wp-div-color: #350000; --wp-div-my: 0px; /* 「本局」和「最佳」中间那条分隔线 */
   --wp-title-top: 8%;   /* 标题上下位置(离卡片顶部) */
-  --wp-star-gap: 12px;  /* 三颗星之间的间距 */
-  --wp-btn-gap: 8%;     /* 两颗按钮之间的间距 */
+  --wp-star-gap: 0px;  /* 三颗星之间的间距 */
+  --wp-btn-gap: 6%;     /* 两颗按钮之间的间距 */
   /* ↑↑↑ ------------------------------------------------------------------- ↑↑↑ */
   position: relative;
   width: min(64vw, 280px); aspect-ratio: 864 / 1301; /* 比例=素材原图(panel_win_wood.webp 864×1301)，绝不拉伸变形；手机上一开始给到84vw太占屏幕，缩到64vw像张奖励卡片 */
@@ -549,10 +550,10 @@ html[data-lang="zh"] .homeBtn {
 #winTitle { /* 木牌上刻字：深棕实心字 + 一条极浅的高光描边，做出刻进木头里的凹陷感；中文没有KenneyFutureNarrow字形会自动退到系统黑体，
      所以"游戏感"靠加粗(900)+字距+双层阴影(上浅下深，模拟刻痕的立体感)做出来，不是靠换字体 */
   position: absolute; left: 0; right: 0; top: var(--wp-title-top); text-align: center;
-  font-family: 'KenneyFutureNarrow', 'PingFang SC', 'Heiti SC', 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif;
+  font-family: 'KenneyFutureNarrow', system-ui, 'Helvetica Neue', Arial, sans-serif;
   font-size: var(--wp-title-size); font-weight: var(--wp-title-weight); color: #3a2415;
-  -webkit-text-stroke: 0.035em rgba(255,235,205,0.4); paint-order: stroke fill; letter-spacing: 2px;
-  text-shadow: 0 1px 0 rgba(255,240,215,0.6), 0 3px 4px rgba(74,47,23,0.28);
+  -webkit-text-stroke: 0.08em rgba(255,235,205,0.4); paint-order: stroke fill; letter-spacing: 1px;
+  text-shadow: 0 1px 0 rgba(255,240,215,0.1), 0 3px 2px rgba(74,47,23,0.86);
 }
 #winBody {
   position: absolute; left: 12%; right: 12%; top: 21%; bottom: 27%;
@@ -580,18 +581,18 @@ html[data-lang="zh"] .homeBtn {
 .winSparkle.d { bottom: 10%; left: -16px; width: 7px; height: 7px; animation-delay: 1.9s; }
 @keyframes winSparkleTwinkle { 0%, 100% { opacity: 0.5; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.15); } }
 #winSteps, #winBest { /* 木牌上的文字改深棕实色，不再套jade版的白字深绿描边；图标+文字一行，用 flex 排；字重/阴影跟标题同一套语言，图标也加阴影配套 */
-  font-family: 'KenneyFutureNarrow', 'PingFang SC', 'Heiti SC', 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif;
+  font-family: 'KenneyFutureNarrow', system-ui, 'Helvetica Neue', Arial, sans-serif;
   color: #4a2f17; text-align: center; font-weight: 700; letter-spacing: 0.5px;
-  text-shadow: 0 1px 0 rgba(255,240,215,0.5);
+  text-shadow: 0 1px 0 rgba(255,240,215,0.1);
   display: flex; align-items: center; justify-content: center; gap: 7px;
 }
 #winSteps { font-size: var(--wp-steps-size); }
 #winDivider { width: var(--wp-div-w); height: var(--wp-div-h); background: var(--wp-div-color); opacity: 0.6; margin: var(--wp-div-my) 0; border-radius: 999px; } /* 「本局」「最佳」中间那条线，两端做成圆头 */
 #winBest { font-size: var(--wp-best-size); } /* 跟「本局」同色同不透明度，之前 0.85 的偏灰效果去掉了 */
-#winSteps::before, #winBest::before { content: ''; flex: none; height: var(--wp-icon-h); align-self: center;
+#winSteps::before, #winBest::before { content: ''; flex: none; align-self: center;
   filter: drop-shadow(0 1px 1px rgba(74,47,23,0.3)); } /* 图标也配一层阴影，跟文字的立体感统一 */
-#winSteps::before { width: calc(var(--wp-icon-h) * 0.895); } /* 脚印 128×143 的宽高比 */
-#winBest::before { width: calc(var(--wp-icon-h) * 1.157); } /* 皇冠 96×83 的宽高比 */
+#winSteps::before { height: var(--wp-foot-icon-h); width: calc(var(--wp-foot-icon-h) * 0.895); } /* 脚印 128×143 的宽高比 */
+#winBest::before { height: var(--wp-crown-icon-h); width: calc(var(--wp-crown-icon-h) * 1.157); } /* 皇冠 96×83 的宽高比 */
 #winSteps::before { background: url('assets/UI/icons/icon_footstep.png') center/contain no-repeat; } /* 本局步数：脚印图标 */
 #winBest::before { background: url('assets/UI/icons/icon_crown_brown.png') center/contain no-repeat; } /* 历史最佳：深棕皇冠(和木牌上刻字同色系)；金色那枚 icon_crown.svg 只用于完美通关 */
 #winButtons { position: absolute; left: 0; right: 0; bottom: var(--wp-btn-bottom); display: flex; justify-content: center; gap: var(--wp-btn-gap); }
@@ -773,7 +774,7 @@ html[data-lang="zh"] .homeBtn {
     <button class="homeBtn" id="homeSettings" data-i18n="settings">SETTINGS</button>
     <button class="homeBtn disabled" id="homeDev" disabled data-i18n="soon">COMING SOON</button>
   </div>
-  <div id="homeVersion">v1.16.5</div>
+  <div id="homeVersion">v1.16.6</div>
   <div id="homeCredit">Assets: Kenney Sokoban Pack (CC0)<br>Levels: David W. Skinner</div>
 </div>
 <div id="winOverlay">
@@ -928,7 +929,7 @@ html[data-lang="zh"] .homeBtn {
       <div class="settingsLabel" data-i18n="boxFx" style="margin-top:14px">箱子推动反馈</div>
       <div class="swatchRow" id="boxFxRow"></div>
     </div>
-    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.16.5</div>
+    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.16.6</div>
    </div>
    <button id="closeSettings" class="homeBtn panelClose" data-i18n="close" aria-label="Close">关闭</button>
   </div>
