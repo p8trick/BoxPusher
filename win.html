@@ -33,6 +33,9 @@
     --wp-div-w: 55%;
     --wp-div-h: 1px;
     --wp-div-my: 10px;
+    --wp-title-top: 8%;
+    --wp-star-gap: 12px;
+    --wp-btn-gap: 8%;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   body {
@@ -47,7 +50,7 @@
     background: url('assets/UI/panel_win_wood.webp') center/100% 100% no-repeat;
   }
   .wpTitle {
-    position: absolute; left: 0; right: 0; top: 8%; text-align: center;
+    position: absolute; left: 0; right: 0; top: var(--wp-title-top); text-align: center;
     font-family: var(--wp-font), sans-serif; font-weight: var(--wp-title-weight);
     font-size: var(--wp-title-size); letter-spacing: var(--wp-title-ls); color: var(--wp-text-color);
     -webkit-text-stroke: var(--wp-stroke-w) rgba(var(--wp-stroke-color), var(--stroke-on, var(--wp-stroke-a)));
@@ -56,7 +59,7 @@
                  0 var(--wp-sh2-y) var(--wp-sh2-blur) rgba(var(--wp-sh2-color), var(--wp-sh2-a));
   }
   .wpBody { position: absolute; left: 12%; right: 12%; top: 21%; bottom: 27%; display: flex; flex-direction: column; align-items: center; justify-content: space-evenly; }
-  .wpStars { display: flex; gap: 12px; position: relative; }
+  .wpStars { display: flex; gap: var(--wp-star-gap); position: relative; }
   .wpStars img, .wpStars .crownBig { width: var(--wp-star-size); height: var(--wp-star-size); filter: drop-shadow(0 2px 1px rgba(74,47,23,0.35)); }
   .wpStars .crownBig { width: var(--wp-crown-big); height: var(--wp-crown-big); }
   .wpLine {
@@ -67,10 +70,10 @@
   .wpLine img { filter: drop-shadow(0 1px 1px rgba(74,47,23,0.3)); }
   #lnSteps { font-size: var(--wp-steps-size); }
   #lnSteps img { height: var(--wp-foot-h); }
-  #lnBest { font-size: var(--wp-best-size); opacity: 0.85; }
+  #lnBest { font-size: var(--wp-best-size); } /* 跟「本局」同色同不透明度 */
   #lnBest img { height: var(--wp-crown-h); }
-  .wpDivider { width: var(--wp-div-w); height: var(--wp-div-h); background: var(--wp-div-color); margin: var(--wp-div-my) 0; opacity: 0.6; }
-  .wpBtns { position: absolute; left: 0; right: 0; bottom: var(--wp-btn-bottom); display: flex; justify-content: center; gap: 8%; }
+  .wpDivider { width: var(--wp-div-w); height: var(--wp-div-h); background: var(--wp-div-color); margin: var(--wp-div-my) 0; opacity: 0.6; border-radius: 999px; }
+  .wpBtns { position: absolute; left: 0; right: 0; bottom: var(--wp-btn-bottom); display: flex; justify-content: center; gap: var(--wp-btn-gap); }
   .wpBtns img { width: var(--wp-btn-width); aspect-ratio: 256/211; }
   .row { display: flex; align-items: center; gap: 8px; margin: 10px 0; }
   .row label { flex: 0 0 118px; font-size: 12.5px; color: #cfcabb; }
@@ -116,6 +119,8 @@
   <button data-state="normal" class="active" onclick="setState('normal')">普通通关</button>
   <button data-state="perfect" onclick="setState('perfect')">完美通关</button>
 </div>
+<div class="row"><label>本局步数(试3位数)</label><input type="number" id="numSteps" value="40" oninput="updateNums()"></div>
+<div class="row"><label>最佳步数(试3位数)</label><input type="number" id="numBest" value="33" oninput="updateNums()"></div>
 
 <h2>标题「通关 / 完美通关」</h2>
 <div class="row"><label>字体</label>
@@ -139,6 +144,7 @@
 </div>
 <div class="row"><label>字距</label><input type="range" min="0" max="6" value="2" oninput="setVar('--wp-title-ls', this.value+'px'); showVal('vLs', this.value+'px')"><span class="val" id="vLs">2px</span></div>
 <div class="row"><label>文字颜色</label><input type="color" value="#3a2415" oninput="setVar('--wp-text-color', this.value)"></div>
+<div class="row"><label>标题上下位置</label><input type="range" min="2" max="20" value="8" oninput="setVar('--wp-title-top', this.value+'%'); showVal('vTitleTop', this.value+'%')"><span class="val" id="vTitleTop">8%</span></div>
 
 <div class="checkRow"><input type="checkbox" id="strokeOn" checked onchange="setVar('--stroke-on', this.checked? 'var(--wp-stroke-a)':'0')"><label for="strokeOn">开启文字高光描边</label></div>
 <div class="row"><label>描边粗细</label><input type="range" min="0" max="8" value="3.5" step="0.5" oninput="setVar('--wp-stroke-w', (this.value/100)+'em'); showVal('vStrokeW', this.value+'%')"><span class="val" id="vStrokeW">3.5%</span></div>
@@ -150,6 +156,7 @@
 <div class="row"><label>脚印图标高</label><input type="range" min="14" max="40" value="27" oninput="setVar('--wp-foot-h', this.value+'px'); showVal('vFoot', this.value+'px')"><span class="val" id="vFoot">27px</span></div>
 <div class="row"><label>皇冠图标高</label><input type="range" min="10" max="34" value="21" oninput="setVar('--wp-crown-h', this.value+'px'); showVal('vCrownH', this.value+'px')"><span class="val" id="vCrownH">21px</span></div>
 <div class="row"><label>三星大小</label><input type="range" min="24" max="70" value="48" oninput="setVar('--wp-star-size', this.value+'px'); showVal('vStar', this.value+'px')"><span class="val" id="vStar">48px</span></div>
+<div class="row"><label>三星间距</label><input type="range" min="0" max="30" value="12" oninput="setVar('--wp-star-gap', this.value+'px'); showVal('vStarGap', this.value+'px')"><span class="val" id="vStarGap">12px</span></div>
 <div class="row"><label>完美大皇冠</label><input type="range" min="40" max="110" value="72" oninput="setVar('--wp-crown-big', this.value+'px'); showVal('vCrownBig', this.value+'px')"><span class="val" id="vCrownBig">72px</span></div>
 
 <h2>分隔线（本局 / 最佳 之间）</h2>
@@ -162,6 +169,7 @@
 <h2>按钮</h2>
 <div class="row"><label>按钮宽度</label><input type="range" min="18" max="38" value="28" oninput="setVar('--wp-btn-width', this.value+'%'); showVal('vBtnW', this.value+'%')"><span class="val" id="vBtnW">28%</span></div>
 <div class="row"><label>离底边距离</label><input type="range" min="2" max="18" value="9" oninput="setVar('--wp-btn-bottom', this.value+'%'); showVal('vBtnB', this.value+'%')"><span class="val" id="vBtnB">9%</span></div>
+<div class="row"><label>两按钮间距</label><input type="range" min="2" max="24" value="8" oninput="setVar('--wp-btn-gap', this.value+'%'); showVal('vBtnGap', this.value+'%')"><span class="val" id="vBtnGap">8%</span></div>
 
 <button class="exportBtn" onclick="doExport()">导出参数（调完点这个）</button>
 <button class="copyBtn" onclick="doCopy()">复制到剪贴板</button>
@@ -175,6 +183,12 @@ function setVar(name, value, isFont) {
 }
 function showVal(id, text) { document.getElementById(id).textContent = text; }
 
+function updateNums() {
+  const s = document.getElementById('numSteps').value || '0';
+  const b = document.getElementById('numBest').value || '0';
+  document.querySelector('#lnSteps span').textContent = '本局 ' + s + ' 步';
+  document.querySelector('#lnBest span').textContent = '最佳 ' + b + ' 步';
+}
 function setState(state) {
   document.querySelectorAll('.stateBtns button').forEach(b => b.classList.toggle('active', b.dataset.state === state));
   const title = document.getElementById('wpTitle');
@@ -200,7 +214,10 @@ function doExport() {
 最佳：字号=${g('--wp-best-size')}  皇冠图标高=${g('--wp-crown-h')}
 星星大小=${g('--wp-star-size')}   完美大皇冠=${g('--wp-crown-big')}
 分隔线：${document.getElementById('divOn').checked ? '开' : '关'}  线宽=${g('--wp-div-w')}  粗细=${g('--wp-div-h')}  上下间距=${g('--wp-div-my')}  颜色=${g('--wp-div-color')}
-按钮：宽度=${g('--wp-btn-width')}  离底边=${g('--wp-btn-bottom')}`;
+按钮：宽度=${g('--wp-btn-width')}  离底边=${g('--wp-btn-bottom')}  两按钮间距=${g('--wp-btn-gap')}
+标题上下位置=${g('--wp-title-top')}
+三星间距=${g('--wp-star-gap')}
+本局/最佳：同色同不透明度(不再有深浅差)`;
   document.getElementById('out').value = text;
 }
 function doCopy() {
