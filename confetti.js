@@ -576,8 +576,10 @@
 
     var defaults = {
       origin: {
-        y: 0.7
+        x: 0.5
+        y: 0.47
       }
+      zIndex: 1000
     };
 
 
