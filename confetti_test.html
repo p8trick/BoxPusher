@@ -1,54 +1,223 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport"
-        content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>BoxPusher Confetti Test</title>
   <style>
+    * {
+      box-sizing: border-box;
+    }
     html,
     body {
       margin: 0;
       width: 100%;
       height: 100%;
       overflow: hidden;
-      font-family: sans-serif;
       background: #222;
+      font-family: sans-serif;
     }
-    body {
+    /* 通关画面预览 */
+    .preview {
+      position: fixed;
+      inset: 0;
       display: flex;
       align-items: center;
       justify-content: center;
+      overflow: hidden;
     }
-    .panel {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      width: min(80vw, 320px);
+    .preview img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+    /* 调节面板 */
+    .controls {
+      position: fixed;
+      left: 50%;
+      bottom: max(16px, env(safe-area-inset-bottom));
+      transform: translateX(-50%);
+      width: min(92vw, 420px);
+      padding: 14px 16px;
+      background: rgba(30, 30, 30, 0.92);
+      border-radius: 16px;
+      color: white;
+      z-index: 10;
+    }
+    .value {
+      text-align: center;
+      font-size: 15px;
+      margin-bottom: 8px;
+      font-weight: bold;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 32px 1fr 52px;
+      align-items: center;
+      gap: 8px;
+      margin: 8px 0;
+    }
+    .row label {
+      font-weight: bold;
+    }
+    input[type="range"] {
+      width: 100%;
+    }
+    .number {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    .buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 12px;
     }
     button {
       border: 0;
-      border-radius: 12px;
-      padding: 16px;
-      font-size: 18px;
+      border-radius: 10px;
+      padding: 13px 8px;
+      font-size: 16px;
       font-weight: bold;
       cursor: pointer;
+    }
+    .full {
+      grid-column: 1 / -1;
     }
   </style>
 </head>
 <body>
-  <div class="panel">
-    <button onclick="BoxPusherConfetti.playBasicConfetti()">
-      Basic Cannon
-    </button>
-    <button onclick="BoxPusherConfetti.playVictoryConfetti()">
-      Realistic Look
-    </button>
-    <button onclick="BoxPusherConfetti.reset()">
-      Reset
-    </button>
+  <!-- 自动读取同级 test.png -->
+  <div class="preview">
+    <img src="test.png" alt="BoxPusher Victory Screen">
   </div>
-  <!-- BoxPusher 专用彩纸引擎 -->
+  <div class="controls">
+    <div class="value">
+      彩纸位置：
+      X = <span id="xValue">50</span>%
+     　
+      Y = <span id="yValue">60</span>%
+    </div>
+    <div class="row">
+      <label>X</label>
+      <input
+        id="xSlider"
+        type="range"
+        min="0"
+        max="100"
+        value="50"
+        step="1"
+      >
+      <div class="number"><span id="xNumber">0.50</span></div>
+    </div>
+    <div class="row">
+      <label>Y</label>
+      <input
+        id="ySlider"
+        type="range"
+        min="0"
+        max="100"
+        value="60"
+        step="1"
+      >
+      <div class="number"><span id="yNumber">0.60</span></div>
+    </div>
+    <div class="buttons">
+      <button onclick="fireBasic()">Basic Cannon</button>
+      <button onclick="fireVictory()">Realistic Look</button>
+      <button class="full" onclick="resetPosition()">重置位置</button>
+    </div>
+  </div>
+  <!-- 自动读取同级 confetti.js -->
   <script src="confetti.js"></script>
+  <script>
+    const xSlider = document.getElementById('xSlider');
+    const ySlider = document.getElementById('ySlider');
+    const xValue = document.getElementById('xValue');
+    const yValue = document.getElementById('yValue');
+    const xNumber = document.getElementById('xNumber');
+    const yNumber = document.getElementById('yNumber');
+    function updatePositionDisplay() {
+      const x = Number(xSlider.value);
+      const y = Number(ySlider.value);
+      xValue.textContent = x;
+      yValue.textContent = y;
+      xNumber.textContent = (x / 100).toFixed(2);
+      yNumber.textContent = (y / 100).toFixed(2);
+    }
+    xSlider.addEventListener('input', updatePositionDisplay);
+    ySlider.addEventListener('input', updatePositionDisplay);
+    function getOrigin() {
+      return {
+        x: Number(xSlider.value) / 100,
+        y: Number(ySlider.value) / 100
+      };
+    }
+    function fireBasic() {
+      BoxPusherConfetti.fire({
+        particleCount: 100,
+        spread: 70,
+        origin: getOrigin()
+      });
+    }
+    function fireVictory() {
+      const origin = getOrigin();
+      BoxPusherConfetti.fire({
+        particleCount: 50,
+        spread: 26,
+        startVelocity: 55,
+        origin: origin
+      });
+      BoxPusherConfetti.fire({
+        particleCount: 40,
+        spread: 60,
+        origin: origin
+      });
+      BoxPusherConfetti.fire({
+        particleCount: 70,
+        spread: 100,
+        decay: 0.91,
+        scalar: 0.8,
+        origin: origin
+      });
+      BoxPusherConfetti.fire({
+        particleCount: 20,
+        spread: 120,
+        startVelocity: 25,
+        decay: 0.92,
+        scalar: 1.2,
+        origin: origin
+      });
+      BoxPusherConfetti.fire({
+        particleCount: 20,
+        spread: 120,
+        startVelocity: 45,
+        origin: origin
+      });
+    }
+    function resetPosition() {
+      xSlider.value = 50;
+      ySlider.value = 60;
+      updatePositionDisplay();
+    }
+    updatePositionDisplay();
+  </script>
 </body>
 </html>
+
+这个版本有一个关键点：Realistic Look 的 5 组喷射全部使用你当前调好的同一个 X/Y 位置，所以你调好以后，最终得到的就是正式版应该使用的：
+
+origin: {
+  x: 0.xx,
+  y: 0.xx
+}
+
+你的文件夹最终就是：
+
+index.html
+confetti.js
+confetti-test.html
+test.png
+
+测试完以后，confetti-test.html 和 test.png 都可以直接删掉，正式版只留下 confetti.js。
