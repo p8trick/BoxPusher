@@ -11,9 +11,7 @@
 <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
 <title>BoxPusher</title>
 <script>
-/* manifest 才是 iOS 生成主屏幕图标时真正取名字的地方(「添加」弹窗里预填的是页面标题，生成后的图标用 manifest 的 name)。
-   manifest 是静态文件、不能按语言给不同名字，所以准备两份：manifest.json(英文 BoxPusher) 和 manifest-zh.json(中文 推箱子)，
-   这里按系统语言二选一，在解析页面时就把 link 建好。两份的 start_url/scope/图标都一样，只有名字/描述/lang 不同。 */
+/* 主屏幕图标名取自 manifest，不是 title；按系统语言二选一插入 manifest.json / manifest-zh.json，见避坑指南A */
 (function () {
   var zh = (navigator.language || '').toLowerCase().indexOf('zh') === 0;
   var l = document.createElement('link');
@@ -43,7 +41,6 @@
   --sub: #8a7d63;           /* 面板上的小标题 */
   --accent: #b8814a;
   --press: #e8dfc5;         /* 面板按钮按下色 */
-  --cleared: #e4dab8;       /* 选关面板里已通关的格子 */
   --page-text: #f4efe0;     /* 直接写在页面底色上的文字 */
   --dpad: #3a3226; --dpad-active: #55493a; --dpad-fg: #f4efe0;
   color-scheme: light;
@@ -51,7 +48,7 @@
 :root[data-theme="dark"] {
   --bg: #0c0e11; --frame-bg: #171a1f; --frame-border: #2c3138;
   --panel: #1d2026; --panel-border: #343a43; --ink: #e8e4d8; --sub: #9aa0a8;
-  --accent: #d99a55; --press: #2a2f37; --cleared: #2d333c; --page-text: #cfc9b8;
+  --accent: #d99a55; --press: #2a2f37; --page-text: #cfc9b8;
   --dpad: #252930; --dpad-active: #343a43; --dpad-fg: #d9d4c5;
   color-scheme: dark;
 }
@@ -60,8 +57,7 @@
   --page-text: #eaf2f8;
   --dpad: #16324a; --dpad-active: #22486a; --dpad-fg: #eaf2f8;
 }
-/* Kenney 字体：只用在主页按钮等英文/数字标签上(这套字体没有中文字形，中文一律走系统字体)。
-   font-weight写成范围，声明这个字体覆盖所有字重，避免浏览器对它做"假粗体"。文件没上传时自动退回下面的备用字体栈 */
+/* Kenney 字体只用在主页按钮等英文/数字标签(无中文字形)；font-weight写范围避免浏览器"假粗体"；文件缺失时退回备用字体栈 */
 @font-face {
   font-family: 'KenneyFutureNarrow';
   src: url('assets/fonts/kenney_future_narrow.ttf') format('truetype'),
@@ -98,8 +94,7 @@ body {
   overflow-x: hidden; /* 只放在body上，不让html的overflow传播到viewport层面干扰fixed定位元素的安全区计算 */
 }
 #app {
-  height: 100vh; /* dvh在这台设备standalone模式下算出来偏矮，已证实是bug根源，游戏主界面也用回100vh。
-                    这里必须是固定高度(不是min-height)：舞台(#stage)才能在确定的剩余空间里居中，加内边距时不会把页面撑高 */
+  height: 100vh; /* dvh 在 standalone PWA 下算出来偏矮(见避坑A)，游戏主界面固定用 100vh；必须是固定高度(非 min-height)，舞台才能在剩余空间里居中 */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -206,9 +201,7 @@ body {
   flex: none;
   transform: scale(var(--dpad-scale, 1));
 }
-/* ---- D-pad 图形(素材在 assets/UI/dpad/，颜色全走主题变量)----
-   用 mask 把单色 svg 当"模具"，背景色就是主题色：--dpad 底色 / --dpad-fg 描边+箭头 / --dpad-active 按下时的底色；
-   按下高亮直接用素材自带的橙色渐变图(dpad_*highlight.svg)，--dpad-hl-filter 可以整体调色；命中区用 clip-path 裁出形状 */
+/* D-pad：单色 svg 当 mask 上主题色(--dpad/--dpad-fg/--dpad-active)；按下换成自带渐变的 _highlight.svg，clip-path 裁出被按的那一臂形状 */
 :root { --dpad-hl-filter: saturate(0.9) hue-rotate(-4deg); }
 .dpSet { position: absolute; inset: 0; }
 #dpadSplit { display: none; }
@@ -275,9 +268,7 @@ body {
 .ico { display: block; background: currentColor; pointer-events: none; -webkit-mask: var(--ico) center / contain no-repeat; mask: var(--ico) center / contain no-repeat; }
 #modeBtn .ico { width: 58%; height: 58%; }
 
-/* 暂停/地图模式：D-pad、撤销、步数让位；四个选项排成一行悬在右下角按钮的上方，
-   垂直位置大致还在原来D-pad的高度，不再贴底。布局尺寸不变，所以棋盘不会跳。
-   这一排只在暂停时才创建、退出即删除：常驻的隐藏元素在iOS上会漏出投影(D-pad四周色差分界线的根因) */
+/* 暂停/地图模式：#pauseRow 只在暂停时创建、退出即删，不用常驻隐藏元素，见避坑A(drop-shadow 漏投影) */
 #controls { position: relative; }
 #app.paused #dpad, #app.paused #undo { visibility: hidden; pointer-events: none; }
 #app.winShown #dpad, #app.winShown #undo, #app.winShown #modeBtn { visibility: hidden; pointer-events: none; }
@@ -303,12 +294,7 @@ body {
 }
 #toast.show { opacity: 1; transform: translate(-50%,-50%) scale(1); }
 
-/* ===== 木框面板(设置用；以后选关面板复用 .artPanel 这层外壳) =====
-   浮层居中、四周留边不贴屏幕：手机竖屏宽约 92%(左右各14px)、高最多约 90%(上下各 5vh)，露出后面的主页/棋盘，
-   后面压一层 45% 黑 + 轻微模糊。木框是九宫格图 assets/UI/panel_wood_portrait.png(658×1173，中间透明)，
-   切片 63 54 59 54(上 右 下 左) → 边宽 20 17 19 17px，大约是 3× 屏 1:1 显示；中间底色用主题纸色 var(--panel)。
-   border-image 图不在时，退回一圈木色实线边框。background-clip:padding-box 防止圆角外露出底色。
-   面板本身就是滚动容器，木框在border上不跟着滚。iPad 版木框还没有，先共用这张(宽度上限放大到 640px)。 */
+/* 木框面板：浮层居中(手机宽92%/高90%)，半透明黑+模糊背景；边框图 panel_wood_portrait.png 9-slice(63 54 59 54→20 17 19 17px)；background-clip:padding-box 防圆角露底色；面板自身可滚动，边框不跟着滚；iPad 沿用同一张图(宽度上限640px) */
 #settingsOverlay {
   position: fixed; inset: 0;
   background: rgba(0,0,0,0.45);
@@ -345,10 +331,7 @@ body {
   overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; /* 内容超出一屏时在框内滚动 */
 }
 @media (min-width: 700px) { #settingsWrap { max-width: 640px; } }
-/* 关闭钮：面板专用的木板按钮 assets/UI/btn_wood_panel.png(448×126，由主页的 btn_wood_menu.png 调成木框同色系并缩小得到，主页按钮仍用原图)。
-   还是九宫格：切片 36 30(上下/左右，= 原图 68/56 × 126/238)，按钮 116×42，边宽 = 切片 × 42/126 = 12/10px，
-   即 3× 屏上 1:1 显示。横跨在木框下边中间，向下探出 22px(仍在屏幕内)；钮在滚动区外面，滚到哪里都在。
-   视觉只有 116×42，点击区用 ::after 向四周多扩 4px(≈124×50)。选择器带 #settingsWrap 是为了压过 .homeBtn 及其 iPad 覆盖 */
+/* 关闭钮：小木板 btn_wood_panel.png 9-slice(36 30→12/10px)，横跨木框下边中间探出22px；::after 扩4px点击区；#settingsWrap 前缀是为了压过 .homeBtn 的 iPad 覆盖规则 */
 #settingsWrap .panelClose {
   position: absolute; left: 0; right: 0; bottom: -22px; margin: 0 auto; z-index: 2;
   width: 116px; height: 42px;
@@ -367,9 +350,7 @@ html[data-lang="zh"] #settingsWrap .panelClose { font-size: 18px; letter-spacing
 }
 
 /* ===== iPad 横屏 =====
-   三列：左列D-pad(贴左下，左手拇指)，中间是尽量大的棋盘，右列撤销/步数/地图(贴右下，右手拇指)。
-   #controls 用 display:contents 拆掉外壳，它里面的左槽和右列直接成为网格项；
-   暂停模式的四个选项在右列里竖排，悬在地图/返回按钮上方。iPhone竖屏不受影响。 */
+   三列：D-pad(左) | 棋盘(中) | 撤销+地图(右)；#controls 用 display:contents 拆壳，暂停选项竖排在右列 */
 @media (orientation: landscape) and (min-width: 900px) {
   #app {
     display: grid;
@@ -431,8 +412,7 @@ html[data-lang="zh"] #settingsWrap .panelClose { font-size: 18px; letter-spacing
   flex-direction: column;
   gap: 12px;
 }
-/* 木箱按钮：九宫格。只取外框，中间用素材里的深棕色平涂，文字压在纯色上最清楚。
-   换素材：替换 assets/UI/btn_wood_menu.png，并按新图的四角大小调下面 border-image-slice / border-width */
+/* 木箱按钮：九宫格取外框，中间深棕平涂；换素材要按新图四角大小同步调 border-image-slice/border-width */
 .homeBtn {
   height: 56px;
   border-style: solid;
@@ -503,12 +483,8 @@ html[data-lang="zh"] .homeBtn {
   pointer-events: none; /* 这一条全宽横条不能吃掉点击 */
 }
 
-/* ===== 过关面板：木牌(assets/UI/panel_win_wood.webp，864×1301) =====
-   不用九宫格：内容量固定(标题+三星+两行数字+两个按钮)，不像设置/选关那样要装下滚动列表，
-   所以直接把石板当整块背景图铺满一个固定宽高比的盒子(aspect-ratio跟素材原比例一致，不会被拉变形)，里面用绝对定位摆内容。
-   石板顶部天然有一条雕刻分割线(约在11.4%高度处)，标题文字卡在那条线上方的窄条里。
-   按钮用实心圆徽(和UNDO/预览按钮同一视觉语言)，不用纯描边贴在石头上——测过描边版本存在感太弱。
-   石板颜色固定不跟主题走(奖励时刻，特意跳出三套主题色，不需要再适配)，文字用白底深墨绿描边，同一套手绘描边语言。 */
+/* ===== 过关面板：木牌(panel_win_wood.webp，864×1301) =====
+   不用9-slice：内容固定(标题+三星+两行数字+两按钮)，整块背景图铺满固定宽高比盒子，内部绝对定位；顶部11.4%处天然有雕刻分割线卡标题；石板颜色固定不跟主题走 */
 #winOverlay {
   position: fixed; inset: 0;
   background: rgba(0,0,0,0.5);
@@ -520,12 +496,7 @@ html[data-lang="zh"] .homeBtn {
   transition: opacity 0.2s ease;
 }
 #winOverlay.show { opacity: 1; pointer-events: auto; }
-/* 通关结算动画：统一走「同一套开牌骨架 + 第4拍换评级」——
-   拍1(0-0.22s)：木牌缩放入场，牌上内容都还是透明占位；
-   拍2(0.18-0.38s)：标题+本局+分隔线+最佳 一组一起弱淡入(4px上移)，按钮再晚80ms淡入(3px上移，更弱)；
-   拍3(≈0.4s起)：只有中间的星星/皇冠这一块，按星级/是否完美分叉播不同的入场；
-   按钮在固定 0.55s 解锁可点(见 openWinPanel 里的 setTimeout)，不等动画或彩纸播完。
-   1/2/3 星几个状态之间只有这最后一拍不同，前面全部一样；彩纸只在完美(皇冠)时、皇冠定住的那一刻才发射。 */
+/* 结算动画三拍：拍1(0-0.22s)木牌缩放入场；拍2(0.18-0.38s)标题/本局/分隔线/最佳一起淡入，按钮再晚80ms；拍3(≈0.4s起)星星/皇冠按星级分叉入场。按钮固定0.55s解锁可点，不等动画/彩纸播完；彩纸只在完美(皇冠定住)时发射 */
 @keyframes wpFadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes wpFadeUpSoft { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
 #winPanel.wpAnim .wpFadeGroup { opacity: 0; animation: wpFadeUp 0.2s ease-out 0.18s both; }
@@ -536,10 +507,7 @@ html[data-lang="zh"] .homeBtn {
 @keyframes wpStarIn3 { from { opacity: 0; transform: scale(0.7); } to { opacity: 1; transform: scale(var(--star3To, 1)); } } /* 3星：70%→100%，中间那颗靠 --star3To 稍微放大一点(JS 里设) */
 @keyframes wpCrownIn { 0% { opacity: 0; transform: scale(0.55) rotate(-8deg); } 15% { opacity: 0.3; transform: scale(0.64) rotate(-5deg); } 30% { opacity: 0.8; transform: scale(0.76) rotate(-2deg); } 70% { opacity: 1; transform: scale(1.1) rotate(3deg); } 100% { opacity: 1; transform: scale(1) rotate(0deg); } } /* 完美：皇冠单独入场，回正旋转不超过8° */
 #winPanel {
-  /* ↓↓↓ 自己调过关面板的文字/图标大小/位置，只改这些数字，不用动下面的具体规则。
-     调的时候：把整个项目文件夹(index.html + assets/ 放一起)拖进电脑版 Chrome，
-     F12 或右键"检查"打开开发者工具，Elements 里点中 #winPanel，Styles 面板能直接改这些变量、实时看效果，
-     满意了再把改好的数字抄回这里，不用每次都发我。 ↓↓↓ */
+  /* ↓↓↓ 自己调过关面板文字/图标大小位置：把项目文件夹拖进桌面版 Chrome，F12 选中 #winPanel 实时改这些变量，调好把数字抄回来即可 ↓↓↓ */
   --wp-title-size: 44px;
   --wp-title-weight: 900;
   --wp-steps-size: 24px;
@@ -553,7 +521,7 @@ html[data-lang="zh"] .homeBtn {
   --wp-title-top: 8%;   /* 标题上下位置(离卡片顶部) */
   --wp-star-gap: 0px;  /* 三颗星之间的间距 */
   --wp-btn-gap: 6%;     /* 两颗按钮之间的间距 */
-  /* ↑↑↑ ------------------------------------------------------------------- ↑↑↑ */
+  /* ---------------------------------------------------------------------- */
   position: relative;
   width: min(64vw, 280px); aspect-ratio: 864 / 1301; /* 比例=素材原图(panel_win_wood.webp 864×1301)，绝不拉伸变形；手机上一开始给到84vw太占屏幕，缩到64vw像张奖励卡片 */
   background: url('assets/UI/panel_win_wood.webp') center / 100% 100% no-repeat;
@@ -562,8 +530,7 @@ html[data-lang="zh"] .homeBtn {
 }
 #winOverlay.show #winPanel { transform: scale(1); opacity: 1; }
 @media (min-width: 700px) { #winPanel { width: min(50vw, 420px); } } /* iPad 横屏这个比例看着还行，保持不变 */
-#winTitle { /* 木牌上刻字：深棕实心字 + 一条极浅的高光描边，做出刻进木头里的凹陷感；中文没有KenneyFutureNarrow字形会自动退到系统黑体，
-     所以"游戏感"靠加粗(900)+字距+双层阴影(上浅下深，模拟刻痕的立体感)做出来，不是靠换字体 */
+#winTitle { /* 木牌刻字：深棕实色+浅描边模拟凹陷刻痕；中文无 KenneyFutureNarrow 字形退到系统黑体，靠字重900+双层阴影做游戏感，不是靠换字体 */
   position: absolute; left: 0; right: 0; top: var(--wp-title-top); text-align: center;
   font-family: 'KenneyFutureNarrow', system-ui, 'Helvetica Neue', Arial, sans-serif;
   font-size: var(--wp-title-size); font-weight: var(--wp-title-weight); color: #3a2415;
@@ -575,8 +542,7 @@ html[data-lang="zh"] .homeBtn {
   display: flex; flex-direction: column; align-items: center; justify-content: space-evenly;
 }
 #winStars { display: flex; gap: var(--wp-star-gap); }
-/* 星星大小改用固定 clamp，不再用百分比：#winStars 本身没有显式宽度(shrink-to-fit的flex子项)，
-   子元素却按它的宽度算百分比——这种循环依赖在 Chrome 里会让百分比宽度直接算成 0，星星等于隐形，这是真bug不是没显示对 */
+/* 星星用固定 clamp 不用百分比：flex 容器子元素用百分比宽度会被 Chrome 算成 0，见避坑B2 */
 #winStars .ico { width: var(--wp-star-size); height: var(--wp-star-size); filter: drop-shadow(0 2px 1px rgba(74,47,23,0.35)); } /* 故意比标题字号大：这是这张卡片的视觉重心 */
 #winStars .ico { -webkit-mask: none; mask: none; background: var(--ico) center/contain no-repeat; } /* 星星素材自带配色，不走全局 .ico 的遮罩上色 */
 #winStars .ico:not(.filled) { background: #7a5630; -webkit-mask: var(--ico) center/contain no-repeat; mask: var(--ico) center/contain no-repeat; opacity: 0.8; } /* 空星在浅色木牌上：白描边太弱，改成深棕描边(icon_star_empty 当遮罩) */
@@ -613,17 +579,10 @@ html[data-lang="zh"] .homeBtn {
 .winBadge.next:active { filter: drop-shadow(0 2px 2px rgba(60,35,12,0.4)) brightness(0.78) saturate(1.05); }
 .winBadge.hide { display: none; }
 #winButtons.single .winBadge.next { display: none; } /* 已经是最后一关：只留重试，见 openWinPanel */
-/* 五彩纸屑：只在「完美通关」时、皇冠定住的那一刻放一次，普通通关/1/2/3星都不放——
-   完美(达到par)本来就比三星难拿(见 isPerfect)，值得单独这一下庆祝感。
-   效果外包给 assets/js/confetti.js(BoxPusherConfetti 模块)，这边不管它内部怎么画，只负责在对的时机调一下，
-   见 JS 里的 burstConfetti。库自己建 canvas 的话通常会挂在 <body> 下，不是木牌/皇冠的子节点，不受面板裁切。 */
+/* 彩纸：只在完美通关、皇冠动画落定那一刻放一次，效果外包给根目录 confetti.js(BoxPusherConfetti 模块)，见 JS 里的 burstConfetti；库自建的 canvas 挂在 <body> 下，不受面板裁切 */
 
-/* ===== 关卡选择：木框浮层，结构和设置面板(#settingsOverlay/.artPanel)同一套，宽度更大以放下木箱网格 =====
-   #levelPickWrap 是面板 + 底部木板的外层；面板本身可滚动，木板固定在外面(不随列表滚动)。
-   每关一块木箱(assets/UI/level_tile_light.png，9-slice四角不拉伸，中间纯色区域拉伸铺满格子——
-   实测边框占比小，直接拉伸不明显走样，比裁 9-slice 简单)；已解锁显示白字描边关卡号，未解锁盖一个 icon_lock 图标、
-   整块降饱和调暗；三星评分位置已经留好(.lpStars)，暂时是空的占位，等基准步数出来再点亮。
-   iPhone 竖屏固定 4 列；iPad(面板变宽后)用 JS 按面板内宽度算合适列数(4~8)，横屏通常落在 6 列左右。 */
+/* ===== 关卡选择：木框浮层，结构同设置面板，宽度更大以放木箱网格 =====
+   #levelPickWrap = 面板+底部固定木板(不随列表滚动)；每关一块木箱贴图，已解锁白字描边号/未解锁盖锁图标并降饱和；星级/皇冠按 par 点亮(规则见 §13)；iPhone 固定4列，iPad 按面板宽反推4~8列 */
 #levelPickOverlay {
   position: fixed; inset: 0;
   background: rgba(0,0,0,0.45);
@@ -938,7 +897,7 @@ html[data-lang="zh"] .homeBtn {
 <script src="levels.js"></script>
 <script src="confetti.js"></script>
 <script>
-/* ---------- 主屏幕图标标题：跟随系统语言自动切换中文「推箱子」/英文「BoxPusher」根据当前ios系统环境自动调用相应的 */
+/* 主屏幕图标标题：跟随系统语言切换 中文「推箱子」/ 英文「BoxPusher」 */
 (function () {
   const isZh = (navigator.language || '').toLowerCase().startsWith('zh');
   const title = isZh ? '推箱子' : 'BoxPusher';
@@ -961,9 +920,8 @@ const SPRITE = {
   right: { stand: 'Right1', stepA: 'Right2', stepB: 'Right3' }
 };
 
-/* ---------- 图标：6 个单色 svg 放在 assets/UI/icons/(Kenney Game Icons，CC0)，命名 icon_<名字>.svg ----------
-   用 CSS mask 当"模具"，背景色 = currentColor，颜色跟着按钮的 color 走，三个主题都不用另配一套。
-   只看图形的透明度(alpha)，svg 里写什么颜色都无所谓，但必须有 viewBox(或 width+height)，背景透明。 */
+/* ---------- 图标：单色 svg 放 assets/UI/icons/(Kenney CC0) ----------
+   CSS mask 当模具，background:currentColor 跟随按钮颜色，三主题不用各配一套；svg 只看透明度，颜色随便写但要有 viewBox */
 const ICON_DIR = 'assets/UI/icons/';
 const ICON_NAMES = ['restart', 'levels', 'home', 'settings', 'map', 'back', 'lock', 'menu', 'star', 'star_outline', 'next'];
 function iconSVG(name) {
@@ -971,8 +929,7 @@ function iconSVG(name) {
 }
 
 /* ---------- 界面语言：中文 / English ----------
-   默认跟随系统语言，设置里可切换并记住。主页菜单也跟着语言走(中文用系统粗体，英文用Kenney字体)。
-   新增文案：在下面两张表里各加一条同名key，用 t('key') 或 t('key', 参数) 取值 */
+   默认跟随系统语言，设置里可切换并记住；新增文案在 I18N.zh/en 两张表各加一条同名 key，用 t('key') 取值 */
 const I18N = {
   zh: {
     start: '开始游戏', continue: '继续游戏', levels: '关卡选择', settings: '游戏设置', soon: '敬请期待',
@@ -1044,8 +1001,7 @@ const CRATE_LABELS = { grey: '灰', red: '红', brown: '棕', blue: '蓝', green
 
 const SETTINGS_KEY = 'sokoban_appearance_v1';
 const DEFAULT_SETTINGS = { lang: defaultLang(), theme: 'green', floor: 'grey', wall: 'red1', crate: 'brown', dpadStyle: 'cross', dpadCross: { scale: 100, x: 0, y: 0 }, dpadSplit: { scale: 100, x: 0, y: 0, gap: 48 }, boardWPct: 100, boardHPct: 100, walkMs: 260, pushMs: 300, boxFx: 'rebound', tuneVer: 1 };
-// tuneVer：手感类默认值(走路/推箱时长、箱子回弹)的版本号。存档里没有或者比这个旧，就把这几项重置成上面的默认值，
-// 否则老设备存着的旧数字会一直盖住新默认值。以后再改这几个默认值，把 tuneVer 加 1 即可。
+// tuneVer：手感默认值版本号，存档里的版本落后就重置这几项为新默认值；以后改默认值把 tuneVer 加 1 即可
 
 function loadSettings() {
   try {
@@ -1320,8 +1276,7 @@ bindTap(document.getElementById('homeStart'), () => {
   if (resumedMoves) showToast(t('resumed', resumedMoves));
 });
 bindTap(document.getElementById('homeSettings'), openSettings);
-// 每排列数：手机固定 4 列(面板变宽也不加，太挤)；面板变宽到 iPad 断点后，按实际可用宽度反推一个 4~8 之间的列数，
-// 让格子保持接近 --lp-target-tile 的舒适大小，不是列数写死。每次 openLevelPick 都重算，横竖屏切换后再打开会跟着变。
+// 每排列数：手机固定4列；iPad 按面板可用宽度反推4~8列(目标格宽150px)，每次 openLevelPick 重算
 function lpColumnCount(sheetWidth) {
   if (window.innerWidth < 700) return 4;
   const targetTile = 150; // 目标"格子+间距"宽度，只用来反推列数，不是精确尺寸
@@ -1417,11 +1372,8 @@ bindTap(document.getElementById('lpMenu'), openChapterJump);
 bindBackdropClose(document.getElementById('chapterJumpOverlay'), closeChapterJump);
 bindBackdropClose(document.getElementById('settingsOverlay'), closeSettings);
 
-/* ---------- 贴图预加载：页面一打开就把所有会用到的图片抓进浏览器缓存 ----------
-   之前每张贴图都是第一次被用到(第一次往某个方向走、第一次切某个配色)才发请求，
-   这中间的网络延迟就是"刚开始走路/刚切配色时闪一下"的原因。这里提前把 12 个
-   动作帧 + 三类配色的全部变体都建一个 Image() 去加载，用一个数组接住引用防止
-   被GC提前回收，加载完成前后都不影响其他初始化（不阻塞渲染，纯后台抓取）*/
+/* ---------- 贴图预加载 ----------
+   页面打开就把全部动作帧+配色变体建 Image() 抓进缓存，避免第一次用到某张图时才发请求造成的闪烁；纯后台抓取，不阻塞渲染 */
 const _preloadedImages = [];
 /* D-pad 分离式四块：素材文件名里的方位 north/east/south/west = 上/右/下/左；poly 是命中形状(64×64 内，五边形，尖角朝中心) */
 const DPAD_DIR = 'assets/UI/dpad/';
@@ -1509,10 +1461,7 @@ function refreshHomeUI() {
 }
 
 /* ---------- 自动存档 ----------
-   只存「关卡id + 走过的方向序列」(U/D/L/R，200步约200字符)，恢复时在一张新棋盘上无动画重放，
-   位置、步数、撤销记录自然还原。触发：最后一次有效走步后停顿 idleMs 才存(连续走/拐弯/慢半拍都不算停)；
-   一直在改动则每 forceMs 强制存一次；pagehide / 切后台 / 点开暂停菜单一定存。
-   撞墙、推不动不算变化；撤销算一次变化。通关、重来、换关(loadLevel)时清掉。 */
+   只存「关卡id + 方向序列」，恢复时无动画重放复原位置/步数/撤销记录。触发：停顿idleMs=1500存一次，持续变动每forceMs=15000强制存，pagehide/切后台/开暂停菜单一定存；撞墙/推不动不算变化，撤销算一次 */
 const AUTOSAVE_KEY = 'sokoban_autosave_v1';
 const AUTOSAVE_CFG = { idleMs: 1500, forceMs: 15000 }; // 手感不对只改这两个数
 const DIR_CH = { up: 'U', down: 'D', left: 'L', right: 'R' };
@@ -2028,9 +1977,7 @@ function tryMove(dr, dc, dir) {
   updateCamera(dir);
 }
 
-/* 箱子推动反馈(回弹)：推完一步，箱子在停下前的最后 ~30% 时间里往推的方向多滑一点(格子的 6%，52px 的格子约 3px)再退回来。
-   用独立的 translate 属性做 WAAPI 动画，不和 transform 的位移过渡冲突；总时长 = 当步推箱时长，
-   所以角色落脚(收脚帧)和箱子停稳同时发生。设置里(开发者模式)可关。 */
+/* 箱子回弹：推完一步，最后~30%时间里往推的方向多滑格子的6%再退回，用独立 translate 的 WAAPI 动画，不与 transform 位移过渡冲突；设置里可关 */
 function playBoxFx(el, dr, dc) {
   if (settings.boxFx !== 'rebound' || !el || !el.animate) return;
   if (el._fx) { el._fx.cancel(); el._fx = null; }
@@ -2086,8 +2033,7 @@ function openWinPanel(idxAtWin, meta, moves, isNewBest, best) {
   titleEl.textContent = t(titleEl.dataset.i18n);
   titleEl.classList.toggle('perfect', perfect);
   document.getElementById('winStars').classList.toggle('perfect', perfect);
-  // 第4拍：星星/皇冠入场动画。空心星跟标题/本局/最佳那一组一起淡入(wpFadeGroup)；
-  // 实心星按当前星级用不同的 keyframe(见上面 CSS 的 wpStarIn1/2/3)；完美时星星整体隐藏，动画在 #winStars.perfect::after 上(纯 CSS，不用 JS 管)。
+  // 拍3：空心星跟内容层一起淡入；实心星按星级用不同 keyframe(wpStarIn1/2/3)；完美时动画交给纯 CSS 的 #winStars.perfect::after
   document.querySelectorAll('#winStars .ico').forEach((el, k) => {
     const on = k < nStars;
     el.classList.toggle('filled', on);
@@ -2126,12 +2072,8 @@ function openWinPanel(idxAtWin, meta, moves, isNewBest, best) {
   setTimeout(() => btnsEl.classList.remove('wpLocked'), 550);
   if (perfect) setTimeout(burstConfetti, 660); // 0.38s(皇冠动画延迟) + 0.28s(动画时长) = 皇冠刚好定住的那一帧，彩纸才发射
 }
-// 彩纸库：外挂 assets/js/confetti.min.js(canvas-confetti，作者 catdad，ISC 协议)，自己不再维护一套抛体物理——
-// 那套逐帧公式在真机上调了几轮还是不够"像真的"，这块交给一个成熟库更省心，出问题去查它的文档/issues，
-// 不用再回来改这个文件。库会自己建一个全屏 canvas 挂在 <body> 下，不是木牌/皇冠的子节点，不受面板裁切。
+// 彩纸外包给根目录 confetti.js(BoxPusherConfetti 模块，ChatGPT 提供)，内部实现不用管；库没加载到就静默跳过
 function burstConfetti() {
-  // 彩纸效果外包给 BoxPusherConfetti(assets/js/confetti.js，ChatGPT 那边做好测试过的模块)，这里只负责在
-  // "完美通关、皇冠落定"这个时机调一下，不传参数、不管它内部怎么实现——库没加载到就直接跳过，不报错。
   if (typeof BoxPusherConfetti === 'undefined' || typeof BoxPusherConfetti.playVictoryConfetti !== 'function') return;
   BoxPusherConfetti.playVictoryConfetti();
 }
@@ -2180,7 +2122,6 @@ function undo() {
   updateCamera();
 }
 
-function resetLevel() { loadLevel(state.levelIndex); }
 
 bindTap(document.getElementById('up'), () => requestMove(-1, 0, 'up'));
 bindTap(document.getElementById('down'), () => requestMove(1, 0, 'down'));
@@ -2331,9 +2272,7 @@ document.addEventListener('touchstart', (e) => {
   e.preventDefault();
 }, { passive: false });
 
-// bindBackdropClose：遮罩层(点空白处关闭)专用。不能像内容按钮一样直接 bindTap 整个遮罩——那样会连点在
-// 子元素(面板/按钮)上也一起触发关闭；这里手动判 e.target===overlay，且用 touchend 而不是 click，
-// 原因和 bindTap 一样：真机上遮罩没在触屏白名单里，全局 touchstart 已 preventDefault，合成不出 click。
+// bindBackdropClose：遮罩点空白处关闭专用，手动判 e.target===overlay 避免点到子元素也触发；touchend 原理同 bindTap，见避坑B1
 function bindBackdropClose(overlay, closeFn) {
   let touched = false;
   overlay.addEventListener('touchend', (e) => {
