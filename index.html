@@ -534,7 +534,7 @@ html[data-lang="zh"] .homeBtn {
 @keyframes wpStarIn1 { from { opacity: 0; transform: translateY(3px) scale(0.96); } to { opacity: 1; transform: translateY(0) scale(1); } } /* 1星：几乎不缩放，弱淡入+极小上移 */
 @keyframes wpStarIn2 { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } } /* 2星：两颗一起 80%→100%，不转 */
 @keyframes wpStarIn3 { from { opacity: 0; transform: scale(0.7); } to { opacity: 1; transform: scale(var(--star3To, 1)); } } /* 3星：70%→100%，中间那颗靠 --star3To 稍微放大一点(JS 里设) */
-@keyframes wpCrownIn { 0% { opacity: 0; transform: scale(0.55) rotate(-8deg); } 15% { opacity: 0.65; transform: scale(0.62) rotate(-5deg); } 30% { opacity: 1; transform: scale(0.72) rotate(-3deg); } 70% { opacity: 1; transform: scale(1.12) rotate(4deg); } 100% { opacity: 1; transform: scale(1) rotate(0deg); } } /* 完美：皇冠单独入场，回正旋转不超过8° */
+@keyframes wpCrownIn { 0% { opacity: 0; transform: scale(0.55) rotate(-8deg); } 15% { opacity: 0.3; transform: scale(0.64) rotate(-5deg); } 30% { opacity: 0.8; transform: scale(0.76) rotate(-2deg); } 70% { opacity: 1; transform: scale(1.1) rotate(3deg); } 100% { opacity: 1; transform: scale(1) rotate(0deg); } } /* 完美：皇冠单独入场，回正旋转不超过8° */
 #winPanel {
   /* ↓↓↓ 自己调过关面板的文字/图标大小/位置，只改这些数字，不用动下面的具体规则。
      调的时候：把整个项目文件夹(index.html + assets/ 放一起)拖进电脑版 Chrome，
