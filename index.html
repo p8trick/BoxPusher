@@ -613,16 +613,10 @@ html[data-lang="zh"] .homeBtn {
 .winBadge.next:active { filter: drop-shadow(0 2px 2px rgba(60,35,12,0.4)) brightness(0.78) saturate(1.05); }
 .winBadge.hide { display: none; }
 #winButtons.single .winBadge.next { display: none; } /* 已经是最后一关：只留重试，见 openWinPanel */
-/* 五彩纸屑(金属箔)：只在「完美通关」时、皇冠定住的那一刻放一次，普通通关/1/2/3星都不放。
-   挂在 #winOverlay 下面、和 #winPanel 平级的全屏容器上——不能放进木牌里，木牌一转会被自己的圆角/尺寸裁切，
-   纸必须能冲出木框、落到暗背景和屏幕四周。容器 pointer-events:none，纸永远不拦点击，按钮该多快能点还是多快。
-   轨迹和发射点(冠尖/左翼/右翼三簇)全在 JS 的 burstConfetti 里算，因为要用皇冠的实时屏幕坐标。 */
-#winConfetti { position: fixed; inset: 0; overflow: visible; pointer-events: none; z-index: 50; } /* 全屏、固定定位，不是木牌的子节点，牌的圆角/尺寸不会裁到它 */
-/* 轨迹(位移/旋转/淡出)不用 CSS var()+@keyframes 做了——Safari 对"JS setProperty 的自定义变量在 @keyframes 里被
-   translate()引用"这个组合支持不稳定，真机上纸基本不动。改成 JS 用 Element.animate()(Web Animations API)直接
-   算好每片的像素值播放，不经过 CSS 变量这一层，见下面 burstConfetti。这里只留写死的外观和高光闪烁两个纯样式规则。 */
-.winConfettiPiece { position: absolute; width: 11px; height: 4px; margin: -2px 0 0 -5px; opacity: 1; border-radius: 1px; }
-.winConfettiPiece.chip { width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 2px; } /* 约15%是方片，其余是细长箔条；位置/旋转/明暗每帧由 JS 算，见 burstConfetti 里的 tick() */
+/* 五彩纸屑：只在「完美通关」时、皇冠定住的那一刻放一次，普通通关/1/2/3星都不放——
+   完美(达到par)本来就比三星难拿(见 isPerfect)，值得单独这一下庆祝感。
+   效果外包给 assets/js/confetti.js(BoxPusherConfetti 模块)，这边不管它内部怎么画，只负责在对的时机调一下，
+   见 JS 里的 burstConfetti。库自己建 canvas 的话通常会挂在 <body> 下，不是木牌/皇冠的子节点，不受面板裁切。 */
 
 /* ===== 关卡选择：木框浮层，结构和设置面板(#settingsOverlay/.artPanel)同一套，宽度更大以放下木箱网格 =====
    #levelPickWrap 是面板 + 底部木板的外层；面板本身可滚动，木板固定在外面(不随列表滚动)。
@@ -781,11 +775,10 @@ html[data-lang="zh"] .homeBtn {
     <button class="homeBtn" id="homeSettings" data-i18n="settings">SETTINGS</button>
     <button class="homeBtn disabled" id="homeDev" disabled data-i18n="soon">COMING SOON</button>
   </div>
-  <div id="homeVersion">v1.17.0</div>
+  <div id="homeVersion">v1.17.2</div>
   <div id="homeCredit">Assets: Kenney Sokoban Pack (CC0)<br>Levels: David W. Skinner</div>
 </div>
 <div id="winOverlay">
-  <div id="winConfetti"></div>
   <div id="winPanel">
     <div id="winTitle" class="wpFadeGroup" data-i18n="winTitle">通关</div>
     <div id="winBody">
@@ -936,13 +929,14 @@ html[data-lang="zh"] .homeBtn {
       <div class="settingsLabel" data-i18n="boxFx" style="margin-top:14px">箱子推动反馈</div>
       <div class="swatchRow" id="boxFxRow"></div>
     </div>
-    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.17.0</div>
+    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.17.2</div>
    </div>
    <button id="closeSettings" class="homeBtn panelClose" data-i18n="close" aria-label="Close">关闭</button>
   </div>
 </div>
 
 <script src="levels.js"></script>
+<script src="assets/js/confetti.js"></script>
 <script>
 /* ---------- 主屏幕图标标题：跟随系统语言自动切换中文「推箱子」/英文「BoxPusher」 ----------
    这里管的是页面标题和「添加到主屏幕」弹窗里预填的名字(apple-mobile-web-app-title)；
@@ -2135,87 +2129,14 @@ function openWinPanel(idxAtWin, meta, moves, isNewBest, best) {
   setTimeout(() => btnsEl.classList.remove('wpLocked'), 550);
   if (perfect) setTimeout(burstConfetti, 660); // 0.38s(皇冠动画延迟) + 0.28s(动画时长) = 皇冠刚好定住的那一帧，彩纸才发射
 }
-// 五彩纸屑(金属箔)：只在完美通关时、皇冠入场动画播完的那一刻放一次，不循环、不二次喷。
-// #winConfetti 现在是跟 #winPanel 平级的全屏容器(见 HTML)，所以这里直接用皇冠的"屏幕坐标"(getBoundingClientRect)，
-// 不用再减木牌的偏移——纸从皇冠冲出去之后，落点可以是屏幕任何地方，包括飞出左右屏幕、落到暗背景上。
-// 真实抛体物理：每帧自己算 x/y/vx/vy/angle，不再是几个固定关键帧插值。
-// x += vx*dt；y += vy*dt；vy += gravity*dt；vx -= vx*drag*dt；vy 只钳向下(min terminalVy)；
-// 再叠加一个正弦"飘"的横向抖动(flutter)模拟纸片打旋，spin 让它转，随时间慢慢减速。
+// 彩纸库：外挂 assets/js/confetti.min.js(canvas-confetti，作者 catdad，ISC 协议)，自己不再维护一套抛体物理——
+// 那套逐帧公式在真机上调了几轮还是不够"像真的"，这块交给一个成熟库更省心，出问题去查它的文档/issues，
+// 不用再回来改这个文件。库会自己建一个全屏 canvas 挂在 <body> 下，不是木牌/皇冠的子节点，不受面板裁切。
 function burstConfetti() {
-  const box = document.getElementById('winConfetti');
-  const starsEl = document.getElementById('winStars');
-  if (!starsEl) return;
-  const o = starsEl.getBoundingClientRect(); // 皇冠此刻的屏幕坐标(完美时三颗星隐藏，只剩皇冠这一个盒子)
-  const origins = [
-    { x: o.left + o.width * 0.5, y: o.top, lane: 0 },              // 冠尖
-    { x: o.left + o.width * 0.24, y: o.top + o.height * 0.38, lane: 1 }, // 左翼
-    { x: o.left + o.width * 0.76, y: o.top + o.height * 0.38, lane: 2 }, // 右翼
-  ];
-  box.innerHTML = '';
-  const colors = ['#FFD76A', '#F5C84C', '#E8B24A', '#D4A05A', '#F3E2C0'];
-  const accents = ['#D15A45', '#3FA36A'];
-  const GRAVITY = 780, DRAG = 1.2, TERMINAL_VY = 420;
-  const n = 60 + Math.floor(Math.random() * 16); // 60-75 片
-  const particles = [];
-  for (let i = 0; i < n; i++) {
-    const r = Math.random();
-    const src = r < 0.6 ? origins[0] : r < 0.8 ? origins[1] : origins[2]; // 60% 冠尖 / 20% 左翼 / 20% 右翼，每片独立随机
-    const cat = Math.random(); // 70% 冲顶后屏内落下 / 15% 近场擦过 / 10-15% 飞出左右屏幕(仅这组才给大|vx|)
-    const offscreen = cat > 0.87;
-    const near = !offscreen && cat > 0.72;
-    // vy0 现场算，不用写死的固定范围：按 vy0²=2·gravity·Δy 反推，让"冲顶"精确停在 y≈70-110(动态岛下沿附近，
-    // 绝对像素、不随屏幕高度缩放)，不管这一片是从冠尖还是两翼出发、也不管皇冠此刻在屏幕上的哪个高度。
-    const targetPeakY = 70 + Math.random() * 40;
-    const dyNeeded = Math.max(40, src.y - targetPeakY);
-    const vy0Full = Math.sqrt(2 * GRAVITY * dyNeeded) * (0.94 + Math.random() * 0.12);
-    let vx, vy;
-    if (src.lane === 0) { vx = Math.random() * 360 - 180; vy = -vy0Full; } // 冠尖：横向±180
-    else { const side = src.lane === 1 ? -1 : 1; vx = side * (40 + Math.random() * 180); vy = -vy0Full; } // 两翼：偏向外侧
-    if (offscreen) vx = (vx < 0 ? -1 : 1) * (280 + Math.random() * 160); // 只有这 10-15% 才允许冲出屏幕
-    if (near) { vx *= 0.35; vy *= 0.45; } // 近场：只冲到全高的一半左右就回落，擦过皇冠/标题
-    const el = document.createElement('i');
-    const chip = Math.random() < 0.15;
-    el.className = 'winConfettiPiece' + (chip ? ' chip' : '');
-    if (!chip) { el.style.width = (8 + Math.random() * 8) + 'px'; el.style.height = (3 + Math.random() * 3) + 'px'; } // 8-16 × 3-6，大小不统一
-    const color = Math.random() < 0.88 ? colors[Math.floor(Math.random() * colors.length)] : accents[Math.floor(Math.random() * accents.length)];
-    el.style.background = `linear-gradient(100deg, transparent 40%, rgba(255,255,255,0.85) 50%, transparent 60%), ${color}`;
-    el.style.left = src.x + 'px'; el.style.top = src.y + 'px';
-    box.appendChild(el);
-    const lifetime = (near ? 1.3 : 1.9) + Math.random() * 0.5; // 近场活得短一点，其余整体可见约1.6-2.4s
-    particles.push({
-      el, x: 0, y: 0, vx, vy,
-      angle: Math.random() * 360, spin: (180 + Math.random() * 360) * (Math.random() < 0.5 ? -1 : 1),
-      flutterFreq: 7 + Math.random() * 6, flutterAmp: 8 + Math.random() * 14, phase: Math.random() * Math.PI * 2,
-      t: 0, lifetime, fadeFrom: lifetime * 0.72, // 生命最后 28% 淡出
-    });
-  }
-  let last = performance.now();
-  function tick(now) {
-    let dt = (now - last) / 1000; last = now;
-    if (dt > 0.05) dt = 0.05; // 卡顿时钳住单帧步长，别让纸一下子跳很远
-    let alive = false;
-    for (const p of particles) {
-      p.t += dt;
-      if (p.t >= p.lifetime) { if (p.el.parentNode) p.el.remove(); continue; }
-      alive = true;
-      p.x += p.vx * dt;
-      p.y += p.vy * dt;
-      p.vy += GRAVITY * dt;
-      p.vx -= p.vx * DRAG * dt;
-      p.vy = Math.min(p.vy, TERMINAL_VY); // 只钳向下速度，往上冲的时候不受这个限制
-      p.x += Math.sin(p.t * p.flutterFreq + p.phase) * p.flutterAmp * dt * 60; // 横向"飘"，模拟纸片打旋时的横移
-      p.spin *= (1 - 0.15 * dt); // 转速随时间慢慢降下来，不是匀速转到底
-      p.angle += p.spin * dt;
-      const op = p.t < p.fadeFrom ? 1 : 1 - (p.t - p.fadeFrom) / (p.lifetime - p.fadeFrom);
-      // 高光跟着旋转角度变亮变暗，模拟箔片翻滚时随机反光，而不是固定频率的呼吸灯
-      const glint = 0.75 + 0.55 * Math.abs(Math.sin(p.angle * Math.PI / 90));
-      p.el.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px) rotate(${p.angle.toFixed(1)}deg)`;
-      p.el.style.opacity = op.toFixed(2);
-      p.el.style.filter = `brightness(${glint.toFixed(2)})`;
-    }
-    if (alive) requestAnimationFrame(tick); else box.innerHTML = '';
-  }
-  requestAnimationFrame(tick);
+  // 彩纸效果外包给 BoxPusherConfetti(assets/js/confetti.js，ChatGPT 那边做好测试过的模块)，这里只负责在
+  // "完美通关、皇冠落定"这个时机调一下，不传参数、不管它内部怎么实现——库没加载到就直接跳过，不报错。
+  if (typeof BoxPusherConfetti === 'undefined' || typeof BoxPusherConfetti.playVictoryConfetti !== 'function') return;
+  BoxPusherConfetti.playVictoryConfetti();
 }
 function closeWinPanel() {
   document.getElementById('winOverlay').classList.remove('show');
