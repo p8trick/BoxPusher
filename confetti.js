@@ -45,7 +45,7 @@
 
     origin: {
       x: 0.5,
-      y: 0.47
+      y: 0.5
     },
 
     shapes: ['square', 'circle'],
