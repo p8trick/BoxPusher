@@ -582,7 +582,7 @@ html[data-lang="zh"] .homeBtn {
 #winStars .ico:not(.filled) { background: #7a5630; -webkit-mask: var(--ico) center/contain no-repeat; mask: var(--ico) center/contain no-repeat; opacity: 0.8; } /* 空星在浅色木牌上：白描边太弱，改成深棕描边(icon_star_empty 当遮罩) */
 #winTitle.perfect { color: #8a5a1e; -webkit-text-stroke: 0.03em rgba(255,220,140,0.55); }
 #winStars.perfect .ico { display: none; } /* 完美通关：三颗星换成一枚大皇冠(大小是星星的 1.5 倍，用负 margin 把高度补回去，卡片布局不动) */
-#winStars.perfect::after { content: ''; --ws: var(--wp-star-size); width: calc(var(--ws) * 1.5); height: calc(var(--ws) * 1.5); margin: calc(var(--ws) * -0.25) 0;
+#winPanel.wpAnim #winStars.perfect::after { content: ''; --ws: var(--wp-star-size); width: calc(var(--ws) * 1.5); height: calc(var(--ws) * 1.5); margin: calc(var(--ws) * -0.25) 0;
   background: url('assets/UI/icons/icon_crown.svg') center/contain no-repeat; filter: drop-shadow(0 2px 1px rgba(74,47,23,0.35));
   opacity: 0; animation: wpCrownIn 0.28s cubic-bezier(.3,.7,.35,1.2) 0.38s both; } /* 皇冠自己单独入场，见上面 wpCrownIn；彩纸在这个动画播完(0.66s)那一刻才发射，见 openWinPanel */
 #winStars { position: relative; }
