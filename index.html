@@ -936,12 +936,9 @@ html[data-lang="zh"] .homeBtn {
 </div>
 
 <script src="levels.js"></script>
-<script src="assets/js/confetti.js"></script>
+<script src="confetti.js"></script>
 <script>
-/* ---------- 主屏幕图标标题：跟随系统语言自动切换中文「推箱子」/英文「BoxPusher」 ----------
-   这里管的是页面标题和「添加到主屏幕」弹窗里预填的名字(apple-mobile-web-app-title)；
-   生成后主屏幕图标实际用的名字取自 manifest，见 <head> 里按系统语言选 manifest.json / manifest-zh.json 的那段。
-   注意：名字是「添加那一刻」定下的，已经在主屏幕上的旧图标不会变，要删掉重新添加。 */
+/* ---------- 主屏幕图标标题：跟随系统语言自动切换中文「推箱子」/英文「BoxPusher」根据当前ios系统环境自动调用相应的 */
 (function () {
   const isZh = (navigator.language || '').toLowerCase().startsWith('zh');
   const title = isZh ? '推箱子' : 'BoxPusher';
