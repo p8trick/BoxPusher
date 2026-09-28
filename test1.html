@@ -10,37 +10,160 @@
                user-scalable=no,
                viewport-fit=cover">
 
-<title>Audio Cold Start Test V3</title>
+<title>Audio Cold Start Test V4</title>
 
 <style>
+
+/* =========================================================
+   RESET
+========================================================= */
+
 *{
     box-sizing:border-box;
     -webkit-tap-highlight-color:transparent;
-    -webkit-touch-callout:none;
 }
 
-html,
-body{
+html{
     margin:0;
     padding:0;
     width:100%;
-    height:100%;
-    overflow:hidden;
-    overscroll-behavior:none;
+    min-height:100%;
+
+    overflow-x:hidden;
+    overflow-y:auto;
+
+    overscroll-behavior-x:none;
+
+    background:#20242a;
+}
+
+body{
+    margin:0;
+    padding:0;
+
+    width:100%;
+    min-height:100%;
+
+    overflow-x:hidden;
+    overflow-y:auto;
+
+    background:#20242a;
+    color:#fff;
 
     font-family:
         -apple-system,
         BlinkMacSystemFont,
         "Segoe UI",
         sans-serif;
-
-    background:#20242a;
-    color:#fff;
 }
 
-body{
+
+/* =========================================================
+   PAGE
+========================================================= */
+
+.page{
+    width:min(92vw,520px);
+
+    min-height:100dvh;
+
+    margin:0 auto;
+
+    padding:
+        max(18px,env(safe-area-inset-top))
+        20px
+        max(28px,env(safe-area-inset-bottom))
+        20px;
+
     display:flex;
-    justify-content:center;
+    flex-direction:column;
+
+    gap:10px;
+}
+
+.page2{
+    display:none;
+}
+
+
+/* =========================================================
+   TEXT
+========================================================= */
+
+h1{
+    margin:2px 0 0;
+
+    text-align:center;
+
+    font-size:24px;
+    line-height:1.2;
+}
+
+.subtitle{
+    text-align:center;
+
+    font-size:12px;
+    line-height:1.45;
+
+    opacity:.62;
+}
+
+
+/* =========================================================
+   STATUS
+========================================================= */
+
+.status{
+    padding:10px 12px;
+
+    border-radius:11px;
+
+    background:#11151a;
+
+    border:1px solid #39414a;
+
+    font-size:11px;
+    line-height:1.65;
+}
+
+.status strong{
+    color:#ffd36a;
+}
+
+
+/* =========================================================
+   SECTION
+========================================================= */
+
+.section{
+    padding:11px;
+
+    border-radius:13px;
+
+    background:#292f36;
+
+    border:1px solid #424a54;
+}
+
+.section-title{
+    margin-bottom:8px;
+
+    font-size:13px;
+    font-weight:700;
+}
+
+
+/* =========================================================
+   BUTTONS
+========================================================= */
+
+.buttons{
+    display:grid;
+
+    grid-template-columns:
+        1fr 1fr;
+
+    gap:8px;
 }
 
 button{
@@ -50,17 +173,23 @@ button{
     border:0;
     outline:none;
 
+    margin:0;
+
+    min-height:52px;
+
+    padding:9px 12px;
+
+    border-radius:12px;
+
     color:#fff;
 
     font-size:15px;
     font-weight:700;
 
-    border-radius:12px;
-
-    min-height:52px;
-    padding:9px 12px;
-
     touch-action:manipulation;
+
+    user-select:none;
+    -webkit-user-select:none;
 
     box-shadow:
         0 3px 0 #252b31,
@@ -73,97 +202,6 @@ button:active{
     box-shadow:
         0 1px 0 #252b31,
         inset 0 1px 0 rgba(255,255,255,.12);
-}
-
-.page{
-    width:min(92vw,520px);
-
-    height:100dvh;
-
-    padding:
-        max(18px,env(safe-area-inset-top))
-        20px
-        max(18px,env(safe-area-inset-bottom))
-        20px;
-
-    display:flex;
-    flex-direction:column;
-
-    gap:10px;
-
-    overflow:hidden;
-}
-
-.page2{
-    display:none;
-}
-
-h1{
-    flex:none;
-
-    margin:2px 0 0;
-
-    text-align:center;
-
-    font-size:24px;
-}
-
-.subtitle{
-    flex:none;
-
-    text-align:center;
-
-    font-size:12px;
-    line-height:1.4;
-
-    opacity:.62;
-}
-
-.status{
-    flex:none;
-
-    padding:10px 12px;
-
-    border-radius:11px;
-
-    background:#11151a;
-
-    border:1px solid #39414a;
-
-    font-size:11px;
-
-    line-height:1.65;
-}
-
-.status strong{
-    color:#ffd36a;
-}
-
-.section{
-    flex:none;
-
-    padding:11px;
-
-    border-radius:13px;
-
-    background:#292f36;
-
-    border:1px solid #424a54;
-}
-
-.section-title{
-    font-size:13px;
-    font-weight:700;
-
-    margin-bottom:8px;
-}
-
-.buttons{
-    display:grid;
-
-    grid-template-columns:1fr 1fr;
-
-    gap:8px;
 }
 
 .web{
@@ -182,13 +220,18 @@ h1{
     background:#51485f;
 }
 
+.copy{
+    background:#496044;
+}
+
 .reset{
     background:#693e3e;
 }
 
-.copy{
-    background:#496044;
-}
+
+/* =========================================================
+   RESULT
+========================================================= */
 
 .result{
     margin-top:8px;
@@ -216,23 +259,27 @@ h1{
     color:#ffd36a;
 }
 
-/* =====================================================
-   LOG
-===================================================== */
+
+/* =========================================================
+   LOG SECTION
+========================================================= */
 
 .log-section{
-    flex:1;
-
-    min-height:120px;
-
     display:flex;
     flex-direction:column;
+
+    min-height:0;
 }
 
-.log{
-    flex:1;
 
-    min-height:60px;
+/* =========================================================
+   LOG
+========================================================= */
+
+.log{
+    width:100%;
+
+    height:190px;
 
     overflow-y:auto;
     overflow-x:hidden;
@@ -240,9 +287,6 @@ h1{
     -webkit-overflow-scrolling:touch;
 
     overscroll-behavior:contain;
-
-    user-select:text;
-    -webkit-user-select:text;
 
     padding:9px;
 
@@ -261,6 +305,9 @@ h1{
     font-size:10px;
 
     line-height:1.5;
+
+    user-select:text;
+    -webkit-user-select:text;
 }
 
 .log-row{
@@ -272,12 +319,20 @@ h1{
 
     user-select:text;
     -webkit-user-select:text;
+
+    overflow-wrap:anywhere;
 }
+
+
+/* =========================================================
+   LOG BUTTONS
+========================================================= */
 
 .log-buttons{
     display:grid;
 
-    grid-template-columns:1fr 1fr;
+    grid-template-columns:
+        1fr 1fr;
 
     gap:8px;
 
@@ -285,27 +340,18 @@ h1{
 }
 
 .log-buttons button{
-    min-height:40px;
+    min-height:42px;
+
     font-size:12px;
 }
 
 
-/* =====================================================
-   PAGE 2 LOG
-===================================================== */
+/* =========================================================
+   PAGE 2
+========================================================= */
 
 .page2 .log{
-    flex:1;
-}
-
-
-/* =====================================================
-   iOS 防止点击后 focus 造成奇怪滚动
-===================================================== */
-
-button{
-    -webkit-user-select:none;
-    user-select:none;
+    height:220px;
 }
 
 </style>
@@ -315,22 +361,29 @@ button{
 <body>
 
 
-<!-- =====================================================
+<!-- =======================================================
      PAGE 1
-===================================================== -->
+======================================================= -->
 
 <div class="page page1">
 
-    <h1>🎧 Audio Cold Start V3</h1>
+
+    <h1>
+        🎧 Audio Cold Start V4
+    </h1>
+
 
     <div class="subtitle">
-        iPhone PWA · 第一次触摸 · 音频冷启动实验
+
+        iPhone PWA · 第一次触摸 ·
+        音频冷启动实验
+
     </div>
 
 
-    <!-- =================================================
+    <!-- ===================================================
          STATUS
-    ================================================== -->
+    ==================================================== -->
 
     <div class="status">
 
@@ -338,21 +391,24 @@ button{
         <strong id="ctxState">
             尚未创建
         </strong>
+
         <br>
 
         click-a.ogg：
         <strong id="clickState">
             加载中
         </strong>
+
         <br>
 
         bgm.ogg：
         <strong id="bgmState">
             加载中
         </strong>
+
         <br>
 
-        当前：
+        当前状态：
         <strong id="interactionState">
             Cold Start
         </strong>
@@ -360,17 +416,21 @@ button{
     </div>
 
 
-    <!-- =================================================
+    <!-- ===================================================
          FIRST TOUCH
-    ================================================== -->
+    ==================================================== -->
 
     <div class="section">
 
         <div class="section-title">
+
             ① 第一次触摸音效
+
         </div>
 
+
         <div class="buttons">
+
 
             <button
                 class="web"
@@ -393,7 +453,9 @@ button{
 
             </button>
 
+
         </div>
+
 
         <div
             class="result"
@@ -406,17 +468,21 @@ button{
     </div>
 
 
-    <!-- =================================================
+    <!-- ===================================================
          BGM
-    ================================================== -->
+    ==================================================== -->
 
     <div class="section">
 
         <div class="section-title">
-            ② BGM 冷启动结果
+
+            ② BGM 冷启动测试
+
         </div>
 
+
         <div class="buttons">
+
 
             <button
                 class="bgm"
@@ -439,30 +505,36 @@ button{
 
             </button>
 
+
         </div>
+
 
         <div
             class="result"
             id="bgmResult">
 
-            冷启动自动播放请在完全不触摸屏幕的情况下观察。
+            冷启动 autoplay：
+            已确认失败。
             <br>
-            这个区域会记录 autoplay 结果。
+            本区域保留用于手动播放验证。
 
         </div>
 
     </div>
 
 
-    <!-- =================================================
-         PAGE
-    ================================================== -->
+    <!-- ===================================================
+         PAGE NAV
+    ==================================================== -->
 
     <div class="section">
 
         <div class="section-title">
+
             ③ 页面切换测试
+
         </div>
+
 
         <button
             class="nav"
@@ -476,22 +548,28 @@ button{
     </div>
 
 
-    <!-- =================================================
+    <!-- ===================================================
          LOG
-    ================================================== -->
+    ==================================================== -->
 
     <div class="section log-section">
 
         <div class="section-title">
+
             测试日志
+
         </div>
+
 
         <div
             class="log"
             id="log">
+
         </div>
 
+
         <div class="log-buttons">
+
 
             <button
                 class="copy"
@@ -501,6 +579,7 @@ button{
 
             </button>
 
+
             <button
                 class="reset"
                 id="clearLog">
@@ -509,30 +588,40 @@ button{
 
             </button>
 
+
         </div>
 
     </div>
+
 
 </div>
 
 
 
-<!-- =====================================================
+<!-- =======================================================
      PAGE 2
-===================================================== -->
+======================================================= -->
 
 <div class="page page2">
 
-    <h1>📄 Page 2</h1>
+
+    <h1>
+        📄 Page 2
+    </h1>
+
 
     <div class="subtitle">
-        模拟 BoxPusher 选关 / 设置页面
+
+        模拟 BoxPusher
+        选关 / 设置页面
+
     </div>
 
 
     <div class="status">
 
         AudioContext：
+
         <strong id="ctxState2">
             ---
         </strong>
@@ -543,10 +632,14 @@ button{
     <div class="section">
 
         <div class="section-title">
+
             第二页音效
+
         </div>
 
+
         <div class="buttons">
+
 
             <button
                 class="web"
@@ -564,6 +657,7 @@ button{
                 Kenney
 
             </button>
+
 
         </div>
 
@@ -612,7 +706,7 @@ let kenneyAttemptCount = 0;
 
 
 /* =========================================================
-   AUDIO ELEMENTS
+   AUDIO FILES
 ========================================================= */
 
 const clickAudio =
@@ -686,7 +780,7 @@ const page2Log =
 
 
 /* =========================================================
-   LOGGING
+   LOG
 ========================================================= */
 
 function timestamp(){
@@ -727,6 +821,7 @@ function log(
 
     logBox.scrollTop =
         logBox.scrollHeight;
+
 }
 
 
@@ -754,11 +849,12 @@ function log2(
 
     page2Log.scrollTop =
         page2Log.scrollHeight;
+
 }
 
 
 /* =========================================================
-   AUDIO CONTEXT
+   CREATE AUDIO CONTEXT
 ========================================================= */
 
 function createAudioContext(){
@@ -767,9 +863,11 @@ function createAudioContext(){
         return ctx;
     }
 
+
     const AudioContext =
         window.AudioContext ||
         window.webkitAudioContext;
+
 
     if(!AudioContext){
 
@@ -803,7 +901,7 @@ function createAudioContext(){
 
 
     log(
-        "AudioContext 创建完成，状态 = " +
+        "AudioContext 创建完成 · state = " +
         ctx.state
     );
 
@@ -813,13 +911,14 @@ function createAudioContext(){
 
 
 /* =========================================================
-   WEB AUDIO
+   WEB AUDIO TEST
 ========================================================= */
 
 async function testWebAudio(){
 
     const cold =
         firstTouch;
+
 
     webAttemptCount++;
 
@@ -859,8 +958,9 @@ async function testWebAudio(){
 
 
     /*
-       第一次冷启动时：
-       等待 resume 完成。
+       第一次冷启动：
+
+       resume 必须等待完成。
     */
 
     if(
@@ -885,7 +985,7 @@ async function testWebAudio(){
             log(
                 "resume() 完成 · " +
                 resumeTime.toFixed(2) +
-                " ms · 状态 = " +
+                " ms · state = " +
                 c.state
             );
 
@@ -893,10 +993,11 @@ async function testWebAudio(){
         }catch(error){
 
             log(
-                "❌ resume() 失败：" +
+                "❌ resume() 失败 · " +
                 error.message,
                 "fail"
             );
+
 
             firstTouch =
                 false;
@@ -908,10 +1009,6 @@ async function testWebAudio(){
 
     }
 
-
-    /*
-       真正创建并调度声音。
-    */
 
     const soundStart =
         performance.now();
@@ -931,34 +1028,35 @@ async function testWebAudio(){
 
 
     log(
-        "Web Audio play() 调度完成 · " +
+        "Web Audio 已调度 · " +
         commandTime.toFixed(2) +
         " ms"
     );
 
 
     log(
-        "Web Audio 从 pointerdown 到调度完成 · " +
+        "pointerdown → 调度完成 · " +
         totalTime.toFixed(2) +
         " ms"
     );
 
 
     firstResult.innerHTML =
+
         cold
 
         ?
 
         "❄️ <b>Cold Start</b><br>" +
-        "Web Audio：resume 后已调度<br>" +
-        "总 JS 时间：" +
+        "Web Audio 已调度<br>" +
+        "JS 总时间：" +
         totalTime.toFixed(2) +
         " ms"
 
         :
 
         "🔥 <b>Warm</b><br>" +
-        "Web Audio：已调度<br>" +
+        "Web Audio 已调度<br>" +
         "JS 时间：" +
         totalTime.toFixed(2) +
         " ms";
@@ -967,12 +1065,14 @@ async function testWebAudio(){
     firstTouch =
         false;
 
+
     updateState();
+
 }
 
 
 /* =========================================================
-   SYNTH SOUND
+   SYNTH CLICK
 ========================================================= */
 
 function playWebClick(){
@@ -1049,17 +1149,19 @@ function playWebClick(){
     osc.stop(
         now + 0.06
     );
+
 }
 
 
 /* =========================================================
-   KENNEY
+   KENNEY TEST
 ========================================================= */
 
 function testKenney(){
 
     const cold =
         firstTouch;
+
 
     kenneyAttemptCount++;
 
@@ -1085,6 +1187,7 @@ function testKenney(){
 
     sound.volume =
         1;
+
 
     sound.currentTime =
         0;
@@ -1124,7 +1227,7 @@ function testKenney(){
 
 
                 log(
-                    "Kenney play() Promise 完成 · " +
+                    "Kenney Promise 完成 · " +
                     total.toFixed(2) +
                     " ms",
                     "success"
@@ -1138,7 +1241,7 @@ function testKenney(){
             error=>{
 
                 log(
-                    "❌ Kenney 播放失败：" +
+                    "❌ Kenney 播放失败 · " +
                     error.message,
                     "fail"
                 );
@@ -1150,21 +1253,22 @@ function testKenney(){
 
 
     firstResult.innerHTML =
+
         cold
 
         ?
 
         "❄️ <b>Cold Start</b><br>" +
-        "Kenney OGG：play() 调用完成<br>" +
-        "JS 调用时间：" +
+        "Kenney OGG 已调用 play()<br>" +
+        "JS 调用：" +
         callTime.toFixed(2) +
         " ms"
 
         :
 
         "🔥 <b>Warm</b><br>" +
-        "Kenney OGG：play() 调用完成<br>" +
-        "JS 调用时间：" +
+        "Kenney OGG 已调用 play()<br>" +
+        "JS 调用：" +
         callTime.toFixed(2) +
         " ms";
 
@@ -1172,12 +1276,14 @@ function testKenney(){
     firstTouch =
         false;
 
+
     updateState();
+
 }
 
 
 /* =========================================================
-   FILE LOAD
+   FILE STATUS
 ========================================================= */
 
 clickAudio.addEventListener(
@@ -1186,6 +1292,7 @@ clickAudio.addEventListener(
 
         clickState.textContent =
             "已加载";
+
 
         log(
             "✓ click-a.ogg 已加载",
@@ -1203,6 +1310,7 @@ clickAudio.addEventListener(
         clickState.textContent =
             "加载失败";
 
+
         log(
             "❌ click-a.ogg 加载失败",
             "fail"
@@ -1218,6 +1326,7 @@ bgmAudio.addEventListener(
 
         bgmState.textContent =
             "已加载";
+
 
         log(
             "✓ bgm.ogg 已加载",
@@ -1235,88 +1344,10 @@ bgmAudio.addEventListener(
         bgmState.textContent =
             "加载失败";
 
+
         log(
             "❌ bgm.ogg 加载失败",
             "fail"
-        );
-
-    }
-);
-
-
-/* =========================================================
-   BGM AUTOPLAY
-========================================================= */
-
-let autoplayAttempted =
-    false;
-
-
-function attemptAutoplay(){
-
-    autoplayAttempted =
-        true;
-
-
-    log(
-        "尝试冷启动 autoplay……"
-    );
-
-
-    const promise =
-        bgmAudio.play();
-
-
-    if(
-        promise &&
-        promise.then
-    ){
-
-        promise.then(
-            ()=>{
-
-                bgmResult.innerHTML =
-                    "🟢 <b>AUTOPLAY SUCCESS</b><br>" +
-                    "bgm.ogg 自动播放成功。";
-
-
-                log(
-                    "🎵 🟢 BGM autoplay SUCCESS",
-                    "success"
-                );
-
-            }
-        );
-
-
-        promise.catch(
-            error=>{
-
-                bgmResult.innerHTML =
-                    "🔴 <b>AUTOPLAY BLOCKED</b><br>" +
-                    error.message;
-
-
-                log(
-                    "🎵 🔴 BGM autoplay BLOCKED · " +
-                    error.message,
-                    "warn"
-                );
-
-            }
-        );
-
-    }
-}
-
-
-window.addEventListener(
-    "load",
-    ()=>{
-
-        setTimeout(
-            attemptAutoplay,
-            300
         );
 
     }
@@ -1358,7 +1389,7 @@ document
 
 
             log(
-                "❌ BGM 手动播放失败：" +
+                "❌ BGM 手动播放失败 · " +
                 error.message,
                 "fail"
             );
@@ -1370,7 +1401,7 @@ document
 
 
 /* =========================================================
-   STOP BGM
+   BGM STOP
 ========================================================= */
 
 document
@@ -1386,6 +1417,7 @@ document
         bgmAudio.currentTime =
             0;
 
+
         log(
             "⏹ BGM 停止"
         );
@@ -1395,7 +1427,7 @@ document
 
 
 /* =========================================================
-   BUTTON BINDINGS
+   BUTTONS
 ========================================================= */
 
 document
@@ -1562,7 +1594,9 @@ document
 
             await navigator
                 .clipboard
-                .writeText(text);
+                .writeText(
+                    text
+                );
 
 
             log(
@@ -1573,20 +1607,11 @@ document
 
         }catch(error){
 
-            /*
-               iOS 某些情况下 clipboard
-               可能需要更严格的用户手势。
-            */
-
             log(
                 "⚠️ 自动复制失败：" +
                 error.message,
                 "warn"
             );
-
-            /*
-               让日志仍然可以手动长按选择复制。
-            */
 
         }
 
@@ -1608,6 +1633,7 @@ document
 
         logBox.innerHTML =
             "";
+
 
         log(
             "日志已清除"
@@ -1655,23 +1681,113 @@ log(
 );
 
 log(
-    "Audio Cold Start Test V3"
+    "Audio Cold Start Test V4"
 );
 
 log(
-    "第一次触摸前不要操作页面"
+    "Web Audio / Kenney / BGM"
 );
 
 log(
-    "Web Audio 与 Kenney 请分别冷启动测试"
+    "JS 调用时间 ≠ 实际听觉延迟"
 );
 
 log(
-    "JS时间 ≠ 实际听觉延迟"
+    "页面允许正常上下滚动"
+);
+
+log(
+    "日志区域可独立滚动并复制"
 );
 
 log(
     "================================"
+);
+
+
+/* =========================================================
+   BGM AUTOPLAY TEST
+   注意：不等待用户触摸
+========================================================= */
+
+let autoplayAttempted =
+    false;
+
+
+function attemptColdAutoplay(){
+
+    autoplayAttempted =
+        true;
+
+
+    log(
+        "尝试 bgm.ogg 冷启动 autoplay……"
+    );
+
+
+    const promise =
+        bgmAudio.play();
+
+
+    if(
+        promise &&
+        promise.then
+    ){
+
+        promise.then(
+            ()=>{
+
+                bgmResult.innerHTML =
+                    "🟢 <b>AUTOPLAY SUCCESS</b>";
+
+
+                log(
+                    "🎵 BGM autoplay SUCCESS",
+                    "success"
+                );
+
+            }
+        );
+
+
+        promise.catch(
+            error=>{
+
+                bgmResult.innerHTML =
+                    "🔴 <b>AUTOPLAY BLOCKED</b><br>" +
+                    error.message;
+
+
+                log(
+                    "🎵 BGM autoplay BLOCKED · " +
+                    error.message,
+                    "warn"
+                );
+
+            }
+        );
+
+    }
+
+}
+
+
+/*
+   页面加载后，
+   没有任何用户触摸，
+   自动尝试一次。
+*/
+
+window.addEventListener(
+    "load",
+    ()=>{
+
+        setTimeout(
+            attemptColdAutoplay,
+            300
+        );
+
+    }
 );
 
 </script>
