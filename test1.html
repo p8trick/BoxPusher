@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport"
+      content="width=device-width,
+               initial-scale=1,
+               maximum-scale=1,
+               user-scalable=no,
+               viewport-fit=cover">
+
+<title>Audio Cold Start Test</title>
+
+<style>
+*{
+    box-sizing:border-box;
+    -webkit-tap-highlight-color:transparent;
+}
+
+html,body{
+    margin:0;
+    width:100%;
+    height:100%;
+    overflow:hidden;
+    font-family:-apple-system,BlinkMacSystemFont,
+                 "Segoe UI",sans-serif;
+    background:#20242a;
+    color:#fff;
+}
+
+body{
+    display:flex;
+    justify-content:center;
+    align-items:center;
+}
+
+.page{
+    width:min(92vw,520px);
+    min-height:92vh;
+    padding:
+        max(22px,env(safe-area-inset-top))
+        20px
+        max(22px,env(safe-area-inset-bottom))
+        20px;
+
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+}
+
+h1{
+    margin:4px 0 0;
+    text-align:center;
+    font-size:26px;
+}
+
+.subtitle{
+    text-align:center;
+    font-size:14px;
+    opacity:.65;
+    line-height:1.5;
+}
+
+.status{
+    padding:12px 14px;
+    border-radius:12px;
+    background:#11151a;
+    border:1px solid #39414a;
+    font-size:13px;
+    line-height:1.6;
+}
+
+.status strong{
+    color:#ffd36a;
+}
+
+.section{
+    padding:14px;
+    border-radius:14px;
+    background:#292f36;
+    border:1px solid #424a54;
+}
+
+.section-title{
+    font-size:15px;
+    font-weight:700;
+    margin-bottom:10px;
+}
+
+.buttons{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+}
+
+button{
+    appearance:none;
+    border:0;
+    border-radius:12px;
+    min-height:54px;
+    padding:10px;
+    font-size:15px;
+    font-weight:700;
+    color:#fff;
+    background:#46515d;
+    box-shadow:
+        0 3px 0 #252b31,
+        inset 0 1px 0 rgba(255,255,255,.12);
+
+    touch-action:manipulation;
+}
+
+button:active{
+    transform:translateY(2px);
+    box-shadow:
+        0 1px 0 #252b31,
+        inset 0 1px 0 rgba(255,255,255,.12);
+}
+
+button.web{
+    background:#365d78;
+}
+
+button.kenney{
+    background:#685434;
+}
+
+button.nav{
+    background:#51485f;
+}
+
+button.test{
+    background:#496044;
+}
+
+button.reset{
+    background:#693e3e;
+}
+
+.log{
+    flex:1;
+    min-height:130px;
+    overflow:auto;
+    padding:10px;
+    border-radius:12px;
+    background:#11151a;
+    border:1px solid #39414a;
+
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:12px;
+    line-height:1.55;
+    -webkit-overflow-scrolling:touch;
+}
+
+.log-row{
+    padding:3px 0;
+    border-bottom:1px solid rgba(255,255,255,.05);
+}
+
+.good{
+    color:#8fd18f;
+}
+
+.warn{
+    color:#ffd36a;
+}
+
+.small{
+    font-size:11px;
+    opacity:.55;
+    margin-top:4px;
+}
+
+.page2{
+    display:none;
+}
+</style>
+</head>
+
+<body>
+
+<!-- =========================================================
+     PAGE 1
+========================================================= -->
+<div class="page page1">
+
+    <h1>🎧 Audio Cold Start Test</h1>
+
+    <div class="subtitle">
+        iPhone PWA · 首次触屏 vs 热启动<br>
+        Web Audio 合成音效 vs Kenney click-a.ogg
+    </div>
+
+    <div class="status" id="status">
+        AudioContext：
+        <strong id="ctxState">尚未创建</strong><br>
+
+        Kenney：
+        <strong id="fileState">等待预加载</strong><br>
+
+        本次：
+        <strong id="modeState">Cold Start</strong>
+    </div>
+
+    <div class="section">
+
+        <div class="section-title">
+            ① 第一次 / 后续单次点击
+        </div>
+
+        <div class="buttons">
+
+            <button class="web"
+                    id="webBtn">
+                Web Audio<br>
+                合成音效
+            </button>
+
+            <button class="kenney"
+                    id="kenneyBtn">
+                Kenney<br>
+                click-a.ogg
+            </button>
+
+        </div>
+
+        <div class="small">
+            第一次触摸会负责解锁 AudioContext。
+            后续点击属于 Warm。
+        </div>
+
+    </div>
+
+
+    <div class="section">
+
+        <div class="section-title">
+            ② 连续点击测试
+        </div>
+
+        <div class="buttons">
+
+            <button class="test"
+                    id="webRapid">
+                Web Audio<br>
+                连续测试
+            </button>
+
+            <button class="test"
+                    id="kenneyRapid">
+                Kenney<br>
+                连续测试
+            </button>
+
+        </div>
+
+    </div>
+
+
+    <div class="section">
+
+        <div class="section-title">
+            ③ 页面切换
+        </div>
+
+        <button class="nav"
+                id="goPage2"
+                style="width:100%;">
+            进入第二页 →
+        </button>
+
+    </div>
+
+
+    <div class="section">
+
+        <div class="section-title">
+            测试记录
+        </div>
+
+        <div class="log" id="log"></div>
+
+        <button class="reset"
+                id="clearLog"
+                style="width:100%;margin-top:10px;">
+            清除记录
+        </button>
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     PAGE 2
+========================================================= -->
+<div class="page page2">
+
+    <h1>📄 Page 2</h1>
+
+    <div class="subtitle">
+        用来模拟 BoxPusher 的<br>
+        选关 / 设置页面进入与返回
+    </div>
+
+    <div class="status">
+        当前 AudioContext：
+        <strong id="ctxState2">---</strong>
+    </div>
+
+    <div class="section">
+
+        <div class="section-title">
+            第二页音效测试
+        </div>
+
+        <div class="buttons">
+
+            <button class="web"
+                    id="webBtn2">
+                Web Audio
+            </button>
+
+            <button class="kenney"
+                    id="kenneyBtn2">
+                Kenney WAV/OGG
+            </button>
+
+        </div>
+
+    </div>
+
+    <div class="section">
+
+        <div class="section-title">
+            返回测试
+        </div>
+
+        <button class="nav"
+                id="backPage"
+                style="width:100%;">
+            ← 返回第一页
+        </button>
+
+    </div>
+
+</div>
+
+
+<script>
+/* =========================================================
+   AUDIO CORE
+========================================================= */
+
+let ctx = null;
+let masterGain = null;
+
+let audioUnlocked = false;
+let firstInteraction = true;
+
+let kenneyAudio = null;
+let kenneyReady = false;
+
+
+/* ---------------------------------------------------------
+   日志
+--------------------------------------------------------- */
+
+const logBox =
+    document.getElementById("log");
+
+function log(message, cls=""){
+
+    const row =
+        document.createElement("div");
+
+    row.className =
+        "log-row " + cls;
+
+    row.textContent =
+        message;
+
+    logBox.appendChild(row);
+
+    logBox.scrollTop =
+        logBox.scrollHeight;
+}
+
+
+/* ---------------------------------------------------------
+   AudioContext 初始化
+--------------------------------------------------------- */
+
+function initAudio(){
+
+    if(ctx){
+        return ctx;
+    }
+
+    const AudioContext =
+        window.AudioContext ||
+        window.webkitAudioContext;
+
+    if(!AudioContext){
+
+        log(
+            "❌ 浏览器不支持 Web Audio",
+            "warn"
+        );
+
+        return null;
+    }
+
+    ctx = new AudioContext();
+
+    masterGain =
+        ctx.createGain();
+
+    masterGain.gain.value =
+        0.65;
+
+    masterGain.connect(
+        ctx.destination
+    );
+
+    updateState();
+
+    return ctx;
+}
+
+
+/* ---------------------------------------------------------
+   AudioContext 解锁
+--------------------------------------------------------- */
+
+async function unlockAudio(){
+
+    const c =
+        initAudio();
+
+    if(!c){
+        return;
+    }
+
+    if(c.state === "suspended"){
+
+        try{
+            await c.resume();
+        }catch(e){
+            log(
+                "resume() 失败：" +
+                e.message,
+                "warn"
+            );
+        }
+    }
+
+    audioUnlocked =
+        c.state === "running";
+
+    updateState();
+}
+
+
+/* ---------------------------------------------------------
+   页面状态
+--------------------------------------------------------- */
+
+function updateState(){
+
+    const state =
+        ctx ? ctx.state : "尚未创建";
+
+    document.getElementById(
+        "ctxState"
+    ).textContent = state;
+
+    document.getElementById(
+        "ctxState2"
+    ).textContent = state;
+
+    document.getElementById(
+        "fileState"
+    ).textContent =
+        kenneyReady
+        ? "已加载"
+        : "加载中";
+
+    document.getElementById(
+        "modeState"
+    ).textContent =
+        firstInteraction
+        ? "Cold Start"
+        : "Warm";
+}
+
+
+/* =========================================================
+   KENNEY AUDIO
+========================================================= */
+
+kenneyAudio =
+    new Audio("click-a.ogg");
+
+kenneyAudio.preload =
+    "auto";
+
+kenneyAudio.load();
+
+
+kenneyAudio.addEventListener(
+    "canplaythrough",
+    ()=>{
+        kenneyReady = true;
+        updateState();
+
+        log(
+            "✓ click-a.ogg 已预加载",
+            "good"
+        );
+    }
+);
+
+kenneyAudio.addEventListener(
+    "error",
+    ()=>{
+        kenneyReady = false;
+        updateState();
+
+        log(
+            "❌ click-a.ogg 加载失败，请确认它与 HTML 同级",
+            "warn"
+        );
+    }
+);
+
+
+/* =========================================================
+   WEB AUDIO TEST SOUND
+========================================================= */
+
+function playWebClick(){
+
+    const c =
+        initAudio();
+
+    if(!c ||
+       !masterGain){
+        return;
+    }
+
+    const now =
+        c.currentTime;
+
+    const osc =
+        c.createOscillator();
+
+    const gain =
+        c.createGain();
+
+    osc.type =
+        "triangle";
+
+    osc.frequency.setValueAtTime(
+        760,
+        now
+    );
+
+    osc.frequency.exponentialRampToValueAtTime(
+        1180,
+        now + 0.025
+    );
+
+    gain.gain.setValueAtTime(
+        0.0001,
+        now
+    );
+
+    gain.gain.exponentialRampToValueAtTime(
+        0.22,
+        now + 0.002
+    );
+
+    gain.gain.exponentialRampToValueAtTime(
+        0.0001,
+        now + 0.055
+    );
+
+    osc.connect(gain);
+    gain.connect(masterGain);
+
+    osc.start(now);
+    osc.stop(now + 0.06);
+}
+
+
+/* =========================================================
+   KENNEY PLAY
+========================================================= */
+
+function playKenney(){
+
+    if(!kenneyAudio){
+        return;
+    }
+
+    /*
+       每次从头播放。
+       使用 cloneNode 避免快速连续点击
+       时 previous playback 被强制打断。
+    */
+
+    const sound =
+        kenneyAudio.cloneNode(true);
+
+    sound.volume = 1;
+
+    sound.currentTime = 0;
+
+    const p =
+        sound.play();
+
+    if(p && p.catch){
+        p.catch(e=>{
+            log(
+                "Kenney play() 被拒绝：" +
+                e.message,
+                "warn"
+            );
+        });
+    }
+}
+
+
+/* =========================================================
+   点击时间测试
+========================================================= */
+
+function testSound(type){
+
+    const pointerTime =
+        performance.now();
+
+    const wasCold =
+        firstInteraction;
+
+    /*
+       第一次点击：
+       同一个用户手势内完成 resume + play
+    */
+
+    unlockAudio();
+
+    if(type === "web"){
+        playWebClick();
+    }else{
+        playKenney();
+    }
+
+    const afterTime =
+        performance.now();
+
+    const commandDelay =
+        afterTime - pointerTime;
+
+    log(
+        (wasCold ? "❄️ COLD" : "🔥 WARM") +
+        " · " +
+        type.toUpperCase() +
+        " · JS调用耗时 " +
+        commandDelay.toFixed(2) +
+        " ms"
+    );
+
+    firstInteraction =
+        false;
+
+    updateState();
+}
+
+
+/* =========================================================
+   POINTERDOWN
+   用 pointerdown 而不是 click
+   更接近真实触屏按下瞬间
+========================================================= */
+
+function bindTestButton(
+    element,
+    type
+){
+
+    element.addEventListener(
+        "pointerdown",
+        function(){
+
+            testSound(type);
+
+        },
+        {
+            passive:true
+        }
+    );
+}
+
+
+/* =========================================================
+   首页按钮
+========================================================= */
+
+bindTestButton(
+    document.getElementById("webBtn"),
+    "web"
+);
+
+bindTestButton(
+    document.getElementById("kenneyBtn"),
+    "kenney"
+);
+
+
+/* =========================================================
+   第二页按钮
+========================================================= */
+
+bindTestButton(
+    document.getElementById("webBtn2"),
+    "web"
+);
+
+bindTestButton(
+    document.getElementById("kenneyBtn2"),
+    "kenney"
+);
+
+
+/* =========================================================
+   连续测试
+========================================================= */
+
+function rapidTest(type){
+
+    unlockAudio();
+
+    const start =
+        performance.now();
+
+    for(let i=0;i<5;i++){
+
+        setTimeout(()=>{
+
+            if(type === "web"){
+                playWebClick();
+            }else{
+                playKenney();
+            }
+
+            log(
+                "  " +
+                type.toUpperCase() +
+                " 连续 #" +
+                (i+1)
+            );
+
+        }, i * 180);
+    }
+
+    log(
+        "▶ 开始 5 次连续 " +
+        type.toUpperCase() +
+        " 测试"
+    );
+
+    firstInteraction =
+        false;
+
+    updateState();
+}
+
+
+document.getElementById(
+    "webRapid"
+).addEventListener(
+    "pointerdown",
+    ()=>{
+        rapidTest("web");
+    },
+    {passive:true}
+);
+
+
+document.getElementById(
+    "kenneyRapid"
+).addEventListener(
+    "pointerdown",
+    ()=>{
+        rapidTest("kenney");
+    },
+    {passive:true}
+);
+
+
+/* =========================================================
+   页面切换
+========================================================= */
+
+const page1 =
+    document.querySelector(".page1");
+
+const page2 =
+    document.querySelector(".page2");
+
+
+document.getElementById(
+    "goPage2"
+).addEventListener(
+    "pointerdown",
+    ()=>{
+        unlockAudio();
+
+        page1.style.display =
+            "none";
+
+        page2.style.display =
+            "flex";
+
+        log(
+            "→ 进入第二页"
+        );
+    },
+    {passive:true}
+);
+
+
+document.getElementById(
+    "backPage"
+).addEventListener(
+    "pointerdown",
+    ()=>{
+        unlockAudio();
+
+        page2.style.display =
+            "none";
+
+        page1.style.display =
+            "flex";
+
+        log(
+            "← 返回第一页"
+        );
+    },
+    {passive:true}
+);
+
+
+/* =========================================================
+   清除日志
+========================================================= */
+
+document.getElementById(
+    "clearLog"
+).addEventListener(
+    "pointerdown",
+    ()=>{
+        logBox.innerHTML = "";
+
+        log(
+            "日志已清除"
+        );
+    },
+    {passive:true}
+);
+
+
+/* =========================================================
+   页面初始化
+========================================================= */
+
+updateState();
+
+log(
+    "测试页已启动"
+);
+
+log(
+    "请先完全退出 PWA，再重新打开进行 Cold Start 测试"
+);
+
+log(
+    "目标：比较第一次触屏时 Web Audio 与 Kenney 的听感"
+);
+
+</script>
+
+</body>
+</html>
