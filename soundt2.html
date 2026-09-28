@@ -3,252 +3,415 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport"
-      content="width=device-width, initial-scale=1.0,
-               viewport-fit=cover">
+      content="width=device-width,initial-scale=1,viewport-fit=cover">
 
-<title>Sound T2 - BGM Loop Test</title>
+<title>BGM Loop Test V2</title>
 
 <style>
 * {
     box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
 }
 
-html,
 body {
     margin: 0;
-    padding: 0;
-    background: #eee7d8;
-    color: #33291f;
-    font-family: -apple-system, BlinkMacSystemFont,
-                 "Segoe UI", sans-serif;
+    padding: 18px 14px 40px;
+    background: #f3f0e8;
+    color: #333;
+    font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        "Helvetica Neue",
+        Arial,
+        sans-serif;
 }
 
-body {
-    padding: 20px;
-}
-
-.page {
-    width: min(680px, 100%);
+.wrap {
+    width: 100%;
+    max-width: 620px;
     margin: 0 auto;
 }
 
 h1 {
-    margin: 0 0 6px;
-    font-size: 25px;
+    text-align: center;
+    font-size: 23px;
+    margin: 4px 0 4px;
 }
 
 .subtitle {
-    margin-bottom: 20px;
-    opacity: 0.7;
-    font-size: 14px;
-}
-
-.section {
-    background: rgba(255,255,255,0.72);
-    border: 1px solid rgba(80,60,40,0.18);
-    border-radius: 14px;
-    padding: 16px;
-    margin-bottom: 14px;
-}
-
-.section h2 {
-    margin: 0 0 6px;
-    font-size: 18px;
-}
-
-.desc {
+    text-align: center;
+    color: #777;
     font-size: 13px;
-    line-height: 1.5;
-    opacity: 0.75;
+    margin-bottom: 18px;
+}
+
+.panel {
+    background: #fff;
+    border: 1px solid #d5cfc2;
+    border-radius: 14px;
+    padding: 14px;
+    margin-bottom: 12px;
+}
+
+.sectionTitle {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 10px;
+}
+
+.current {
+    text-align: center;
+    font-size: 25px;
+    font-weight: 700;
+    margin: 3px 0 5px;
+}
+
+.status {
+    text-align: center;
+    color: #777;
+    font-size: 13px;
+    min-height: 20px;
     margin-bottom: 12px;
 }
 
 button {
-    appearance: none;
-    border: 1px solid rgba(60,45,30,0.25);
+    border: 1px solid #c9c1b4;
+    background: #fff;
+    color: #333;
     border-radius: 10px;
-    background: #fffaf0;
-    color: #33291f;
-    padding: 11px 14px;
-    margin: 4px 4px 4px 0;
+    min-height: 44px;
+    padding: 8px 12px;
     font-size: 15px;
-    cursor: pointer;
+    font-weight: 600;
+    touch-action: manipulation;
 }
 
 button:active {
-    transform: scale(0.97);
+    transform: scale(.97);
 }
 
-button.primary {
-    background: #e4c48b;
+button.active {
+    background: #dfead4;
+    border-color: #8da56f;
+    box-shadow: inset 0 0 0 2px #b9cba6;
 }
 
-button.stop {
-    background: #ead4cc;
+button.danger {
+    background: #f2e2de;
+    border-color: #d2aaa0;
 }
 
-.status {
-    background: #302b25;
-    color: #f6eedf;
-    border-radius: 10px;
-    padding: 12px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+.transport {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: 7px;
+}
+
+.tracks {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+
+.modes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.delayRow {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 7px;
+}
+
+.schemeGrid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+}
+
+.schemeBtn {
+    text-align: left;
+    min-height: 52px;
+}
+
+.schemeBtn strong {
+    display: block;
+    font-size: 15px;
+    margin-bottom: 2px;
+}
+
+.schemeBtn span {
+    display: block;
+    color: #777;
+    font-size: 12px;
+    font-weight: 400;
+}
+
+.log {
+    height: 210px;
+    overflow-y: auto;
+    background: #1d1d1d;
+    color: #d8d8d8;
+    border-radius: 9px;
+    padding: 10px;
+    font-family:
+        ui-monospace,
+        SFMono-Regular,
+        Menlo,
+        monospace;
     font-size: 12px;
     line-height: 1.55;
     white-space: pre-wrap;
     word-break: break-word;
 }
 
-.log {
-    height: 180px;
-    overflow-y: auto;
-    background: #201e1b;
-    color: #ddd3c5;
-    border-radius: 10px;
-    padding: 10px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 11px;
-    line-height: 1.5;
+.logBtns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 8px;
 }
 
 .note {
+    color: #777;
     font-size: 12px;
     line-height: 1.5;
-    opacity: 0.7;
+    margin-top: 9px;
+}
+
+@media (max-width: 420px) {
+
+    .transport {
+        grid-template-columns: 1fr 1fr;
+    }
+
 }
 </style>
 </head>
 
 <body>
 
-<div class="page">
+<div class="wrap">
 
-    <h1>🎵 BGM Loop Test T2</h1>
+    <h1>🎵 BGM Loop Test V2</h1>
 
     <div class="subtitle">
-        测试文件：bgm.ogg · 请重点试听循环接缝
+        5 种循环方案 × 6 首 BGM
     </div>
+
 
     <!-- 当前状态 -->
-    <div class="section">
-        <h2>当前状态</h2>
+    <div class="panel">
 
-        <div id="status" class="status">
-等待开始
+        <div class="current" id="currentTitle">
+            BGM 01
         </div>
 
-        <br>
+        <div class="status" id="status">
+            等待操作
+        </div>
 
-        <button class="stop" onclick="stopAll()">
-            ⏹ 停止
-        </button>
+        <div class="transport">
+            <button id="prevBtn">⏮ 上一首</button>
+            <button id="playBtn">▶ 播放</button>
+            <button id="nextBtn">⏭ 下一首</button>
+            <button id="stopBtn" class="danger">■ 停止</button>
+        </div>
+
     </div>
 
 
-    <!-- 方案 1 -->
-    <div class="section">
-        <h2>① 原生 audio.loop</h2>
+    <!-- 曲目 -->
+    <div class="panel">
 
-        <div class="desc">
-            浏览器原生循环。最简单，也是正式项目最推荐优先测试的方式。
+        <div class="sectionTitle">
+            选择 BGM
         </div>
 
-        <button class="primary" onclick="startNativeLoop()">
-            ▶ 开始测试
-        </button>
+        <div class="tracks">
+
+            <button class="trackBtn active" data-track="0">
+                BGM 01
+            </button>
+
+            <button class="trackBtn" data-track="1">
+                BGM 02
+            </button>
+
+            <button class="trackBtn" data-track="2">
+                BGM 03
+            </button>
+
+            <button class="trackBtn" data-track="3">
+                BGM 04
+            </button>
+
+            <button class="trackBtn" data-track="4">
+                BGM 05
+            </button>
+
+            <button class="trackBtn" data-track="5">
+                BGM 06
+            </button>
+
+        </div>
+
     </div>
 
 
-    <!-- 方案 2 -->
-    <div class="section">
-        <h2>② ended → currentTime → play</h2>
+    <!-- 播放范围 -->
+    <div class="panel">
 
-        <div class="desc">
-            播放结束后由 JS 手动跳回 0 秒再播放。
-            用来模拟一些最简单的手工循环方式。
+        <div class="sectionTitle">
+            测试范围
         </div>
 
-        <button class="primary" onclick="startEndedLoop()">
-            ▶ 开始测试
-        </button>
+        <div class="modes">
+
+            <button class="rangeBtn active"
+                    data-range="single">
+                🎵 当前曲单曲循环
+            </button>
+
+            <button class="rangeBtn"
+                    data-range="playlist">
+                🔁 6 首串烧循环
+            </button>
+
+        </div>
+
+        <div class="note">
+            串烧顺序：01 → 02 → 03 → 04 → 05 → 06 → 01……
+        </div>
+
     </div>
 
 
-    <!-- 方案 3 -->
-    <div class="section">
-        <h2>③ 提前切回</h2>
+    <!-- 方案3参数 -->
+    <div class="panel">
 
-        <div class="desc">
-            在音频真正结束前提前几十毫秒跳回开头。
-            可用来试听“提前切换”是否比 ended 更顺。
+        <div class="sectionTitle">
+            方案 3：提前切换时间
         </div>
 
-        <button onclick="startEarlyLoop(20)">
-            20 ms
-        </button>
+        <div class="delayRow">
 
-        <button onclick="startEarlyLoop(50)">
-            50 ms
-        </button>
+            <button class="delayBtn"
+                    data-delay="20">
+                20 ms
+            </button>
 
-        <button onclick="startEarlyLoop(100)">
-            100 ms
-        </button>
+            <button class="delayBtn active"
+                    data-delay="50">
+                50 ms
+            </button>
+
+            <button class="delayBtn"
+                    data-delay="100">
+                100 ms
+            </button>
+
+        </div>
+
     </div>
 
 
-    <!-- 方案 4 -->
-    <div class="section">
-        <h2>④ 双 Audio 交叉衔接</h2>
+    <!-- 五种方案 -->
+    <div class="panel">
 
-        <div class="desc">
-            两个 Audio 交替播放。下一段提前启动，尝试减少
-            单个 Audio 重定位产生的停顿。
+        <div class="sectionTitle">
+            循环方案
         </div>
 
-        <button class="primary" onclick="startCrossfade()">
-            ▶ 开始测试
-        </button>
-    </div>
+        <div class="schemeGrid">
+
+            <button class="schemeBtn"
+                    data-scheme="1">
+
+                <strong>① 原生 audio.loop</strong>
+
+                <span>
+                    HTMLAudioElement · loop = true
+                </span>
+
+            </button>
 
 
-    <!-- 方案 5 -->
-    <div class="section">
-        <h2>⑤ Web Audio Buffer Loop</h2>
+            <button class="schemeBtn"
+                    data-scheme="2">
 
-        <div class="desc">
-            将整个 bgm.ogg 解码成 AudioBuffer，
-            再由 Web Audio 持续循环播放。
-            用来测试浏览器媒体元素之外的循环方式。
+                <strong>② ended → currentTime = 0</strong>
+
+                <span>
+                    播放结束后重新定位并 play()
+                </span>
+
+            </button>
+
+
+            <button class="schemeBtn"
+                    data-scheme="3">
+
+                <strong>③ 提前切换</strong>
+
+                <span>
+                    在结尾前 20 / 50 / 100 ms 开始下一轮
+                </span>
+
+            </button>
+
+
+            <button class="schemeBtn"
+                    data-scheme="4">
+
+                <strong>④ 双 Audio 交接</strong>
+
+                <span>
+                    两个 Audio 元素交替播放
+                </span>
+
+            </button>
+
+
+            <button class="schemeBtn"
+                    data-scheme="5">
+
+                <strong>⑤ AudioBufferSourceNode.loop</strong>
+
+                <span>
+                    Web Audio · 上次测试的最佳方案
+                </span>
+
+            </button>
+
         </div>
 
-        <button class="primary" onclick="startBufferLoop()">
-            ▶ 开始测试
-        </button>
     </div>
 
 
     <!-- 日志 -->
-    <div class="section">
-        <h2>测试日志</h2>
+    <div class="panel">
 
-        <div id="log" class="log"></div>
+        <div class="sectionTitle">
+            日志
+        </div>
 
-        <br>
+        <div class="log" id="log"></div>
 
-        <button onclick="copyLog()">
-            📋 复制日志
-        </button>
+        <div class="logBtns">
 
-        <button onclick="clearLog()">
-            清空日志
-        </button>
-    </div>
+            <button id="clearBtn">
+                清空日志
+            </button>
 
+            <button id="copyBtn">
+                复制日志
+            </button>
 
-    <div class="note">
-        建议每种方案至少让它完整循环 2～3 次。
-        最重要的是听循环瞬间有没有“咔、顿、吸一下、突然变闷”的感觉。
+        </div>
+
     </div>
 
 </div>
@@ -256,558 +419,1249 @@ button.stop {
 
 <script>
 
-const BGM_FILE = "bgm.ogg";
+const TRACK_COUNT = 6;
 
-let activeAudio = null;
-
-let audioA = null;
-let audioB = null;
-
-let bufferContext = null;
-let bufferSource = null;
-
-let currentMethod = "无";
-let loopCount = 0;
-
-let earlyTimer = null;
-let crossTimer = null;
-let startTime = 0;
+const files = Array.from(
+    { length: TRACK_COUNT },
+    (_, i) =>
+        `bgm${String(i + 1).padStart(2, "0")}.ogg`
+);
 
 
-/* =========================================================
-   基础
-========================================================= */
+let currentTrack = 0;
 
-function now() {
-    return new Date().toLocaleTimeString();
+let rangeMode = "single";
+
+let scheme = 5;
+
+let earlyDelay = 50;
+
+let audioContext = null;
+
+let currentAudio = null;
+
+let secondAudio = null;
+
+let currentSource = null;
+
+let playing = false;
+
+let endedHandler = null;
+
+let timer = null;
+
+let buffers = new Array(TRACK_COUNT).fill(null);
+
+let bufferLoading =
+    new Array(TRACK_COUNT).fill(null);
+
+
+
+/* =========================
+   DOM
+========================= */
+
+const currentTitle =
+    document.getElementById("currentTitle");
+
+const status =
+    document.getElementById("status");
+
+const logBox =
+    document.getElementById("log");
+
+
+
+/* =========================
+   Log
+========================= */
+
+function log(message) {
+
+    const d = new Date();
+
+    const time =
+        d.toLocaleTimeString([], {
+            hour12: false
+        });
+
+    logBox.textContent +=
+        `[${time}] ${message}\n`;
+
+    logBox.scrollTop =
+        logBox.scrollHeight;
 }
 
-function log(text) {
-    const box = document.getElementById("log");
 
-    box.textContent +=
-        "[" + now() + "] " + text + "\n";
 
-    box.scrollTop = box.scrollHeight;
-}
+/* =========================
+   UI
+========================= */
 
-function setStatus(text) {
-    document.getElementById("status").textContent = text;
-}
+function updateUI() {
 
-function updateStatus() {
+    currentTitle.textContent =
+        `BGM ${String(currentTrack + 1).padStart(2, "0")}`;
 
-    let position = "";
+    document
+        .querySelectorAll(".trackBtn")
+        .forEach((btn, i) => {
 
-    if (activeAudio) {
-        position =
-            activeAudio.currentTime.toFixed(2)
-            + " / "
-            + (
-                isFinite(activeAudio.duration)
-                    ? activeAudio.duration.toFixed(2)
-                    : "?"
+            btn.classList.toggle(
+                "active",
+                i === currentTrack
             );
-    }
+        });
 
-    setStatus(
-        "方案：" + currentMethod +
-        "\n循环次数：" + loopCount +
-        "\n位置：" + position
-    );
-}
+    document
+        .querySelectorAll(".rangeBtn")
+        .forEach(btn => {
 
+            btn.classList.toggle(
+                "active",
+                btn.dataset.range === rangeMode
+            );
+        });
 
-/* =========================================================
-   停止全部
-========================================================= */
+    document
+        .querySelectorAll(".delayBtn")
+        .forEach(btn => {
 
-function stopAll() {
+            btn.classList.toggle(
+                "active",
+                Number(btn.dataset.delay) === earlyDelay
+            );
+        });
 
-    if (earlyTimer) {
-        clearTimeout(earlyTimer);
-        earlyTimer = null;
-    }
+    document
+        .querySelectorAll(".schemeBtn")
+        .forEach(btn => {
 
-    if (crossTimer) {
-        clearInterval(crossTimer);
-        crossTimer = null;
-    }
-
-    if (audioA) {
-        audioA.pause();
-        audioA.currentTime = 0;
-    }
-
-    if (audioB) {
-        audioB.pause();
-        audioB.currentTime = 0;
-    }
-
-    if (activeAudio &&
-        activeAudio !== audioA &&
-        activeAudio !== audioB) {
-
-        activeAudio.pause();
-        activeAudio.currentTime = 0;
-    }
-
-    activeAudio = null;
-
-    if (bufferSource) {
-        try {
-            bufferSource.stop();
-        } catch(e) {}
-        bufferSource.disconnect();
-        bufferSource = null;
-    }
-
-    currentMethod = "无";
-    loopCount = 0;
-
-    setStatus("已停止");
-
-    log("⏹ 停止所有播放");
-}
-
-
-/* =========================================================
-   ① 原生 loop
-========================================================= */
-
-function startNativeLoop() {
-
-    stopAll();
-
-    currentMethod = "① 原生 audio.loop";
-    loopCount = 0;
-
-    const audio = new Audio(BGM_FILE);
-
-    audio.loop = true;
-    audio.preload = "auto";
-
-    audio.addEventListener("timeupdate", () => {
-        updateStatus();
-    });
-
-    audio.addEventListener("play", () => {
-        log("▶ 原生 loop 开始");
-    });
-
-    audio.addEventListener("error", () => {
-        log("❌ bgm.ogg 播放错误");
-    });
-
-    activeAudio = audio;
-
-    audio.play()
-        .then(() => {
-            log("✓ 播放成功");
-            updateStatus();
-        })
-        .catch(err => {
-            log("❌ 播放失败：" + err.message);
+            btn.classList.toggle(
+                "active",
+                Number(btn.dataset.scheme) === scheme
+            );
         });
 }
 
 
-/* =========================================================
-   ② ended 手动循环
-========================================================= */
 
-function startEndedLoop() {
+/* =========================
+   AudioContext
+========================= */
 
-    stopAll();
+function ensureContext() {
 
-    currentMethod =
-        "② ended → currentTime=0 → play";
+    if (!audioContext) {
 
-    loopCount = 0;
-
-    const audio = new Audio(BGM_FILE);
-
-    audio.preload = "auto";
-
-    audio.addEventListener("ended", () => {
-
-        loopCount++;
+        audioContext =
+            new (
+                window.AudioContext ||
+                window.webkitAudioContext
+            )();
 
         log(
-            "🔁 ended → 第 "
-            + loopCount
-            + " 次重新播放"
+            `AudioContext 创建 · ${audioContext.state}`
         );
-
-        audio.currentTime = 0;
-
-        audio.play()
-            .catch(err => {
-                log("❌ 重播失败：" + err.message);
-            });
-    });
-
-    audio.addEventListener("timeupdate", () => {
-        updateStatus();
-    });
-
-    activeAudio = audio;
-
-    audio.play()
-        .then(() => {
-            log("▶ ended 手动循环开始");
-        })
-        .catch(err => {
-            log("❌ 播放失败：" + err.message);
-        });
-}
-
-
-/* =========================================================
-   ③ 提前切回
-========================================================= */
-
-function startEarlyLoop(earlyMs) {
-
-    stopAll();
-
-    currentMethod =
-        "③ 提前 " + earlyMs + " ms";
-
-    loopCount = 0;
-
-    const audio = new Audio(BGM_FILE);
-
-    audio.preload = "auto";
-
-    activeAudio = audio;
-
-    audio.addEventListener("loadedmetadata", () => {
-
-        scheduleEarlyLoop(audio, earlyMs);
-
-        log(
-            "▶ 提前 "
-            + earlyMs
-            + " ms 循环开始"
-        );
-    });
-
-    audio.addEventListener("timeupdate", () => {
-        updateStatus();
-    });
-
-    audio.play()
-        .catch(err => {
-            log("❌ 播放失败：" + err.message);
-        });
-}
-
-
-function scheduleEarlyLoop(audio, earlyMs) {
-
-    if (!isFinite(audio.duration)) {
-        return;
     }
 
-    const remaining =
-        Math.max(
-            0,
-            audio.duration * 1000
-            - earlyMs
-            - audio.currentTime * 1000
-        );
+    return audioContext;
+}
 
-    earlyTimer = setTimeout(() => {
 
-        if (audio.paused) {
-            return;
-        }
+async function unlockContext() {
 
-        loopCount++;
+    const ctx = ensureContext();
+
+    if (ctx.state === "suspended") {
+
+        await ctx.resume();
 
         log(
-            "🔁 提前切回 · 第 "
-            + loopCount
-            + " 次"
+            `AudioContext resume · ${ctx.state}`
         );
-
-        audio.currentTime = 0;
-
-        scheduleEarlyLoop(audio, earlyMs);
-
-    }, remaining);
+    }
 }
 
 
-/* =========================================================
-   ④ 双 Audio
-========================================================= */
 
-function startCrossfade() {
+/* =========================
+   Load buffer
+========================= */
 
-    stopAll();
+async function loadBuffer(index) {
 
-    currentMethod =
-        "④ 双 Audio 交叉衔接";
-
-    loopCount = 0;
-
-    audioA = new Audio(BGM_FILE);
-    audioB = new Audio(BGM_FILE);
-
-    audioA.preload = "auto";
-    audioB.preload = "auto";
-
-    audioA.volume = 1;
-    audioB.volume = 0;
-
-    activeAudio = audioA;
-
-    let current = audioA;
-    let next = audioB;
-
-    let switching = false;
-
-    function prepareNext() {
-
-        if (!current.duration ||
-            !isFinite(current.duration)) {
-
-            return;
-        }
-
-        const remaining =
-            current.duration
-            - current.currentTime;
-
-        /*
-         * 提前约 80 ms 启动下一段。
-         *
-         * 注意：
-         * 这里主要测试“提前准备第二个 Audio”
-         * 是否比单 Audio seek 更平滑。
-         */
-
-        if (remaining <= 0.08 && !switching) {
-
-            switching = true;
-
-            next.currentTime = 0;
-            next.volume = 1;
-
-            next.play()
-                .then(() => {
-
-                    loopCount++;
-
-                    log(
-                        "🔁 双 Audio 切换 · 第 "
-                        + loopCount
-                        + " 次"
-                    );
-
-                    current.pause();
-                    current.currentTime = 0;
-
-                    const temp = current;
-                    current = next;
-                    next = temp;
-
-                    activeAudio = current;
-
-                    switching = false;
-
-                })
-                .catch(err => {
-
-                    log(
-                        "❌ 第二 Audio 播放失败："
-                        + err.message
-                    );
-
-                    switching = false;
-                });
-        }
+    if (buffers[index]) {
+        return buffers[index];
     }
 
-    audioA.addEventListener("timeupdate", prepareNext);
-    audioB.addEventListener("timeupdate", prepareNext);
+    if (bufferLoading[index]) {
+        return bufferLoading[index];
+    }
 
-    audioA.play()
-        .then(() => {
-            log("▶ 双 Audio 开始");
-        })
-        .catch(err => {
-            log("❌ 播放失败：" + err.message);
-        });
+    bufferLoading[index] =
+        (async () => {
 
-    const updateTimer = setInterval(() => {
+            const file = files[index];
 
-        if (
-            currentMethod !==
-            "④ 双 Audio 交叉衔接"
-        ) {
-            clearInterval(updateTimer);
-            return;
-        }
+            log(`⏳ 解码 ${file}`);
 
-        updateStatus();
+            const response =
+                await fetch(file);
 
-    }, 100);
-}
+            if (!response.ok) {
 
+                throw new Error(
+                    `HTTP ${response.status}`
+                );
+            }
 
-/* =========================================================
-   ⑤ Web Audio Buffer Loop
-========================================================= */
+            const arrayBuffer =
+                await response.arrayBuffer();
 
-async function startBufferLoop() {
+            const ctx =
+                ensureContext();
 
-    stopAll();
+            const buffer =
+                await ctx.decodeAudioData(
+                    arrayBuffer
+                );
 
-    currentMethod =
-        "⑤ Web Audio AudioBuffer loop";
+            buffers[index] = buffer;
 
-    loopCount = 0;
+            log(
+                `✓ ${file} · ` +
+                `${buffer.duration.toFixed(3)} 秒`
+            );
+
+            return buffer;
+
+        })();
 
     try {
 
-        log("⏳ 正在加载 bgm.ogg");
+        return await bufferLoading[index];
 
-        bufferContext =
-            new (window.AudioContext ||
-                 window.webkitAudioContext)();
+    } finally {
 
-        if (bufferContext.state === "suspended") {
-            await bufferContext.resume();
-        }
-
-        const response =
-            await fetch(BGM_FILE);
-
-        if (!response.ok) {
-            throw new Error(
-                "HTTP " + response.status
-            );
-        }
-
-        const arrayBuffer =
-            await response.arrayBuffer();
-
-        const audioBuffer =
-            await bufferContext.decodeAudioData(
-                arrayBuffer
-            );
-
-        bufferSource =
-            bufferContext.createBufferSource();
-
-        bufferSource.buffer = audioBuffer;
-
-        bufferSource.loop = true;
-
-        bufferSource.connect(
-            bufferContext.destination
-        );
-
-        bufferSource.start();
-
-        log(
-            "▶ AudioBuffer loop 开始"
-        );
-
-        log(
-            "✓ 解码长度："
-            + audioBuffer.duration.toFixed(3)
-            + " 秒"
-        );
-
-        updateBufferStatus(audioBuffer);
-
-    } catch(err) {
-
-        log(
-            "❌ Buffer loop 失败："
-            + err.message
-        );
+        bufferLoading[index] = null;
     }
 }
 
 
-function updateBufferStatus(buffer) {
 
-    if (
-        currentMethod !==
-        "⑤ Web Audio AudioBuffer loop"
-    ) {
+/* =========================
+   Stop everything
+========================= */
+
+function stopAll() {
+
+    playing = false;
+
+    if (timer) {
+        clearTimeout(timer);
+        timer = null;
+    }
+
+
+    if (currentAudio) {
+
+        currentAudio.onended = null;
+
+        try {
+            currentAudio.pause();
+        } catch (_) {}
+
+        try {
+            currentAudio.currentTime = 0;
+        } catch (_) {}
+
+        currentAudio = null;
+    }
+
+
+    if (secondAudio) {
+
+        secondAudio.onended = null;
+
+        try {
+            secondAudio.pause();
+        } catch (_) {}
+
+        try {
+            secondAudio.currentTime = 0;
+        } catch (_) {}
+
+        secondAudio = null;
+    }
+
+
+    if (currentSource) {
+
+        try {
+            currentSource.onended = null;
+            currentSource.stop();
+        } catch (_) {}
+
+        try {
+            currentSource.disconnect();
+        } catch (_) {}
+
+        currentSource = null;
+    }
+
+
+    status.textContent = "已停止";
+
+    log("⏹ 停止全部播放");
+}
+
+
+
+/* =========================
+   Scheme 1
+   native audio.loop
+========================= */
+
+async function playScheme1(index) {
+
+    const audio =
+        new Audio(files[index]);
+
+    audio.loop = true;
+
+    audio.preload = "auto";
+
+    currentAudio = audio;
+
+    audio.addEventListener(
+        "play",
+        () => {
+
+            log(
+                `▶ 方案1 · BGM ${index + 1}`
+            );
+
+        },
+        { once: true }
+    );
+
+    await audio.play();
+
+    status.textContent =
+        "方案 1 · 原生 loop";
+
+    return audio;
+}
+
+
+
+/* =========================
+   Scheme 2
+   ended → currentTime=0
+========================= */
+
+async function playScheme2(index) {
+
+    const audio =
+        new Audio(files[index]);
+
+    audio.preload = "auto";
+
+    currentAudio = audio;
+
+    let count = 0;
+
+    audio.addEventListener(
+        "ended",
+        async () => {
+
+            if (!playing) {
+                return;
+            }
+
+            count++;
+
+            log(
+                `🔁 方案2 · 第 ${count} 次重新播放`
+            );
+
+            try {
+
+                audio.currentTime = 0;
+
+                await audio.play();
+
+            } catch (err) {
+
+                log(
+                    `❌ 方案2重新播放失败`
+                );
+            }
+
+        }
+    );
+
+    await audio.play();
+
+    status.textContent =
+        "方案 2 · ended 手动循环";
+
+    return audio;
+}
+
+
+
+/* =========================
+   Scheme 3
+   early restart
+========================= */
+
+async function playScheme3(index) {
+
+    const audio =
+        new Audio(files[index]);
+
+    audio.preload = "auto";
+
+    currentAudio = audio;
+
+    let count = 0;
+
+    const scheduleRestart =
+        () => {
+
+            if (!playing) {
+                return;
+            }
+
+            const remain =
+                audio.duration -
+                audio.currentTime;
+
+            const delay =
+                Math.max(
+                    0,
+                    remain * 1000 -
+                    earlyDelay
+                );
+
+            timer =
+                setTimeout(async () => {
+
+                    if (!playing) {
+                        return;
+                    }
+
+                    count++;
+
+                    log(
+                        `🔁 方案3 · 提前 ${earlyDelay} ms · 第 ${count} 次`
+                    );
+
+                    try {
+
+                        audio.currentTime = 0;
+
+                        await audio.play();
+
+                        scheduleRestart();
+
+                    } catch (err) {
+
+                        log(
+                            `❌ 方案3重新播放失败`
+                        );
+                    }
+
+                }, delay);
+        };
+
+
+    await audio.play();
+
+    status.textContent =
+        `方案 3 · 提前 ${earlyDelay} ms`;
+
+    /*
+     * metadata 已经可用时直接安排，
+     * 否则等待 duration。
+     */
+    if (Number.isFinite(audio.duration)) {
+
+        scheduleRestart();
+
+    } else {
+
+        audio.addEventListener(
+            "loadedmetadata",
+            scheduleRestart,
+            { once: true }
+        );
+    }
+
+    return audio;
+}
+
+
+
+/* =========================
+   Scheme 4
+   dual audio
+========================= */
+
+async function playScheme4(index) {
+
+    const makeAudio =
+        () => {
+
+            const a =
+                new Audio(files[index]);
+
+            a.preload = "auto";
+
+            return a;
+        };
+
+
+    let a = makeAudio();
+    let b = makeAudio();
+
+    currentAudio = a;
+    secondAudio = b;
+
+    let active = a;
+    let standby = b;
+
+    let count = 0;
+
+    const prepareNext =
+        async () => {
+
+            if (!playing) {
+                return;
+            }
+
+            standby.currentTime = 0;
+
+            try {
+
+                await standby.play();
+
+                /*
+                 * 让两路同时播放会产生重叠，
+                 * 这里在切换点立即暂停旧轨。
+                 */
+                active.pause();
+
+                const temp =
+                    active;
+
+                active =
+                    standby;
+
+                standby =
+                    temp;
+
+                currentAudio =
+                    active;
+
+                secondAudio =
+                    standby;
+
+                count++;
+
+                log(
+                    `🔁 方案4 · 双 Audio 切换 · 第 ${count} 次`
+                );
+
+                scheduleNext();
+
+            } catch (err) {
+
+                log(
+                    `❌ 方案4切换失败`
+                );
+            }
+        };
+
+
+    const scheduleNext =
+        () => {
+
+            if (!playing) {
+                return;
+            }
+
+            const remain =
+                active.duration -
+                active.currentTime;
+
+            const delay =
+                Math.max(
+                    0,
+                    remain * 1000 -
+                    earlyDelay
+                );
+
+            timer =
+                setTimeout(
+                    prepareNext,
+                    delay
+                );
+        };
+
+
+    await a.play();
+
+    status.textContent =
+        "方案 4 · 双 Audio";
+
+    if (Number.isFinite(a.duration)) {
+
+        scheduleNext();
+
+    } else {
+
+        a.addEventListener(
+            "loadedmetadata",
+            scheduleNext,
+            { once: true }
+        );
+    }
+
+    return a;
+}
+
+
+
+/* =========================
+   Scheme 5
+   AudioBufferSourceNode.loop
+========================= */
+
+async function playScheme5(index) {
+
+    await unlockContext();
+
+    const buffer =
+        await loadBuffer(index);
+
+    if (!playing) {
         return;
     }
 
-    if (!bufferContext) {
+    const ctx =
+        ensureContext();
+
+    const source =
+        ctx.createBufferSource();
+
+    source.buffer = buffer;
+
+    source.loop = true;
+
+    source.connect(
+        ctx.destination
+    );
+
+    currentSource = source;
+
+    source.start(0);
+
+    status.textContent =
+        "方案 5 · AudioBuffer loop";
+
+    log(
+        `▶ 方案5 · BGM ${index + 1}`
+    );
+
+    return source;
+}
+
+
+
+/* =========================
+   Single track
+========================= */
+
+async function playSingle() {
+
+    stopObjectsOnly();
+
+    playing = true;
+
+    const index =
+        currentTrack;
+
+    try {
+
+        switch (scheme) {
+
+            case 1:
+                await playScheme1(index);
+                break;
+
+            case 2:
+                await playScheme2(index);
+                break;
+
+            case 3:
+                await playScheme3(index);
+                break;
+
+            case 4:
+                await playScheme4(index);
+                break;
+
+            case 5:
+                await playScheme5(index);
+                break;
+        }
+
+    } catch (err) {
+
+        playing = false;
+
+        status.textContent =
+            "播放失败";
+
+        log(
+            `❌ 播放失败 · ${err.message}`
+        );
+    }
+}
+
+
+
+/* =========================
+   Playlist
+========================= */
+
+async function playPlaylist() {
+
+    stopObjectsOnly();
+
+    playing = true;
+
+    const index =
+        currentTrack;
+
+    try {
+
+        if (scheme === 5) {
+
+            await playPlaylistBuffer(index);
+
+        } else {
+
+            await playPlaylistHTMLAudio(index);
+
+        }
+
+    } catch (err) {
+
+        playing = false;
+
+        status.textContent =
+            "串烧播放失败";
+
+        log(
+            `❌ 串烧失败 · ${err.message}`
+        );
+    }
+}
+
+
+
+/* =========================
+   Playlist:
+   Web Audio scheme 5
+========================= */
+
+async function playPlaylistBuffer(index) {
+
+    await unlockContext();
+
+    const buffer =
+        await loadBuffer(index);
+
+    if (!playing) {
         return;
     }
 
-    const duration = buffer.duration;
+    const ctx =
+        ensureContext();
 
-    const pos =
-        bufferContext.currentTime % duration;
+    const source =
+        ctx.createBufferSource();
 
-    const count =
-        Math.floor(
-            bufferContext.currentTime / duration
+    source.buffer = buffer;
+
+    source.loop = false;
+
+    source.connect(
+        ctx.destination
+    );
+
+    currentSource = source;
+
+    source.onended =
+        async () => {
+
+            if (!playing) {
+                return;
+            }
+
+            log(
+                `🔁 方案5串烧结束 · BGM ${index + 1}`
+            );
+
+            currentTrack =
+                (index + 1) % TRACK_COUNT;
+
+            updateUI();
+
+            await playPlaylistBuffer(
+                currentTrack
+            );
+        };
+
+    source.start(0);
+
+    status.textContent =
+        "方案 5 · 六首串烧";
+
+    log(
+        `▶ 方案5串烧 · BGM ${index + 1}`
+    );
+}
+
+
+
+/* =========================
+   Playlist:
+   HTML audio schemes
+========================= */
+
+async function playPlaylistHTMLAudio(index) {
+
+    const audio =
+        new Audio(files[index]);
+
+    audio.preload = "auto";
+
+    currentAudio = audio;
+
+    audio.onended =
+        async () => {
+
+            if (!playing) {
+                return;
+            }
+
+            log(
+                `🔁 串烧 · BGM ${index + 1} 结束`
+            );
+
+            currentTrack =
+                (index + 1) % TRACK_COUNT;
+
+            updateUI();
+
+            await playPlaylistHTMLAudio(
+                currentTrack
+            );
+        };
+
+    await audio.play();
+
+    status.textContent =
+        `方案 ${scheme} · 六首串烧`;
+
+    log(
+        `▶ 串烧 · BGM ${index + 1}`
+    );
+}
+
+
+
+/* =========================
+   Stop objects only
+========================= */
+
+function stopObjectsOnly() {
+
+    if (timer) {
+
+        clearTimeout(timer);
+
+        timer = null;
+    }
+
+
+    if (currentAudio) {
+
+        currentAudio.onended = null;
+
+        try {
+            currentAudio.pause();
+        } catch (_) {}
+
+        currentAudio = null;
+    }
+
+
+    if (secondAudio) {
+
+        secondAudio.onended = null;
+
+        try {
+            secondAudio.pause();
+        } catch (_) {}
+
+        secondAudio = null;
+    }
+
+
+    if (currentSource) {
+
+        try {
+            currentSource.onended = null;
+            currentSource.stop();
+        } catch (_) {}
+
+        try {
+            currentSource.disconnect();
+        } catch (_) {}
+
+        currentSource = null;
+    }
+}
+
+
+
+/* =========================
+   Play button
+========================= */
+
+document
+    .getElementById("playBtn")
+    .addEventListener(
+        "click",
+        async () => {
+
+            if (rangeMode === "single") {
+
+                await playSingle();
+
+            } else {
+
+                await playPlaylist();
+
+            }
+        }
+    );
+
+
+
+/* =========================
+   Stop
+========================= */
+
+document
+    .getElementById("stopBtn")
+    .addEventListener(
+        "click",
+        () => {
+
+            stopAll();
+
+        }
+    );
+
+
+
+/* =========================
+   Previous
+========================= */
+
+document
+    .getElementById("prevBtn")
+    .addEventListener(
+        "click",
+        async () => {
+
+            currentTrack =
+                (
+                    currentTrack -
+                    1 +
+                    TRACK_COUNT
+                ) % TRACK_COUNT;
+
+            updateUI();
+
+            log(
+                `⏮ 切换到 BGM ${currentTrack + 1}`
+            );
+
+            if (playing) {
+
+                if (
+                    rangeMode ===
+                    "single"
+                ) {
+                    await playSingle();
+                } else {
+                    await playPlaylist();
+                }
+            }
+        }
+    );
+
+
+
+/* =========================
+   Next
+========================= */
+
+document
+    .getElementById("nextBtn")
+    .addEventListener(
+        "click",
+        async () => {
+
+            currentTrack =
+                (
+                    currentTrack +
+                    1
+                ) % TRACK_COUNT;
+
+            updateUI();
+
+            log(
+                `⏭ 切换到 BGM ${currentTrack + 1}`
+            );
+
+            if (playing) {
+
+                if (
+                    rangeMode ===
+                    "single"
+                ) {
+                    await playSingle();
+                } else {
+                    await playPlaylist();
+                }
+            }
+        }
+    );
+
+
+
+/* =========================
+   Track buttons
+========================= */
+
+document
+    .querySelectorAll(".trackBtn")
+    .forEach(btn => {
+
+        btn.addEventListener(
+            "click",
+            async () => {
+
+                currentTrack =
+                    Number(
+                        btn.dataset.track
+                    );
+
+                updateUI();
+
+                log(
+                    `🎵 选择 BGM ${currentTrack + 1}`
+                );
+
+                if (playing) {
+
+                    if (
+                        rangeMode ===
+                        "single"
+                    ) {
+                        await playSingle();
+                    } else {
+                        await playPlaylist();
+                    }
+                }
+            }
         );
+    });
 
-    loopCount = count;
 
-    setStatus(
-        "方案：" + currentMethod +
-        "\n循环次数：" + loopCount +
-        "\n位置：" +
-        pos.toFixed(2) +
-        " / " +
-        duration.toFixed(2)
+
+/* =========================
+   Range buttons
+========================= */
+
+document
+    .querySelectorAll(".rangeBtn")
+    .forEach(btn => {
+
+        btn.addEventListener(
+            "click",
+            async () => {
+
+                rangeMode =
+                    btn.dataset.range;
+
+                updateUI();
+
+                log(
+                    rangeMode === "single"
+                        ? "🎵 测试范围：单曲循环"
+                        : "🔁 测试范围：六首串烧"
+                );
+
+                if (playing) {
+
+                    if (
+                        rangeMode ===
+                        "single"
+                    ) {
+                        await playSingle();
+                    } else {
+                        await playPlaylist();
+                    }
+                }
+            }
+        );
+    });
+
+
+
+/* =========================
+   Scheme buttons
+========================= */
+
+document
+    .querySelectorAll(".schemeBtn")
+    .forEach(btn => {
+
+        btn.addEventListener(
+            "click",
+            async () => {
+
+                scheme =
+                    Number(
+                        btn.dataset.scheme
+                    );
+
+                updateUI();
+
+                log(
+                    `选择方案 ${scheme}`
+                );
+
+                if (playing) {
+
+                    if (
+                        rangeMode ===
+                        "single"
+                    ) {
+                        await playSingle();
+                    } else {
+                        await playPlaylist();
+                    }
+                }
+            }
+        );
+    });
+
+
+
+/* =========================
+   Delay buttons
+========================= */
+
+document
+    .querySelectorAll(".delayBtn")
+    .forEach(btn => {
+
+        btn.addEventListener(
+            "click",
+            () => {
+
+                earlyDelay =
+                    Number(
+                        btn.dataset.delay
+                    );
+
+                updateUI();
+
+                log(
+                    `方案3提前时间：${earlyDelay} ms`
+                );
+            }
+        );
+    });
+
+
+
+/* =========================
+   Log buttons
+========================= */
+
+document
+    .getElementById("clearBtn")
+    .addEventListener(
+        "click",
+        () => {
+
+            logBox.textContent = "";
+
+        }
     );
 
-    requestAnimationFrame(
-        () => updateBufferStatus(buffer)
+
+document
+    .getElementById("copyBtn")
+    .addEventListener(
+        "click",
+        async () => {
+
+            try {
+
+                await navigator.clipboard.writeText(
+                    logBox.textContent
+                );
+
+                log("✓ 日志已复制");
+
+            } catch (_) {
+
+                log("❌ 复制失败");
+            }
+        }
     );
-}
 
 
-/* =========================================================
-   日志
-========================================================= */
 
-function copyLog() {
+/* =========================
+   Initial
+========================= */
 
-    const text =
-        document.getElementById("log").textContent;
+updateUI();
 
-    navigator.clipboard.writeText(text)
-        .then(() => {
-            log("✓ 日志已复制");
-        })
-        .catch(() => {
-            alert("复制失败，请长按日志手动复制。");
-        });
-}
-
-
-function clearLog() {
-    document.getElementById("log").textContent = "";
-}
-
-
-/* =========================================================
-   初始
-========================================================= */
-
-log("================================");
-log("BGM Loop Test T2");
-log("文件：" + BGM_FILE);
-log("请重点试听循环接缝");
-log("================================");
+log("==============================");
+log("BGM Loop Test V2");
+log("bgm01.ogg ～ bgm06.ogg");
+log("5 种循环方案");
+log("① native audio.loop");
+log("② ended → currentTime → play");
+log("③ early restart");
+log("④ dual Audio");
+log("⑤ AudioBufferSourceNode.loop");
+log("==============================");
 
 </script>
 
