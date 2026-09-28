@@ -2,6 +2,11 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
+<script>
+/* ===== 版本号：发版只改这一行 =====
+   主页右下角的版本号、style.css / base.js / ui.js 三个文件的 ?v= 缓存参数，全部从这里生成(避坑 B8)。 */
+var APP_VERSION = '1.18.2';
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -22,7 +27,7 @@
 </script>
 <noscript><link rel="manifest" href="manifest.json"></noscript>
 <link rel="preload" href="assets/fonts/kenney_future_narrow.ttf" as="font" type="font/ttf" crossorigin>
-<link rel="stylesheet" href="style.css?v=1.18.1">
+<script>document.write('<link rel="stylesheet" href="style.css?v=' + APP_VERSION + '">');</script>
 </head>
 <body>
 <div id="homeBg"></div>
@@ -33,7 +38,7 @@
     <button class="homeBtn" id="homeSettings" data-i18n="settings">SETTINGS</button>
     <button class="homeBtn disabled" id="homeDev" disabled data-i18n="soon">COMING SOON</button>
   </div>
-  <div id="homeVersion">v1.18.1</div>
+  <div id="homeVersion"></div><script>document.getElementById('homeVersion').textContent = 'v' + APP_VERSION;</script>
   <div id="homeCredit">Assets: Kenney Sokoban Pack (CC0)<br>Levels: David W. Skinner</div>
 </div>
 <div id="winOverlay">
@@ -187,7 +192,6 @@
       <div class="settingsLabel" data-i18n="boxFx" style="margin-top:14px">箱子推动反馈</div>
       <div class="swatchRow" id="boxFxRow"></div>
     </div>
-    <div class="settingsSection" id="settingsVersion" style="text-align:center;font-size:11px;color:var(--sub)">v1.18.1</div>
    </div>
    <button id="closeSettings" class="homeBtn panelClose" data-i18n="close" aria-label="Close">关闭</button>
   </div>
@@ -195,12 +199,11 @@
 
 <!-- 脚本加载顺序(有硬依赖，别乱换)：levels.js → confetti.js → base.js → ui.js → 下面的内联核心。
      规则：文件加载时直接执行的语句(如 bindTap(el, 函数名))，只能引用「已经加载」的文件里的东西；点击/事件回调里才用到的可以引用后加载的。
-     发版时把下面三处 ?v= 和 style.css 的 ?v= 一起改成新版本号，避免 iOS 缓存出现新旧文件错配。
+     base.js / ui.js 的 ?v= 由文件顶部的 APP_VERSION 自动生成(发版只改那一行)；document.write 写入的脚本会按顺序同步执行，加载顺序不受影响。
      sound.js / multiplayer.js 等扩展模块放在内联核心之后，只用 Bus.on 订阅事件。 -->
 <script src="levels.js"></script>
 <script src="confetti.js"></script>
-<script src="base.js?v=1.18.1"></script>
-<script src="ui.js?v=1.18.1"></script>
+<script>document.write('<scr' + 'ipt src="base.js?v=' + APP_VERSION + '"></scr' + 'ipt><scr' + 'ipt src="ui.js?v=' + APP_VERSION + '"></scr' + 'ipt>');</script>
 <script>
 
 /* 主屏幕图标标题：跟随系统语言切换 中文「推箱子」/ 英文「BoxPusher」 */
