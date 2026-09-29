@@ -5,7 +5,7 @@
 <meta name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 
-<title>SFX Test 01-08</title>
+<title>SFX Selection Tool</title>
 
 <style>
 * {
@@ -14,7 +14,7 @@
 
 body {
     margin: 0;
-    padding: 20px 14px 40px;
+    padding: 20px 14px 50px;
     background: #eee8df;
     color: #3d3025;
     font-family:
@@ -25,7 +25,7 @@ body {
 }
 
 h1 {
-    margin: 0 0 6px;
+    margin: 0 0 5px;
     font-size: 24px;
 }
 
@@ -48,7 +48,7 @@ h1 {
     display: flex;
     align-items: baseline;
     gap: 8px;
-    margin-bottom: 10px;
+    margin-bottom: 5px;
 }
 
 .number {
@@ -62,7 +62,7 @@ h1 {
 }
 
 .description {
-    margin-bottom: 10px;
+    margin-bottom: 11px;
     color: #817366;
     font-size: 12px;
 }
@@ -88,12 +88,21 @@ button {
 
 button:active {
     transform: scale(.97);
-    background: #e8ddcf;
+}
+
+button.selected {
+    border: 2px solid #806b54;
+    background: #e2d3c0;
 }
 
 button.ogg {
     background: #edf3ea;
     border-color: #aebea8;
+}
+
+button.ogg.selected {
+    background: #d7e3d2;
+    border-color: #65785e;
 }
 
 button small {
@@ -102,6 +111,93 @@ button small {
     color: #88796b;
     font-size: 10px;
     font-weight: 500;
+}
+
+.selection {
+    margin-top: 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: #f1e9df;
+    font-size: 12px;
+}
+
+.gain-area {
+    margin-top: 11px;
+}
+
+.gain-row {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+}
+
+.gain-label {
+    min-width: 72px;
+    font-size: 12px;
+    color: #75685d;
+}
+
+.gain-value {
+    min-width: 48px;
+    text-align: right;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+input[type="range"] {
+    flex: 1;
+    width: 100%;
+    accent-color: #806b54;
+}
+
+.summary {
+    margin-top: 24px;
+    padding: 16px;
+    background: #fffaf3;
+    border: 1px solid #cdbba6;
+    border-radius: 14px;
+}
+
+.summary h2 {
+    margin: 0 0 12px;
+    font-size: 18px;
+}
+
+.summary pre {
+    margin: 0;
+    padding: 12px;
+    overflow-x: auto;
+    border-radius: 9px;
+    background: #f1e9df;
+    color: #493b30;
+    font: 12px/1.6 ui-monospace,
+        SFMono-Regular,
+        Menlo,
+        monospace;
+}
+
+.copy-button {
+    width: 100%;
+    margin-top: 12px;
+    min-height: 52px;
+    background: #806b54;
+    border-color: #806b54;
+    color: white;
+}
+
+.reset-button {
+    width: 100%;
+    margin-top: 7px;
+    min-height: 44px;
+    background: transparent;
+}
+
+.copy-status {
+    margin-top: 8px;
+    text-align: center;
+    color: #66735e;
+    font-size: 12px;
+    min-height: 16px;
 }
 
 .footer {
@@ -123,24 +219,49 @@ button small {
 
 <body>
 
-<h1>🎧 SFX Test 01–08</h1>
+<h1>🎧 SFX Selection Tool</h1>
 
 <div class="subtitle">
-    每项：合成 A / B / C + OGG 原素材试听
+    试听 → 调整补偿 → 选择最终版本 → 一键复制日志
 </div>
 
 <div id="app"></div>
 
+<div class="summary">
+
+    <h2>最终选择</h2>
+
+    <pre id="summaryText"></pre>
+
+    <button
+        class="copy-button"
+        id="copyButton">
+        📋 一键复制选择日志
+    </button>
+
+    <button
+        class="reset-button"
+        id="resetButton">
+        ↺ 重置全部选择与补偿
+    </button>
+
+    <div
+        class="copy-status"
+        id="copyStatus">
+    </div>
+
+</div>
+
 <div class="footer">
     OGG 文件与本 HTML 放在同一目录。<br>
-    文件名必须使用下方规定名称，不要使用空格。
+    文件名全部使用小写、数字、下划线，不使用空格。
 </div>
 
 
 <script>
 
 /* =========================================================
-   OGG 文件名
+   OGG 文件
    ========================================================= */
 
 const OGG_FILES = {
@@ -158,7 +279,7 @@ const OGG_FILES = {
 
 
 /* =========================================================
-   音效列表
+   音效资料
    ========================================================= */
 
 const SFX_LIST = [
@@ -208,10 +329,32 @@ const SFX_LIST = [
     {
         id: 8,
         name: "Confetti Pop",
-        description: "彩纸炮喷射瞬间，只做喷射声，不做纸片沙沙声"
+        description: "彩纸炮喷射瞬间，不加入纸片沙沙声"
     }
 
 ];
+
+
+/* =========================================================
+   状态
+   ========================================================= */
+
+const selections = {};
+
+const gains = {};
+
+SFX_LIST.forEach(item => {
+
+    selections[item.id] = null;
+
+    /*
+       1.00 = 原始测试音量
+       范围 0.25 ～ 2.00
+    */
+
+    gains[item.id] = 1.00;
+
+});
 
 
 /* =========================================================
@@ -225,13 +368,17 @@ function getAudioContext() {
     if (!audioContext) {
 
         audioContext =
-            new (window.AudioContext ||
-                 window.webkitAudioContext)();
+            new (
+                window.AudioContext ||
+                window.webkitAudioContext
+            )();
 
     }
 
     if (audioContext.state === "suspended") {
+
         audioContext.resume();
+
     }
 
     return audioContext;
@@ -239,29 +386,41 @@ function getAudioContext() {
 
 
 /* =========================================================
-   输出 Gain
+   统一输出
    ========================================================= */
 
-function connectOutput(node) {
+function connectOutput(node, id) {
 
     const ctx = getAudioContext();
 
-    const gain = ctx.createGain();
+    const gain =
+        ctx.createGain();
 
-    gain.gain.value = 0.8;
+    gain.gain.value =
+        Math.max(
+            0,
+            Math.min(
+                2,
+                gains[id]
+            )
+        );
 
     node.connect(gain);
-    gain.connect(ctx.destination);
+
+    gain.connect(
+        ctx.destination
+    );
 
     return gain;
 }
 
 
 /* =========================================================
-   Oscillator
+   Tone
    ========================================================= */
 
 function tone(
+    id,
     type,
     frequency,
     start,
@@ -270,13 +429,17 @@ function tone(
     endFrequency = null
 ) {
 
-    const ctx = getAudioContext();
+    const ctx =
+        getAudioContext();
 
-    const osc = ctx.createOscillator();
+    const osc =
+        ctx.createOscillator();
 
-    const gain = ctx.createGain();
+    const gain =
+        ctx.createGain();
 
-    osc.type = type;
+    osc.type =
+        type;
 
     osc.frequency.setValueAtTime(
         frequency,
@@ -286,7 +449,10 @@ function tone(
     if (endFrequency !== null) {
 
         osc.frequency.exponentialRampToValueAtTime(
-            Math.max(20, endFrequency),
+            Math.max(
+                20,
+                endFrequency
+            ),
             start + duration
         );
 
@@ -309,11 +475,16 @@ function tone(
 
     osc.connect(gain);
 
-    connectOutput(gain);
+    connectOutput(
+        gain,
+        id
+    );
 
     osc.start(start);
 
-    osc.stop(start + duration + 0.03);
+    osc.stop(
+        start + duration + 0.03
+    );
 }
 
 
@@ -322,29 +493,38 @@ function tone(
    ========================================================= */
 
 function noise(
+    id,
     start,
     duration,
     volume,
     cutoff,
-    type = "lowpass"
+    filterType = "lowpass"
 ) {
 
-    const ctx = getAudioContext();
+    const ctx =
+        getAudioContext();
 
     const buffer =
         ctx.createBuffer(
             1,
-            Math.ceil(ctx.sampleRate * duration),
+            Math.ceil(
+                ctx.sampleRate *
+                duration
+            ),
             ctx.sampleRate
         );
 
     const data =
         buffer.getChannelData(0);
 
-    for (let i = 0; i < data.length; i++) {
+    for (
+        let i = 0;
+        i < data.length;
+        i++
+    ) {
 
         const fade =
-            1 - (i / data.length);
+            1 - i / data.length;
 
         data[i] =
             (Math.random() * 2 - 1) *
@@ -355,13 +535,17 @@ function noise(
     const source =
         ctx.createBufferSource();
 
-    source.buffer = buffer;
+    source.buffer =
+        buffer;
 
     const filter =
         ctx.createBiquadFilter();
 
-    filter.type = type;
-    filter.frequency.value = cutoff;
+    filter.type =
+        filterType;
+
+    filter.frequency.value =
+        cutoff;
 
     const gain =
         ctx.createGain();
@@ -385,7 +569,10 @@ function noise(
         .connect(filter)
         .connect(gain);
 
-    connectOutput(gain);
+    connectOutput(
+        gain,
+        id
+    );
 
     source.start(start);
 
@@ -401,14 +588,15 @@ function noise(
 
 function playSynth(id, variant) {
 
-    const ctx = getAudioContext();
+    const ctx =
+        getAudioContext();
 
     const t =
         ctx.currentTime + 0.015;
 
 
     /* -----------------------------------------------------
-       1. UI CLICK
+       1 UI CLICK
        ----------------------------------------------------- */
 
     if (id === 1) {
@@ -416,6 +604,7 @@ function playSynth(id, variant) {
         if (variant === "A") {
 
             tone(
+                id,
                 "square",
                 1450,
                 t,
@@ -428,6 +617,7 @@ function playSynth(id, variant) {
         if (variant === "B") {
 
             tone(
+                id,
                 "triangle",
                 1050,
                 t,
@@ -436,6 +626,7 @@ function playSynth(id, variant) {
             );
 
             tone(
+                id,
                 "triangle",
                 1750,
                 t + 0.012,
@@ -448,6 +639,7 @@ function playSynth(id, variant) {
         if (variant === "C") {
 
             tone(
+                id,
                 "sine",
                 1850,
                 t,
@@ -456,6 +648,7 @@ function playSynth(id, variant) {
             );
 
             noise(
+                id,
                 t,
                 0.018,
                 0.025,
@@ -468,7 +661,7 @@ function playSynth(id, variant) {
 
 
     /* -----------------------------------------------------
-       2. FOOTSTEP
+       2 FOOTSTEP
        ----------------------------------------------------- */
 
     if (id === 2) {
@@ -476,6 +669,7 @@ function playSynth(id, variant) {
         if (variant === "A") {
 
             noise(
+                id,
                 t,
                 0.075,
                 0.15,
@@ -483,6 +677,7 @@ function playSynth(id, variant) {
             );
 
             tone(
+                id,
                 "sine",
                 105,
                 t,
@@ -495,6 +690,7 @@ function playSynth(id, variant) {
         if (variant === "B") {
 
             noise(
+                id,
                 t,
                 0.12,
                 0.13,
@@ -502,6 +698,7 @@ function playSynth(id, variant) {
             );
 
             tone(
+                id,
                 "triangle",
                 180,
                 t,
@@ -514,6 +711,7 @@ function playSynth(id, variant) {
         if (variant === "C") {
 
             noise(
+                id,
                 t,
                 0.055,
                 0.17,
@@ -521,6 +719,7 @@ function playSynth(id, variant) {
             );
 
             tone(
+                id,
                 "triangle",
                 130,
                 t,
@@ -534,7 +733,7 @@ function playSynth(id, variant) {
 
 
     /* -----------------------------------------------------
-       3. VICTORY
+       3 VICTORY
        ----------------------------------------------------- */
 
     if (id === 3) {
@@ -542,6 +741,7 @@ function playSynth(id, variant) {
         if (variant === "A") {
 
             tone(
+                id,
                 "triangle",
                 523,
                 t,
@@ -550,6 +750,7 @@ function playSynth(id, variant) {
             );
 
             tone(
+                id,
                 "triangle",
                 659,
                 t + 0.09,
@@ -558,6 +759,7 @@ function playSynth(id, variant) {
             );
 
             tone(
+                id,
                 "triangle",
                 784,
                 t + 0.18,
@@ -570,6 +772,7 @@ function playSynth(id, variant) {
         if (variant === "B") {
 
             tone(
+                id,
                 "sine",
                 392,
                 t,
@@ -578,6 +781,7 @@ function playSynth(id, variant) {
             );
 
             tone(
+                id,
                 "sine",
                 523,
                 t + 0.075,
@@ -586,6 +790,7 @@ function playSynth(id, variant) {
             );
 
             tone(
+                id,
                 "sine",
                 659,
                 t + 0.15,
@@ -594,6 +799,7 @@ function playSynth(id, variant) {
             );
 
             tone(
+                id,
                 "sine",
                 784,
                 t + 0.225,
@@ -606,6 +812,7 @@ function playSynth(id, variant) {
         if (variant === "C") {
 
             tone(
+                id,
                 "triangle",
                 523,
                 t,
@@ -614,6 +821,7 @@ function playSynth(id, variant) {
             );
 
             tone(
+                id,
                 "triangle",
                 659,
                 t + 0.07,
@@ -622,6 +830,7 @@ function playSynth(id, variant) {
             );
 
             tone(
+                id,
                 "sine",
                 1047,
                 t + 0.15,
@@ -635,7 +844,7 @@ function playSynth(id, variant) {
 
 
     /* -----------------------------------------------------
-       4. BOX SLIDE
+       4 BOX SLIDE
        ----------------------------------------------------- */
 
     if (id === 4) {
@@ -643,6 +852,7 @@ function playSynth(id, variant) {
         if (variant === "A") {
 
             noise(
+                id,
                 t,
                 0.30,
                 0.12,
@@ -650,6 +860,7 @@ function playSynth(id, variant) {
             );
 
             noise(
+                id,
                 t + 0.08,
                 0.18,
                 0.07,
@@ -661,6 +872,7 @@ function playSynth(id, variant) {
         if (variant === "B") {
 
             noise(
+                id,
                 t,
                 0.42,
                 0.10,
@@ -668,6 +880,7 @@ function playSynth(id, variant) {
             );
 
             tone(
+                id,
                 "triangle",
                 95,
                 t,
@@ -680,6 +893,7 @@ function playSynth(id, variant) {
         if (variant === "C") {
 
             noise(
+                id,
                 t,
                 0.22,
                 0.14,
@@ -687,6 +901,7 @@ function playSynth(id, variant) {
             );
 
             noise(
+                id,
                 t + 0.12,
                 0.16,
                 0.07,
@@ -699,7 +914,7 @@ function playSynth(id, variant) {
 
 
     /* -----------------------------------------------------
-       5. BOX PLACE
+       5 BOX PLACE
        ----------------------------------------------------- */
 
     if (id === 5) {
@@ -707,6 +922,7 @@ function playSynth(id, variant) {
         if (variant === "A") {
 
             tone(
+                id,
                 "sine",
                 115,
                 t,
@@ -716,6 +932,7 @@ function playSynth(id, variant) {
             );
 
             tone(
+                id,
                 "triangle",
                 310,
                 t + 0.015,
@@ -728,6 +945,7 @@ function playSynth(id, variant) {
         if (variant === "B") {
 
             tone(
+                id,
                 "triangle",
                 180,
                 t,
@@ -737,6 +955,7 @@ function playSynth(id, variant) {
             );
 
             tone(
+                id,
                 "square",
                 720,
                 t + 0.045,
@@ -749,6 +968,7 @@ function playSynth(id, variant) {
         if (variant === "C") {
 
             tone(
+                id,
                 "sine",
                 100,
                 t,
@@ -758,6 +978,7 @@ function playSynth(id, variant) {
             );
 
             tone(
+                id,
                 "sine",
                 520,
                 t + 0.045,
@@ -771,7 +992,7 @@ function playSynth(id, variant) {
 
 
     /* -----------------------------------------------------
-       6. BOX PUSH BLOCKED
+       6 BOX PUSH BLOCKED
        ----------------------------------------------------- */
 
     if (id === 6) {
@@ -779,6 +1000,7 @@ function playSynth(id, variant) {
         if (variant === "A") {
 
             tone(
+                id,
                 "triangle",
                 100,
                 t,
@@ -788,6 +1010,7 @@ function playSynth(id, variant) {
             );
 
             noise(
+                id,
                 t,
                 0.045,
                 0.05,
@@ -799,6 +1022,7 @@ function playSynth(id, variant) {
         if (variant === "B") {
 
             tone(
+                id,
                 "square",
                 125,
                 t,
@@ -808,6 +1032,7 @@ function playSynth(id, variant) {
             );
 
             tone(
+                id,
                 "triangle",
                 75,
                 t + 0.018,
@@ -820,6 +1045,7 @@ function playSynth(id, variant) {
         if (variant === "C") {
 
             tone(
+                id,
                 "sine",
                 145,
                 t,
@@ -829,6 +1055,7 @@ function playSynth(id, variant) {
             );
 
             tone(
+                id,
                 "sine",
                 80,
                 t + 0.025,
@@ -842,7 +1069,7 @@ function playSynth(id, variant) {
 
 
     /* -----------------------------------------------------
-       7. PLAYER BLOCKED
+       7 PLAYER BLOCKED
        ----------------------------------------------------- */
 
     if (id === 7) {
@@ -850,6 +1077,7 @@ function playSynth(id, variant) {
         if (variant === "A") {
 
             tone(
+                id,
                 "triangle",
                 230,
                 t,
@@ -863,6 +1091,7 @@ function playSynth(id, variant) {
         if (variant === "B") {
 
             tone(
+                id,
                 "square",
                 420,
                 t,
@@ -872,6 +1101,7 @@ function playSynth(id, variant) {
             );
 
             tone(
+                id,
                 "triangle",
                 180,
                 t + 0.018,
@@ -884,6 +1114,7 @@ function playSynth(id, variant) {
         if (variant === "C") {
 
             noise(
+                id,
                 t,
                 0.035,
                 0.07,
@@ -891,6 +1122,7 @@ function playSynth(id, variant) {
             );
 
             tone(
+                id,
                 "sine",
                 260,
                 t,
@@ -905,16 +1137,15 @@ function playSynth(id, variant) {
 
 
     /* -----------------------------------------------------
-       8. CONFETTI POP
+       8 CONFETTI POP
        ----------------------------------------------------- */
 
     if (id === 8) {
 
         if (variant === "A") {
 
-            /* 空气压力释放 */
-
             noise(
+                id,
                 t,
                 0.16,
                 0.20,
@@ -922,6 +1153,7 @@ function playSynth(id, variant) {
             );
 
             tone(
+                id,
                 "sine",
                 180,
                 t,
@@ -934,9 +1166,8 @@ function playSynth(id, variant) {
 
         if (variant === "B") {
 
-            /* 极短 POP */
-
             noise(
+                id,
                 t,
                 0.055,
                 0.22,
@@ -947,9 +1178,8 @@ function playSynth(id, variant) {
 
         if (variant === "C") {
 
-            /* PFF + POP */
-
             noise(
+                id,
                 t,
                 0.18,
                 0.18,
@@ -957,6 +1187,7 @@ function playSynth(id, variant) {
             );
 
             tone(
+                id,
                 "triangle",
                 125,
                 t,
@@ -966,6 +1197,7 @@ function playSynth(id, variant) {
             );
 
             tone(
+                id,
                 "sine",
                 850,
                 t,
@@ -982,27 +1214,377 @@ function playSynth(id, variant) {
 
 
 /* =========================================================
-   OGG 播放
+   OGG
    ========================================================= */
 
 function playOGG(id) {
 
     const audio =
-        new Audio(OGG_FILES[id]);
+        new Audio(
+            OGG_FILES[id]
+        );
+
+    /*
+       OGG 也进入统一的测试音量补偿。
+    */
+
+    audio.volume =
+        Math.max(
+            0,
+            Math.min(
+                1,
+                gains[id]
+            )
+        );
 
     audio.currentTime = 0;
 
-    audio.play().catch(error => {
+    audio.play().catch(
+        error => {
 
-        console.warn(
-            "OGG播放失败:",
-            OGG_FILES[id],
-            error
-        );
+            console.warn(
+                "OGG播放失败:",
+                OGG_FILES[id],
+                error
+            );
 
-    });
+        }
+    );
 
 }
+
+
+/* =========================================================
+   选择方案
+   ========================================================= */
+
+function selectOption(
+    id,
+    option,
+    buttons
+) {
+
+    selections[id] =
+        option;
+
+    buttons.forEach(
+        button => {
+
+            button.classList.remove(
+                "selected"
+            );
+
+        }
+    );
+
+    const selected =
+        buttons.find(
+            button =>
+                button.dataset.option ===
+                option
+        );
+
+    if (selected) {
+
+        selected.classList.add(
+            "selected"
+        );
+
+    }
+
+    updateSummary();
+}
+
+
+/* =========================================================
+   创建音效卡片
+   ========================================================= */
+
+const app =
+    document.getElementById(
+        "app"
+    );
+
+
+SFX_LIST.forEach(
+    item => {
+
+        const card =
+            document.createElement(
+                "section"
+            );
+
+        card.className =
+            "card";
+
+
+        const title =
+            document.createElement(
+                "div"
+            );
+
+        title.className =
+            "title";
+
+        title.innerHTML =
+            "<span class='number'>" +
+            item.id +
+            ".</span>" +
+
+            "<span class='name'>" +
+            item.name +
+            "</span>";
+
+
+        const description =
+            document.createElement(
+                "div"
+            );
+
+        description.className =
+            "description";
+
+        description.textContent =
+            item.description;
+
+
+        const buttons =
+            document.createElement(
+                "div"
+            );
+
+        buttons.className =
+            "buttons";
+
+
+        const optionButtons = [];
+
+
+        ["A", "B", "C"].forEach(
+            option => {
+
+                const button =
+                    createButton(
+                        "▶ 合成 " +
+                        option,
+                        "Web Audio",
+                        () => {
+
+                            playSynth(
+                                item.id,
+                                option
+                            );
+
+                            selectOption(
+                                item.id,
+                                option,
+                                optionButtons
+                            );
+
+                        }
+                    );
+
+                button.dataset.option =
+                    option;
+
+                optionButtons.push(
+                    button
+                );
+
+                buttons.appendChild(
+                    button
+                );
+
+            }
+        );
+
+
+        const oggButton =
+            createButton(
+                "▶ OGG",
+                OGG_FILES[item.id],
+                () => {
+
+                    playOGG(
+                        item.id
+                    );
+
+                    selectOption(
+                        item.id,
+                        "OGG",
+                        optionButtons
+                    );
+
+                    oggButton.classList.add(
+                        "selected"
+                    );
+
+                },
+                "ogg"
+            );
+
+        oggButton.dataset.option =
+            "OGG";
+
+        optionButtons.push(
+            oggButton
+        );
+
+        buttons.appendChild(
+            oggButton
+        );
+
+
+        /* -------------------------------------------------
+           当前选择
+           ------------------------------------------------- */
+
+        const selection =
+            document.createElement(
+                "div"
+            );
+
+        selection.className =
+            "selection";
+
+        selection.id =
+            "selection-" +
+            item.id;
+
+        selection.textContent =
+            "当前选择：未选择";
+
+
+        /* -------------------------------------------------
+           Gain
+           ------------------------------------------------- */
+
+        const gainArea =
+            document.createElement(
+                "div"
+            );
+
+        gainArea.className =
+            "gain-area";
+
+
+        const gainRow =
+            document.createElement(
+                "div"
+            );
+
+        gainRow.className =
+            "gain-row";
+
+
+        const gainLabel =
+            document.createElement(
+                "div"
+            );
+
+        gainLabel.className =
+            "gain-label";
+
+        gainLabel.textContent =
+            "试听补偿";
+
+
+        const slider =
+            document.createElement(
+                "input"
+            );
+
+        slider.type =
+            "range";
+
+        slider.min =
+            "0.25";
+
+        slider.max =
+            "2.00";
+
+        slider.step =
+            "0.05";
+
+        slider.value =
+            gains[item.id];
+
+
+        const gainValue =
+            document.createElement(
+                "div"
+            );
+
+        gainValue.className =
+            "gain-value";
+
+        gainValue.textContent =
+            "1.00×";
+
+
+        slider.addEventListener(
+            "input",
+            () => {
+
+                gains[item.id] =
+                    parseFloat(
+                        slider.value
+                    );
+
+                gainValue.textContent =
+                    gains[item.id]
+                        .toFixed(2) +
+                    "×";
+
+                updateSummary();
+
+            }
+        );
+
+
+        gainRow.appendChild(
+            gainLabel
+        );
+
+        gainRow.appendChild(
+            slider
+        );
+
+        gainRow.appendChild(
+            gainValue
+        );
+
+        gainArea.appendChild(
+            gainRow
+        );
+
+
+        card.appendChild(
+            title
+        );
+
+        card.appendChild(
+            description
+        );
+
+        card.appendChild(
+            buttons
+        );
+
+        card.appendChild(
+            selection
+        );
+
+        card.appendChild(
+            gainArea
+        );
+
+        app.appendChild(
+            card
+        );
+
+    }
+);
 
 
 /* =========================================================
@@ -1017,7 +1599,9 @@ function createButton(
 ) {
 
     const button =
-        document.createElement("button");
+        document.createElement(
+            "button"
+        );
 
     button.className =
         className;
@@ -1038,115 +1622,221 @@ function createButton(
 
 
 /* =========================================================
-   创建测试项目
+   更新选择显示
    ========================================================= */
 
-const app =
-    document.getElementById("app");
+function updateSummary() {
+
+    let text =
+        "SFX FINAL SELECTION\n" +
+        "===================\n\n";
 
 
-SFX_LIST.forEach(item => {
+    SFX_LIST.forEach(
+        item => {
 
-    const card =
-        document.createElement("section");
+            const selection =
+                selections[item.id] ||
+                "NOT_SELECTED";
 
-    card.className = "card";
+            text +=
+                String(item.id)
+                    .padStart(2, "0") +
 
+                " " +
 
-    const title =
-        document.createElement("div");
+                item.name.padEnd(
+                    20,
+                    " "
+                ) +
 
-    title.className = "title";
+                selection +
 
-    title.innerHTML =
-        "<span class='number'>" +
-        item.id +
-        ".</span>" +
+                "\n";
 
-        "<span class='name'>" +
-        item.name +
-        "</span>";
-
-
-    const description =
-        document.createElement("div");
-
-    description.className =
-        "description";
-
-    description.textContent =
-        item.description;
-
-
-    const buttons =
-        document.createElement("div");
-
-    buttons.className =
-        "buttons";
-
-
-    /* A */
-
-    buttons.appendChild(
-
-        createButton(
-            "▶ 合成 A",
-            "Web Audio",
-            () => playSynth(item.id, "A")
-        )
-
+        }
     );
 
 
-    /* B */
+    text +=
+        "\nTEST GAIN\n" +
+        "---------\n";
 
-    buttons.appendChild(
 
-        createButton(
-            "▶ 合成 B",
-            "Web Audio",
-            () => playSynth(item.id, "B")
-        )
+    SFX_LIST.forEach(
+        item => {
 
+            text +=
+                String(item.id)
+                    .padStart(2, "0") +
+
+                " " +
+
+                gains[item.id]
+                    .toFixed(2) +
+
+                "x\n";
+
+        }
     );
 
 
-    /* C */
+    document.getElementById(
+        "summaryText"
+    ).textContent =
+        text;
 
-    buttons.appendChild(
 
-        createButton(
-            "▶ 合成 C",
-            "Web Audio",
-            () => playSynth(item.id, "C")
-        )
+    SFX_LIST.forEach(
+        item => {
 
+            const element =
+                document.getElementById(
+                    "selection-" +
+                    item.id
+                );
+
+            if (
+                selections[item.id]
+            ) {
+
+                element.textContent =
+                    "当前选择： " +
+                    selections[item.id];
+
+            } else {
+
+                element.textContent =
+                    "当前选择： 未选择";
+
+            }
+
+        }
     );
 
-
-    /* OGG */
-
-    buttons.appendChild(
-
-        createButton(
-            "▶ OGG",
-            OGG_FILES[item.id],
-            () => playOGG(item.id),
-            "ogg"
-        )
-
-    );
+}
 
 
-    card.appendChild(title);
+/* =========================================================
+   一键复制
+   ========================================================= */
 
-    card.appendChild(description);
+document.getElementById(
+    "copyButton"
+).addEventListener(
+    "click",
+    async () => {
 
-    card.appendChild(buttons);
+        const text =
+            document.getElementById(
+                "summaryText"
+            ).textContent;
 
-    app.appendChild(card);
+        try {
 
-});
+            await navigator.clipboard.writeText(
+                text
+            );
+
+            document.getElementById(
+                "copyStatus"
+            ).textContent =
+                "✓ 已复制到剪贴板";
+
+        } catch (error) {
+
+            /*
+               iOS 某些环境下 clipboard API
+               可能受到限制。
+            */
+
+            const area =
+                document.createElement(
+                    "textarea"
+                );
+
+            area.value =
+                text;
+
+            document.body.appendChild(
+                area
+            );
+
+            area.select();
+
+            try {
+
+                document.execCommand(
+                    "copy"
+                );
+
+                document.getElementById(
+                    "copyStatus"
+                ).textContent =
+                    "✓ 已复制到剪贴板";
+
+            } catch {
+
+                document.getElementById(
+                    "copyStatus"
+                ).textContent =
+                    "复制失败，请长按日志手动复制";
+
+            }
+
+            area.remove();
+
+        }
+
+        setTimeout(
+            () => {
+
+                document.getElementById(
+                    "copyStatus"
+                ).textContent =
+                    "";
+
+            },
+            2000
+        );
+
+    }
+);
+
+
+/* =========================================================
+   重置
+   ========================================================= */
+
+document.getElementById(
+    "resetButton"
+).addEventListener(
+    "click",
+    () => {
+
+        SFX_LIST.forEach(
+            item => {
+
+                selections[item.id] =
+                    null;
+
+                gains[item.id] =
+                    1.00;
+
+            }
+        );
+
+        location.reload();
+
+    }
+);
+
+
+/* =========================================================
+   初始显示
+   ========================================================= */
+
+updateSummary();
 
 </script>
 
