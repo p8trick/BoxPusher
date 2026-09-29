@@ -5,7 +5,7 @@
 <script>
 /* ===== 版本号：发版只改这一行 =====
    主页右下角的版本号、style.css / base.js / ui.js 三个文件的 ?v= 缓存参数，全部从这里生成(避坑 B8)。 */
-var APP_VERSION = '1.19.0';
+var APP_VERSION = '1.20.0';
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -28,6 +28,13 @@ var APP_VERSION = '1.19.0';
 <noscript><link rel="manifest" href="manifest.json"></noscript>
 <link rel="preload" href="assets/fonts/kenney_future_narrow.ttf" as="font" type="font/ttf" crossorigin>
 <script>document.write('<link rel="stylesheet" href="style.css?v=' + APP_VERSION + '">');</script>
+<style>
+/* 音量行：静音键在标题右侧；静音时滑条变淡（可并入 style.css） */
+.volHead{display:flex;justify-content:space-between;align-items:center}
+.muteBtn{padding:4px 12px;border:2px solid currentColor;border-radius:999px;background:transparent;color:inherit;font:inherit;font-size:13px;opacity:.85}
+.muteBtn.on{background:rgba(0,0,0,.28);text-decoration:line-through;opacity:.7}
+.sliderRow.muted{opacity:.45}
+</style>
 </head>
 <body>
 <div id="homeBg"></div>
@@ -173,6 +180,20 @@ var APP_VERSION = '1.19.0';
       <div class="sliderRow">
         <input type="range" id="boardHSlider" min="50" max="120" step="1">
         <span class="sliderVal" id="boardHVal"></span>
+      </div>
+    </div>
+    <div class="settingsSection">
+      <div class="settingsLabel volHead"><span data-i18n="musicVol">音乐音量</span><button class="muteBtn" id="musicMuteBtn" data-i18n="mute">静音</button></div>
+      <div class="sliderRow">
+        <input type="range" id="musicVolSlider" min="0" max="100" step="1">
+        <span class="sliderVal" id="musicVolVal"></span>
+      </div>
+    </div>
+    <div class="settingsSection">
+      <div class="settingsLabel volHead"><span data-i18n="sfxVol">音效音量</span><button class="muteBtn" id="sfxMuteBtn" data-i18n="mute">静音</button></div>
+      <div class="sliderRow">
+        <input type="range" id="sfxVolSlider" min="0" max="100" step="1">
+        <span class="sliderVal" id="sfxVolVal"></span>
       </div>
     </div>
     <div class="settingsSection" id="advancedSection" style="display:none">
