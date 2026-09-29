@@ -1,0 +1,1154 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+<title>SFX Test 01-08</title>
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    padding: 20px 14px 40px;
+    background: #eee8df;
+    color: #3d3025;
+    font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
+}
+
+h1 {
+    margin: 0 0 6px;
+    font-size: 24px;
+}
+
+.subtitle {
+    margin-bottom: 20px;
+    color: #75685d;
+    font-size: 13px;
+}
+
+.card {
+    margin: 10px 0;
+    padding: 14px;
+    background: #fffaf3;
+    border: 1px solid #d6c7b5;
+    border-radius: 14px;
+    box-shadow: 0 2px 7px rgba(0,0,0,.06);
+}
+
+.title {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.number {
+    font-size: 18px;
+    font-weight: 800;
+}
+
+.name {
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.description {
+    margin-bottom: 10px;
+    color: #817366;
+    font-size: 12px;
+}
+
+.buttons {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 7px;
+}
+
+button {
+    min-height: 50px;
+    padding: 9px 5px;
+    border: 1px solid #b9a995;
+    border-radius: 10px;
+    background: #f5eee5;
+    color: #46382c;
+    font-size: 13px;
+    font-weight: 650;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+button:active {
+    transform: scale(.97);
+    background: #e8ddcf;
+}
+
+button.ogg {
+    background: #edf3ea;
+    border-color: #aebea8;
+}
+
+button small {
+    display: block;
+    margin-top: 3px;
+    color: #88796b;
+    font-size: 10px;
+    font-weight: 500;
+}
+
+.footer {
+    margin-top: 20px;
+    color: #87796c;
+    font-size: 11px;
+    line-height: 1.6;
+}
+
+@media (max-width: 500px) {
+
+    .buttons {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+</style>
+</head>
+
+
+<body>
+
+<h1>🎧 SFX Test 01–08</h1>
+
+<div class="subtitle">
+    每项：合成 A / B / C + OGG 原素材试听
+</div>
+
+<div id="app"></div>
+
+<div class="footer">
+    OGG 文件与本 HTML 放在同一目录。<br>
+    文件名必须使用下方规定名称，不要使用空格。
+</div>
+
+
+<script>
+
+/* =========================================================
+   OGG 文件名
+   ========================================================= */
+
+const OGG_FILES = {
+
+    1: "sfx01_ui_click.ogg",
+    2: "sfx02_footstep.ogg",
+    3: "sfx03_victory.ogg",
+    4: "sfx04_box_slide.ogg",
+    5: "sfx05_box_place.ogg",
+    6: "sfx06_box_push_blocked.ogg",
+    7: "sfx07_player_blocked.ogg",
+    8: "sfx08_confetti_pop.ogg"
+
+};
+
+
+/* =========================================================
+   音效列表
+   ========================================================= */
+
+const SFX_LIST = [
+
+    {
+        id: 1,
+        name: "UI Click",
+        description: "菜单、按钮、返回、选项统一点击声"
+    },
+
+    {
+        id: 2,
+        name: "Footstep",
+        description: "角色在木地板上的脚步"
+    },
+
+    {
+        id: 3,
+        name: "Victory",
+        description: "完成全部箱子后的胜利提示"
+    },
+
+    {
+        id: 4,
+        name: "Box Slide",
+        description: "箱子在木地板上被推动"
+    },
+
+    {
+        id: 5,
+        name: "Box Place",
+        description: "箱子进入目标位置并落定"
+    },
+
+    {
+        id: 6,
+        name: "Box Push Blocked",
+        description: "箱子前方有障碍，无法推动"
+    },
+
+    {
+        id: 7,
+        name: "Player Blocked",
+        description: "角色撞墙或被障碍阻挡"
+    },
+
+    {
+        id: 8,
+        name: "Confetti Pop",
+        description: "彩纸炮喷射瞬间，只做喷射声，不做纸片沙沙声"
+    }
+
+];
+
+
+/* =========================================================
+   AudioContext
+   ========================================================= */
+
+let audioContext = null;
+
+function getAudioContext() {
+
+    if (!audioContext) {
+
+        audioContext =
+            new (window.AudioContext ||
+                 window.webkitAudioContext)();
+
+    }
+
+    if (audioContext.state === "suspended") {
+        audioContext.resume();
+    }
+
+    return audioContext;
+}
+
+
+/* =========================================================
+   输出 Gain
+   ========================================================= */
+
+function connectOutput(node) {
+
+    const ctx = getAudioContext();
+
+    const gain = ctx.createGain();
+
+    gain.gain.value = 0.8;
+
+    node.connect(gain);
+    gain.connect(ctx.destination);
+
+    return gain;
+}
+
+
+/* =========================================================
+   Oscillator
+   ========================================================= */
+
+function tone(
+    type,
+    frequency,
+    start,
+    duration,
+    volume,
+    endFrequency = null
+) {
+
+    const ctx = getAudioContext();
+
+    const osc = ctx.createOscillator();
+
+    const gain = ctx.createGain();
+
+    osc.type = type;
+
+    osc.frequency.setValueAtTime(
+        frequency,
+        start
+    );
+
+    if (endFrequency !== null) {
+
+        osc.frequency.exponentialRampToValueAtTime(
+            Math.max(20, endFrequency),
+            start + duration
+        );
+
+    }
+
+    gain.gain.setValueAtTime(
+        0.0001,
+        start
+    );
+
+    gain.gain.exponentialRampToValueAtTime(
+        volume,
+        start + 0.005
+    );
+
+    gain.gain.exponentialRampToValueAtTime(
+        0.0001,
+        start + duration
+    );
+
+    osc.connect(gain);
+
+    connectOutput(gain);
+
+    osc.start(start);
+
+    osc.stop(start + duration + 0.03);
+}
+
+
+/* =========================================================
+   Noise
+   ========================================================= */
+
+function noise(
+    start,
+    duration,
+    volume,
+    cutoff,
+    type = "lowpass"
+) {
+
+    const ctx = getAudioContext();
+
+    const buffer =
+        ctx.createBuffer(
+            1,
+            Math.ceil(ctx.sampleRate * duration),
+            ctx.sampleRate
+        );
+
+    const data =
+        buffer.getChannelData(0);
+
+    for (let i = 0; i < data.length; i++) {
+
+        const fade =
+            1 - (i / data.length);
+
+        data[i] =
+            (Math.random() * 2 - 1) *
+            fade;
+
+    }
+
+    const source =
+        ctx.createBufferSource();
+
+    source.buffer = buffer;
+
+    const filter =
+        ctx.createBiquadFilter();
+
+    filter.type = type;
+    filter.frequency.value = cutoff;
+
+    const gain =
+        ctx.createGain();
+
+    gain.gain.setValueAtTime(
+        0.0001,
+        start
+    );
+
+    gain.gain.exponentialRampToValueAtTime(
+        volume,
+        start + 0.006
+    );
+
+    gain.gain.exponentialRampToValueAtTime(
+        0.0001,
+        start + duration
+    );
+
+    source
+        .connect(filter)
+        .connect(gain);
+
+    connectOutput(gain);
+
+    source.start(start);
+
+    source.stop(
+        start + duration + 0.02
+    );
+}
+
+
+/* =========================================================
+   合成音效
+   ========================================================= */
+
+function playSynth(id, variant) {
+
+    const ctx = getAudioContext();
+
+    const t =
+        ctx.currentTime + 0.015;
+
+
+    /* -----------------------------------------------------
+       1. UI CLICK
+       ----------------------------------------------------- */
+
+    if (id === 1) {
+
+        if (variant === "A") {
+
+            tone(
+                "square",
+                1450,
+                t,
+                0.035,
+                0.09
+            );
+
+        }
+
+        if (variant === "B") {
+
+            tone(
+                "triangle",
+                1050,
+                t,
+                0.055,
+                0.12
+            );
+
+            tone(
+                "triangle",
+                1750,
+                t + 0.012,
+                0.025,
+                0.045
+            );
+
+        }
+
+        if (variant === "C") {
+
+            tone(
+                "sine",
+                1850,
+                t,
+                0.025,
+                0.07
+            );
+
+            noise(
+                t,
+                0.018,
+                0.025,
+                5000
+            );
+
+        }
+
+    }
+
+
+    /* -----------------------------------------------------
+       2. FOOTSTEP
+       ----------------------------------------------------- */
+
+    if (id === 2) {
+
+        if (variant === "A") {
+
+            noise(
+                t,
+                0.075,
+                0.15,
+                1700
+            );
+
+            tone(
+                "sine",
+                105,
+                t,
+                0.07,
+                0.035
+            );
+
+        }
+
+        if (variant === "B") {
+
+            noise(
+                t,
+                0.12,
+                0.13,
+                900
+            );
+
+            tone(
+                "triangle",
+                180,
+                t,
+                0.09,
+                0.025
+            );
+
+        }
+
+        if (variant === "C") {
+
+            noise(
+                t,
+                0.055,
+                0.17,
+                2600
+            );
+
+            tone(
+                "triangle",
+                130,
+                t,
+                0.08,
+                0.04
+            );
+
+        }
+
+    }
+
+
+    /* -----------------------------------------------------
+       3. VICTORY
+       ----------------------------------------------------- */
+
+    if (id === 3) {
+
+        if (variant === "A") {
+
+            tone(
+                "triangle",
+                523,
+                t,
+                0.24,
+                0.10
+            );
+
+            tone(
+                "triangle",
+                659,
+                t + 0.09,
+                0.24,
+                0.10
+            );
+
+            tone(
+                "triangle",
+                784,
+                t + 0.18,
+                0.30,
+                0.11
+            );
+
+        }
+
+        if (variant === "B") {
+
+            tone(
+                "sine",
+                392,
+                t,
+                0.25,
+                0.085
+            );
+
+            tone(
+                "sine",
+                523,
+                t + 0.075,
+                0.25,
+                0.085
+            );
+
+            tone(
+                "sine",
+                659,
+                t + 0.15,
+                0.25,
+                0.085
+            );
+
+            tone(
+                "sine",
+                784,
+                t + 0.225,
+                0.32,
+                0.095
+            );
+
+        }
+
+        if (variant === "C") {
+
+            tone(
+                "triangle",
+                523,
+                t,
+                0.15,
+                0.09
+            );
+
+            tone(
+                "triangle",
+                659,
+                t + 0.07,
+                0.18,
+                0.09
+            );
+
+            tone(
+                "sine",
+                1047,
+                t + 0.15,
+                0.32,
+                0.08
+            );
+
+        }
+
+    }
+
+
+    /* -----------------------------------------------------
+       4. BOX SLIDE
+       ----------------------------------------------------- */
+
+    if (id === 4) {
+
+        if (variant === "A") {
+
+            noise(
+                t,
+                0.30,
+                0.12,
+                850
+            );
+
+            noise(
+                t + 0.08,
+                0.18,
+                0.07,
+                1400
+            );
+
+        }
+
+        if (variant === "B") {
+
+            noise(
+                t,
+                0.42,
+                0.10,
+                520
+            );
+
+            tone(
+                "triangle",
+                95,
+                t,
+                0.36,
+                0.035
+            );
+
+        }
+
+        if (variant === "C") {
+
+            noise(
+                t,
+                0.22,
+                0.14,
+                1900
+            );
+
+            noise(
+                t + 0.12,
+                0.16,
+                0.07,
+                1200
+            );
+
+        }
+
+    }
+
+
+    /* -----------------------------------------------------
+       5. BOX PLACE
+       ----------------------------------------------------- */
+
+    if (id === 5) {
+
+        if (variant === "A") {
+
+            tone(
+                "sine",
+                115,
+                t,
+                0.12,
+                0.16,
+                70
+            );
+
+            tone(
+                "triangle",
+                310,
+                t + 0.015,
+                0.07,
+                0.09
+            );
+
+        }
+
+        if (variant === "B") {
+
+            tone(
+                "triangle",
+                180,
+                t,
+                0.13,
+                0.12,
+                90
+            );
+
+            tone(
+                "square",
+                720,
+                t + 0.045,
+                0.045,
+                0.055
+            );
+
+        }
+
+        if (variant === "C") {
+
+            tone(
+                "sine",
+                100,
+                t,
+                0.16,
+                0.13,
+                60
+            );
+
+            tone(
+                "sine",
+                520,
+                t + 0.045,
+                0.12,
+                0.07
+            );
+
+        }
+
+    }
+
+
+    /* -----------------------------------------------------
+       6. BOX PUSH BLOCKED
+       ----------------------------------------------------- */
+
+    if (id === 6) {
+
+        if (variant === "A") {
+
+            tone(
+                "triangle",
+                100,
+                t,
+                0.13,
+                0.18,
+                65
+            );
+
+            noise(
+                t,
+                0.045,
+                0.05,
+                700
+            );
+
+        }
+
+        if (variant === "B") {
+
+            tone(
+                "square",
+                125,
+                t,
+                0.075,
+                0.12,
+                75
+            );
+
+            tone(
+                "triangle",
+                75,
+                t + 0.018,
+                0.10,
+                0.08
+            );
+
+        }
+
+        if (variant === "C") {
+
+            tone(
+                "sine",
+                145,
+                t,
+                0.08,
+                0.14,
+                85
+            );
+
+            tone(
+                "sine",
+                80,
+                t + 0.025,
+                0.12,
+                0.07
+            );
+
+        }
+
+    }
+
+
+    /* -----------------------------------------------------
+       7. PLAYER BLOCKED
+       ----------------------------------------------------- */
+
+    if (id === 7) {
+
+        if (variant === "A") {
+
+            tone(
+                "triangle",
+                230,
+                t,
+                0.055,
+                0.10,
+                170
+            );
+
+        }
+
+        if (variant === "B") {
+
+            tone(
+                "square",
+                420,
+                t,
+                0.045,
+                0.08,
+                260
+            );
+
+            tone(
+                "triangle",
+                180,
+                t + 0.018,
+                0.06,
+                0.045
+            );
+
+        }
+
+        if (variant === "C") {
+
+            noise(
+                t,
+                0.035,
+                0.07,
+                1800
+            );
+
+            tone(
+                "sine",
+                260,
+                t,
+                0.06,
+                0.06,
+                170
+            );
+
+        }
+
+    }
+
+
+    /* -----------------------------------------------------
+       8. CONFETTI POP
+       ----------------------------------------------------- */
+
+    if (id === 8) {
+
+        if (variant === "A") {
+
+            /* 空气压力释放 */
+
+            noise(
+                t,
+                0.16,
+                0.20,
+                4200
+            );
+
+            tone(
+                "sine",
+                180,
+                t,
+                0.10,
+                0.10,
+                80
+            );
+
+        }
+
+        if (variant === "B") {
+
+            /* 极短 POP */
+
+            noise(
+                t,
+                0.055,
+                0.22,
+                6000
+            );
+
+        }
+
+        if (variant === "C") {
+
+            /* PFF + POP */
+
+            noise(
+                t,
+                0.18,
+                0.18,
+                5200
+            );
+
+            tone(
+                "triangle",
+                125,
+                t,
+                0.10,
+                0.07,
+                55
+            );
+
+            tone(
+                "sine",
+                850,
+                t,
+                0.035,
+                0.05,
+                300
+            );
+
+        }
+
+    }
+
+}
+
+
+/* =========================================================
+   OGG 播放
+   ========================================================= */
+
+function playOGG(id) {
+
+    const audio =
+        new Audio(OGG_FILES[id]);
+
+    audio.currentTime = 0;
+
+    audio.play().catch(error => {
+
+        console.warn(
+            "OGG播放失败:",
+            OGG_FILES[id],
+            error
+        );
+
+    });
+
+}
+
+
+/* =========================================================
+   创建按钮
+   ========================================================= */
+
+function createButton(
+    text,
+    smallText,
+    callback,
+    className = ""
+) {
+
+    const button =
+        document.createElement("button");
+
+    button.className =
+        className;
+
+    button.innerHTML =
+        text +
+        "<small>" +
+        smallText +
+        "</small>";
+
+    button.addEventListener(
+        "click",
+        callback
+    );
+
+    return button;
+}
+
+
+/* =========================================================
+   创建测试项目
+   ========================================================= */
+
+const app =
+    document.getElementById("app");
+
+
+SFX_LIST.forEach(item => {
+
+    const card =
+        document.createElement("section");
+
+    card.className = "card";
+
+
+    const title =
+        document.createElement("div");
+
+    title.className = "title";
+
+    title.innerHTML =
+        "<span class='number'>" +
+        item.id +
+        ".</span>" +
+
+        "<span class='name'>" +
+        item.name +
+        "</span>";
+
+
+    const description =
+        document.createElement("div");
+
+    description.className =
+        "description";
+
+    description.textContent =
+        item.description;
+
+
+    const buttons =
+        document.createElement("div");
+
+    buttons.className =
+        "buttons";
+
+
+    /* A */
+
+    buttons.appendChild(
+
+        createButton(
+            "▶ 合成 A",
+            "Web Audio",
+            () => playSynth(item.id, "A")
+        )
+
+    );
+
+
+    /* B */
+
+    buttons.appendChild(
+
+        createButton(
+            "▶ 合成 B",
+            "Web Audio",
+            () => playSynth(item.id, "B")
+        )
+
+    );
+
+
+    /* C */
+
+    buttons.appendChild(
+
+        createButton(
+            "▶ 合成 C",
+            "Web Audio",
+            () => playSynth(item.id, "C")
+        )
+
+    );
+
+
+    /* OGG */
+
+    buttons.appendChild(
+
+        createButton(
+            "▶ OGG",
+            OGG_FILES[item.id],
+            () => playOGG(item.id),
+            "ogg"
+        )
+
+    );
+
+
+    card.appendChild(title);
+
+    card.appendChild(description);
+
+    card.appendChild(buttons);
+
+    app.appendChild(card);
+
+});
+
+</script>
+
+</body>
+</html>
