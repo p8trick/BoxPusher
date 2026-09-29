@@ -32,6 +32,33 @@ Source: https://kenney.nl/ — thanks, Kenney.
 文件名已按本项目整理，与 Kenney 压缩包原名不完全一致。  
 出处：https://kenney.nl/ — 感谢 Kenney。
 
+## Music (CC0) / 音乐
+
+Background music (`assets/audio/bgm01.ogg` to `bgm06.ogg`) is six tracks selected from
+**Abstraction – Music Loop Bundle** by Abstraction (Benjamin Burnes; Abstraction Music /
+Tallbeard Studios), released under
+[CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/)
+(public domain dedication; commercial and non-commercial use allowed; modification allowed;
+credit not required, but the author kindly asks for the artist name "Abstraction" with a link).
+
+- Source: https://tallbeard.itch.io/music-loop-bundle
+- Author: https://abstractionmusic.com/
+
+Filenames were renamed for this project and are not the original track titles.  
+Note from the author: although permitted by the license, the author does not endorse use of
+these assets in NFT projects, AI/machine-learning projects, or direct resale of unmodified assets.
+
+背景音乐（`assets/audio/bgm01.ogg` 至 `bgm06.ogg`）共 6 首，选自
+**Abstraction – Music Loop Bundle**，作者 Abstraction（Benjamin Burnes；Abstraction Music /
+Tallbeard Studios），协议为 CC0 1.0（公有领域声明；可用于商业/非商业，可修改，不强制署名，
+作者希望如署名请写艺名 "Abstraction" 并附链接）。
+
+- 来源：https://tallbeard.itch.io/music-loop-bundle
+- 作者主页：https://abstractionmusic.com/
+
+文件名已按本项目重命名，与原曲名不一致。  
+作者附注：协议虽然允许，但作者不赞同把这些素材用于 NFT 项目、AI/机器学习项目，或不经修改直接转售。
+
 ## Other UI art (AI-generated) / 其余 UI 图（生成图）
 
 Wood frames, plank buttons, level-select tiles, home backgrounds, and the win-panel
