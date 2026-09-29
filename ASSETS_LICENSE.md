@@ -15,9 +15,11 @@ Includes:
 - `assets/fonts/` (Kenney Future / Future Narrow)
 - most icons in `assets/UI/dpad/` and `assets/UI/icons/`
 - PWA icons in `assets/icons/` (derived from the character face art; same CC0)
+- `assets/audio/sfx01_ui_click.ogg` (menu click) and `assets/audio/sfx03_victory.ogg` (victory jingle), Kenney audio packs
 
 Filenames were renamed for this project and may differ from Kenney’s originals.  
-Source: https://kenney.nl/ — thanks, Kenney.
+Source: https://kenney.nl/ — thanks, Kenney.  
+The other sound effects (footsteps, box sounds, undo, confetti pop) are synthesized in code with the Web Audio API and use no external files.
 
 字体、棋盘基本素材、以及大部分图标来自 Kenney 免费素材，协议为 CC0 1.0
 （可自由用于商业/非商业，不强制署名）。
@@ -28,9 +30,11 @@ Source: https://kenney.nl/ — thanks, Kenney.
 - `assets/fonts/`（Kenney Future / Future Narrow）
 - `assets/UI/dpad/`、`assets/UI/icons/` 中的大部分界面图标
 - `assets/icons/` 中的 PWA 图标（由人物脸图缩放合成，同源 CC0）
+- `assets/audio/sfx01_ui_click.ogg`（菜单点击）、`assets/audio/sfx03_victory.ogg`（胜利提示），来自 Kenney 音效包
 
 文件名已按本项目整理，与 Kenney 压缩包原名不完全一致。  
-出处：https://kenney.nl/ — 感谢 Kenney。
+出处：https://kenney.nl/ — 感谢 Kenney。  
+其余音效（脚步、推箱、撤销、彩纸炮等）由代码用 Web Audio 合成，不含外部素材文件。
 
 ## Music (CC0) / 音乐
 
