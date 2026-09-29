@@ -57,6 +57,7 @@ const I18N = {
     dpadStyle: 'D-pad 样式', dpad_cross: '十字连体', dpad_split: '分离按键',
     dpadSize: 'D-pad 大小', dpadX: 'D-pad 位置（左右偏移）', dpadY: 'D-pad 位置（上下偏移）', dpadGap: '分离按键间距',
     boardW: '棋盘宽度', boardH: '棋盘高度',
+    musicVol: '音乐音量', sfxVol: '音效音量', mute: '静音',
     advanced: '高级（开发者模式）', unlockAll: '全部解锁',
     walkDur: '走路每步时长', pushDur: '推箱每步时长', durHint: '镜头平移、帧切换、输入节奏自动跟随。数字越小越快，太小会显得飘。',
     boxFx: '箱子推动反馈', fxOff: '关', fxRebound: '回弹', close: '关闭'
@@ -79,6 +80,7 @@ const I18N = {
     dpadStyle: 'D-pad style', dpad_cross: 'Cross', dpad_split: 'Split',
     dpadSize: 'D-pad size', dpadX: 'D-pad position (left / right)', dpadY: 'D-pad position (up / down)', dpadGap: 'Split button spacing',
     boardW: 'Board width', boardH: 'Board height',
+    musicVol: 'Music volume', sfxVol: 'Sound effects volume', mute: 'Mute',
     advanced: 'Advanced (developer mode)', unlockAll: 'Unlock all',
     walkDur: 'Walk step duration', pushDur: 'Push step duration', durHint: 'Camera pan, frame swaps and input timing follow automatically. Lower is faster; too low feels floaty.',
     boxFx: 'Box push feedback', fxOff: 'Off', fxRebound: 'Rebound', close: 'CLOSE'
@@ -117,7 +119,7 @@ const CRATE_LABELS = { grey: '灰', red: '红', brown: '棕', blue: '蓝', green
 
 const SETTINGS_KEY = 'sokoban_appearance_v1';
 
-const DEFAULT_SETTINGS = { lang: defaultLang(), theme: 'green', floor: 'grey', wall: 'red1', crate: 'brown', dpadStyle: 'cross', dpadCross: { scale: 100, x: 0, y: 0 }, dpadSplit: { scale: 100, x: 0, y: 0, gap: 48 }, boardWPct: 100, boardHPct: 100, walkMs: 260, pushMs: 300, boxFx: 'rebound', tuneVer: 1 };
+const DEFAULT_SETTINGS = { lang: defaultLang(), theme: 'green', floor: 'grey', wall: 'red1', crate: 'brown', dpadStyle: 'cross', dpadCross: { scale: 100, x: 0, y: 0 }, dpadSplit: { scale: 100, x: 0, y: 0, gap: 48 }, boardWPct: 100, boardHPct: 100, walkMs: 260, pushMs: 300, boxFx: 'rebound', musicVol: 50, musicMuted: false, sfxVol: 100, sfxMuted: false, tuneVer: 1 };
 
 // tuneVer：手感默认值版本号，存档里的版本落后就重置这几项为新默认值；以后改默认值把 tuneVer 加 1 即可
 
