@@ -5,7 +5,7 @@
 <script>
 /* ===== 版本号：发版只改这一行 =====
    主页右下角的版本号、style.css / base.js / ui.js 三个文件的 ?v= 缓存参数，全部从这里生成(避坑 B8)。 */
-var APP_VERSION = '1.18.2';
+var APP_VERSION = '1.19.0';
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -727,12 +727,12 @@ function tryMove(dr, dc, dir) {
   const nr = state.player.r + dr;
   const nc = state.player.c + dc;
   const nkey = nr + ',' + nc;
-  if (state.walls.has(nkey)) { Bus.emit('bump'); renderDynamic(); scheduleIdle(); return; }
+  if (state.walls.has(nkey)) { Bus.emit('bump', { kind: 'wall' }); renderDynamic(); scheduleIdle(); return; }
 
   if (state.boxes.has(nkey)) {
     const br = nr + dr, bc = nc + dc;
     const bkey = br + ',' + bc;
-    if (state.walls.has(bkey) || state.boxes.has(bkey)) { Bus.emit('bump'); renderDynamic(); scheduleIdle(); return; }
+    if (state.walls.has(bkey) || state.boxes.has(bkey)) { Bus.emit('bump', { kind: 'box' }); renderDynamic(); scheduleIdle(); return; }
     setMoveDur(true);
     advanceGait(dir);
     lockMovement();
@@ -955,5 +955,7 @@ applyI18n();
 
 loadInitialLevel();
 </script>
+<!-- 音效模块：内联核心之后加载，只用 Bus.on 订阅；?v= 同样跟 APP_VERSION -->
+<script>document.write('<scr' + 'ipt src="sound.js?v=' + APP_VERSION + '"></scr' + 'ipt>');</script>
 </body>
 </html>
