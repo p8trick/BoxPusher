@@ -3,7 +3,8 @@
 /* ---------- 事件总线 Bus：给音效/多人等扩展模块留的口子 ----------
    核心在关键节点 Bus.emit(事件名, 数据)，扩展模块(sound.js / multiplayer.js …)只用 Bus.on 订阅，不改核心；没人订阅时 emit 什么都不做。
    订阅回调抛错会被吞掉并打印，不会连累游戏。已有事件：
-   move(走一步) / push({onTarget}) / bump(撞墙或推不动) / undo / levelLoad({index}) / solved({moves}，最后一步落位瞬间) / winPanel({stars,perfect,moves,isNewBest}，过关面板弹出时) */
+   move(走一步) / push({onTarget}) / bump({kind:'wall'|'box'}，wall=人物撞墙，box=箱子推不动) / undo / levelLoad({index}) / solved({moves}，最后一步落位瞬间) / winPanel({stars,perfect,moves,isNewBest}，过关面板弹出时)
+   / uiTap(菜单类按钮被点，由 bindTap / bindBackdropClose 发；D-pad 和撤销键不发，它们有自己的音效) */
 const Bus = {
   _h: {},
   on(evt, fn) { (this._h[evt] = this._h[evt] || []).push(fn); },
@@ -288,17 +289,23 @@ function firstUnclearedIndex() {
 
 function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
 
+// 菜单类按钮点击音：D-pad 的键和撤销键自带脚步/撤销音，不发 uiTap，免得叠音
+function emitUiTap(el) {
+  if (el.id === 'undo' || (el.closest && el.closest('#dpad'))) return;
+  Bus.emit('uiTap');
+}
+
 // bindBackdropClose：遮罩点空白处关闭专用，手动判 e.target===overlay 避免点到子元素也触发；touchend 原理同 bindTap，见避坑B1
 function bindBackdropClose(overlay, closeFn) {
   let touched = false;
   overlay.addEventListener('touchend', (e) => {
     if (e.target !== overlay) return;
-    e.preventDefault(); touched = true; closeFn();
+    e.preventDefault(); touched = true; emitUiTap(overlay); closeFn();
     setTimeout(() => { touched = false; }, 400);
   }, { passive: false });
   overlay.addEventListener('click', (e) => {
     if (touched) { touched = false; return; }
-    if (e.target === overlay) closeFn();
+    if (e.target === overlay) { emitUiTap(overlay); closeFn(); }
   });
 }
 
@@ -311,11 +318,13 @@ function bindTap(el, handler) {
   el.addEventListener('touchend', (e) => {
     e.preventDefault();
     touched = true;
+    emitUiTap(el);
     handler(e);
     setTimeout(() => { touched = false; }, 400);
   }, { passive: false });
   el.addEventListener('click', (e) => {
     if (touched) { touched = false; return; }
+    emitUiTap(el);
     handler(e);
   });
 }
