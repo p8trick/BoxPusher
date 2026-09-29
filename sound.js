@@ -36,6 +36,7 @@
   var nodes = {};      // 每个音效各自的 GainNode
   var buffers = {};    // 解码后的 OGG
   var rawBytes = {};   // fetch 回来的 OGG 字节
+  var stepCount = 0;     // 脚步计数：偶数步左脚，奇数步右脚
   var activated = false; // 已经有过用户手势
 
   // ── 初始化 ───────────────────────────────────────
@@ -99,13 +100,14 @@
 
   // ── 合成积木 ─────────────────────────────────────
   // 包络：4ms 起音 + 指数衰减到接近 0（规格只给了时长和音量）
-  function env(g, t, dur, vol) {
+  function env(g, t, dur, vol, atk) {
+    atk = atk || 0.004;
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(vol, t + 0.004);
+    g.gain.linearRampToValueAtTime(vol, t + atk);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   }
 
-  function noise(dest, at, dur, cutoff, vol) {
+  function noise(dest, at, dur, cutoff, vol, atk) {
     var t = ctx.currentTime + at;
     var src = ctx.createBufferSource();
     src.buffer = noiseBuf;
@@ -113,7 +115,7 @@
     lp.type = 'lowpass';
     lp.frequency.value = cutoff;
     var g = ctx.createGain();
-    env(g, t, dur, vol);
+    env(g, t, dur, vol, atk);
     src.connect(lp); lp.connect(g); g.connect(dest);
     src.start(t, Math.random() * 0.5);
     src.stop(t + dur + 0.03);
@@ -134,9 +136,12 @@
 
   // ── 7 个合成音效（at = 起始偏移秒）──
   var SYNTH = {
+    // 脚步：「耳语轻步」，左右脚交替（右脚 B 比左脚 A 更闷、更轻，差异 15%），每步音高±6%、音量±8% 随机
     footstep: function (d, o) {
-      noise(d, o, 0.075, 1700, 0.15);
-      tone(d, o, 'sine', 105, 105, 0.07, 0.035);
+      var right = (stepCount++ % 2) === 1;
+      var p = 1 + (Math.random() * 2 - 1) * 0.06;
+      var vr = 1 + (Math.random() * 2 - 1) * 0.08;
+      noise(d, o, 0.05, 700 * (right ? 0.85 : 1) * p, 0.06 * (right ? 0.88 : 1) * vr, 0.008);
     },
     boxSlide: function (d, o) {
       noise(d, o, 0.30, 850, 0.12);
