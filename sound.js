@@ -19,9 +19,10 @@
   };
 
   // 单音效增益
+  // 脚步声本身很轻，保持 2.0；其余动作音效从 2.0 降到 1.5（约 -2.5dB），拉近和脚步声的差距
   var SFX_GAIN = {
-    uiClick: 1.0, footstep: 2.0, victory: 1.0, boxSlide: 2.0, boxPlace: 2.0,
-    boxBlocked: 2.0, playerBlocked: 2.0, confettiPop: 2.0, undo: 2.0
+    uiClick: 0.75, footstep: 2.0, victory: 1.0, boxSlide: 1.5, boxPlace: 1.5,
+    boxBlocked: 1.5, playerBlocked: 1.5, confettiPop: 1.5, undo: 1.5
   };
 
   var PLACE_DELAY = 0.14;    // 秒：落位声接在推箱滑动声之后
