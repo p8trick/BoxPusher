@@ -1,403 +1,620 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
+
 <meta charset="UTF-8">
 
 <meta name="viewport"
-      content="width=device-width,
-               initial-scale=1,
-               viewport-fit=cover">
+content="width=device-width,
+initial-scale=1,
+viewport-fit=cover">
 
-<meta name="theme-color" content="#ead9b7">
 
-<title>推箱子 LAN 联机测试</title>
+<meta name="theme-color"
+content="#ead9b7">
+
+
+<title>
+推箱子 LAN 联机测试 v2
+</title>
+
 
 <style>
-* {
-    box-sizing: border-box;
+
+
+*{
+box-sizing:border-box;
 }
 
-body {
-    margin: 0;
-    padding: 20px;
-    background: #eee4cf;
-    color: #352b21;
-    font-family:
-        -apple-system,
-        BlinkMacSystemFont,
-        "Segoe UI",
-        sans-serif;
+
+body{
+
+margin:0;
+
+padding:20px;
+
+background:#eee4cf;
+
+color:#352b21;
+
+font-family:
+-apple-system,
+BlinkMacSystemFont,
+"Segoe UI",
+sans-serif;
+
 }
 
-.container {
-    max-width: 700px;
-    margin: auto;
+
+.container{
+
+max-width:700px;
+
+margin:auto;
+
 }
 
-h1 {
-    font-size: 22px;
-    margin: 0 0 15px;
+
+h1{
+
+font-size:22px;
+
+margin-bottom:15px;
+
 }
 
-.panel {
-    background: #fffaf0;
-    border: 2px solid #b99a6b;
-    border-radius: 14px;
-    padding: 14px;
-    margin-bottom: 12px;
+
+
+.panel{
+
+background:#fffaf0;
+
+border:2px solid #b99a6b;
+
+border-radius:14px;
+
+padding:14px;
+
+margin-bottom:12px;
+
 }
 
-h2 {
-    font-size: 17px;
-    margin: 0 0 10px;
+
+
+h2{
+
+font-size:17px;
+
+margin:0 0 10px;
+
 }
+
+
 
 button,
-input {
-    font: inherit;
+input{
+
+font:inherit;
+
 }
 
-button {
-    border: 1px solid #a88a5d;
-    border-radius: 9px;
-    background: #ead6ae;
-    padding: 9px 14px;
-    cursor: pointer;
+
+
+button{
+
+border:1px solid #a88a5d;
+
+border-radius:9px;
+
+background:#ead6ae;
+
+padding:9px 14px;
+
 }
 
-button:active {
-    transform: scale(.97);
+
+
+input{
+
+width:100%;
+
+border:1px solid #a88a5d;
+
+border-radius:9px;
+
+padding:9px;
+
 }
 
-input {
-    width: 100%;
-    border: 1px solid #a88a5d;
-    border-radius: 9px;
-    padding: 9px;
-    background: white;
+
+
+.row{
+
+display:flex;
+
+gap:8px;
+
+margin-bottom:8px;
+
 }
 
-.row {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 8px;
+
+
+.row>*{
+
+flex:1;
+
 }
 
-.row > * {
-    flex: 1;
+
+
+.status{
+
+font-weight:bold;
+
+margin-bottom:6px;
+
 }
 
-.status {
-    font-weight: bold;
-    margin-bottom: 6px;
+
+
+.small{
+
+font-size:13px;
+
+line-height:1.5;
+
+color:#6c5c49;
+
 }
 
-.small {
-    font-size: 13px;
-    line-height: 1.5;
-    color: #6c5c49;
+
+
+.room-code{
+
+font-size:28px;
+
+font-weight:bold;
+
+letter-spacing:4px;
+
+text-align:center;
+
+padding:8px;
+
 }
 
-.room-code {
-    font-size: 28px;
-    font-weight: bold;
-    letter-spacing: 4px;
-    text-align: center;
-    padding: 8px;
+
+
+#players{
+
+display:grid;
+
+gap:6px;
+
 }
 
-#players {
-    display: grid;
-    gap: 6px;
+
+
+.player{
+
+background:#eee0c5;
+
+border-radius:8px;
+
+padding:8px 10px;
+
+display:flex;
+
+justify-content:space-between;
+
 }
 
-.player {
-    background: #eee0c5;
-    border-radius: 8px;
-    padding: 8px 10px;
 
-    display: flex;
-    justify-content: space-between;
+
+#board{
+
+display:grid;
+
+grid-template-columns:
+repeat(5,48px);
+
+gap:3px;
+
+justify-content:center;
+
+margin:15px 0;
+
 }
 
-#board {
-    display: grid;
 
-    grid-template-columns:
-        repeat(5, 48px);
 
-    gap: 3px;
+.cell{
 
-    justify-content: center;
+width:48px;
 
-    margin: 15px 0;
+height:48px;
+
+border-radius:5px;
+
+display:grid;
+
+place-items:center;
+
+background:#d7c19a;
+
+font-size:24px;
+
 }
 
-.cell {
-    width: 48px;
-    height: 48px;
 
-    border-radius: 5px;
 
-    display: grid;
-    place-items: center;
+.wall{
 
-    background: #d7c19a;
+background:#766754;
 
-    font-size: 24px;
 }
 
-.wall {
-    background: #766754;
+
+
+.player1{
+
+outline:3px solid #6b8d59;
+
 }
 
-.player1 {
-    outline: 3px solid #6b8d59;
+
+
+.player2{
+
+outline:3px solid #9b665e;
+
 }
 
-.player2 {
-    outline: 3px solid #9b665e;
+
+
+.player3{
+
+outline:3px solid #5d789b;
+
 }
 
-.player3 {
-    outline: 3px solid #5d789b;
+
+
+.player4{
+
+outline:3px solid #a88745;
+
 }
 
-.player4 {
-    outline: 3px solid #a88745;
+
+
+.controls{
+
+display:grid;
+
+grid-template-columns:
+repeat(3,55px);
+
+gap:5px;
+
+justify-content:center;
+
 }
 
-.controls {
-    display: grid;
 
-    grid-template-columns:
-        repeat(3, 55px);
 
-    gap: 5px;
+.controls button{
 
-    justify-content: center;
+width:55px;
+
+height:45px;
+
 }
 
-.controls button {
-    width: 55px;
-    height: 45px;
+
+
+.up{
+
+grid-column:2;
+
 }
 
-.up {
-    grid-column: 2;
+
+.left{
+
+grid-column:1;
+
 }
 
-.left {
-    grid-column: 1;
+
+.down{
+
+grid-column:2;
+
 }
 
-.down {
-    grid-column: 2;
+
+.right{
+
+grid-column:3;
+
 }
 
-.right {
-    grid-column: 3;
+
+
+#log{
+
+background:#2d2925;
+
+color:#eeeeee;
+
+height:180px;
+
+overflow-y:auto;
+
+padding:9px;
+
+border-radius:8px;
+
+font-family:
+ui-monospace,
+monospace;
+
+font-size:12px;
+
 }
 
-#log {
-    background: #2d2925;
-    color: #eeeeee;
 
-    height: 180px;
+.warning{
 
-    overflow-y: auto;
+background:#fff0c9;
 
-    padding: 9px;
+padding:9px;
 
-    border-radius: 8px;
+border-radius:8px;
 
-    font-family:
-        ui-monospace,
-        SFMono-Regular,
-        Menlo,
-        monospace;
+font-size:13px;
 
-    font-size: 12px;
 }
 
-.warning {
-    background: #fff0c9;
-    border-radius: 8px;
-    padding: 9px;
-    font-size: 13px;
-}
+
 </style>
+
 </head>
+
 
 <body>
 
+
 <div class="container">
 
-<h1>📦 推箱子 · 2–4 人主机模式测试</h1>
+
+<h1>
+📦 推箱子 · 2-4人主机模式 v2
+</h1>
 
 
-<!-- 状态 -->
 
 <div class="panel">
 
-<div class="status" id="status">
-正在初始化……
+
+<div
+class="status"
+id="status">
+
+初始化中……
+
 </div>
+
+
 
 <div class="small">
 
-这个页面只测试多人网络架构。
+v2 新增：
 
-玩家不会直接互相控制。
+<br>
 
-所有移动都先发送给房主，
-由房主处理后再广播状态。
+✔ 房主心跳
+
+<br>
+
+✔ 房主掉线检测
+
+<br>
+
+✔ 玩家等待房主恢复
+
+<br>
+
+✔ 恢复后继续同步
+
 
 </div>
 
+
 </div>
 
 
-<!-- 创建房间 -->
 
 <div class="panel">
 
-<h2>① 创建房间（房主）</h2>
+
+<h2>
+① 创建房间（房主）
+</h2>
+
 
 <div class="row">
+
 
 <input
 id="hostName"
 value="Host"
-maxlength="12"
->
+maxlength="12">
 
-<button id="createButton">
+
+<button
+id="createButton">
+
 创建
+
 </button>
 
+
 </div>
+
+
 
 <div
 id="roomDisplay"
-class="room-code"
->
+class="room-code">
+
 -----
-</div>
-
-<div class="small">
-
-把上面的房间码告诉其他设备。
-
-</div>
 
 </div>
 
 
-<!-- 加入房间 -->
+</div>
+
+
+
 
 <div class="panel">
 
-<h2>② 加入房间（其他玩家）</h2>
+
+<h2>
+② 加入房间
+</h2>
+
 
 <div class="row">
+
 
 <input
 id="roomInput"
-placeholder="房间码"
-maxlength="5"
->
+placeholder="房间码">
+
 
 </div>
+
+
 
 <div class="row">
 
+
 <input
 id="playerName"
-value="Player"
-maxlength="12"
->
+value="Player">
 
-<button id="joinButton">
+
+<button
+id="joinButton">
+
 加入
+
 </button>
 
-</div>
 
 </div>
 
 
-<!-- 玩家 -->
+</div>
+
+
+
 
 <div class="panel">
 
-<h2>玩家</h2>
+
+<h2>
+玩家
+</h2>
+
 
 <div id="players">
+
 暂无玩家
-</div>
 
 </div>
 
 
-<!-- 游戏 -->
+</div>
+
+
 
 <div class="panel">
 
-<h2>③ 移动同步测试</h2>
+
+<h2>
+移动测试
+</h2>
+
 
 <div
-class="small"
 id="authorityText"
->
+class="small">
+
 等待连接……
+
 </div>
 
-<div id="board"></div>
+
+
+<div id="board">
+
+</div>
+
 
 
 <div class="controls">
 
+
 <button
 class="up"
-data-dir="up"
->
+data-dir="up">
 ▲
 </button>
 
+
 <button
 class="left"
-data-dir="left"
->
+data-dir="left">
 ◀
 </button>
 
+
 <button
 class="down"
-data-dir="down"
->
+data-dir="down">
 ▼
 </button>
 
+
 <button
 class="right"
-data-dir="right"
->
+data-dir="right">
 ▶
 </button>
 
-</div>
 
 </div>
 
 
-<!-- 日志 -->
+</div>
+
+
 
 <div class="panel">
 
-<h2>网络日志</h2>
 
-<div id="log"></div>
+<h2>
+日志
+</h2>
+
+
+<div id="log">
 
 </div>
 
@@ -405,1194 +622,1448 @@ data-dir="right"
 </div>
 
 
-<!--
-==================================================
-PeerJS
-==================================================
--->
 
-<script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js">
-</script>
+</div>
+
+
+
+<script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
+
 
 
 <script>
 
 
-// =================================================
-// 基本变量
-// =================================================
+/*
+=================================
+BoxPusher LAN Test v2.0
+
+Based on v1 verified architecture
+
+Added:
+
+- heartbeat
+- host lost detection
+- pause waiting host
+- resume state
+
+=================================
+*/
+
+
+// ===============================
+// 基础变量
+// ===============================
+
 
 const MAX_PLAYERS = 4;
 
-let peer = null;
 
-let myId = null;
-
-let myName = "";
-
-let roomCode = "";
-
-let isHost = false;
-
-let hostConnection = null;
-
-let connections = new Map();
-
-let players = new Map();
+let peer=null;
 
 
-// =================================================
+let myId=null;
+
+
+let myName="";
+
+
+let roomCode="";
+
+
+let isHost=false;
+
+
+let hostConnection=null;
+
+
+let connections=new Map();
+
+
+let players=new Map();
+
+
+
+// ===============================
+// v2 新增状态
+// ===============================
+
+
+let gameStatus="WAITING";
+
+
+let lastHostHeartbeat=Date.now();
+
+
+let heartbeatTimer=null;
+
+
+
+
+
+// ===============================
 // 游戏状态
-// =================================================
+// ===============================
 
-let gameState = {
 
-    positions: {},
+let gameState={
 
-    steps: {},
 
-    sequence: 0
+positions:{},
+
+
+steps:{},
+
+
+sequence:0
+
 
 };
 
 
-// =================================================
+
+// ===============================
 // DOM
-// =================================================
-
-const statusEl =
-    document.getElementById("status");
-
-const roomDisplay =
-    document.getElementById("roomDisplay");
-
-const playersEl =
-    document.getElementById("players");
-
-const boardEl =
-    document.getElementById("board");
-
-const logEl =
-    document.getElementById("log");
-
-const authorityText =
-    document.getElementById("authorityText");
+// ===============================
 
 
-// =================================================
+const statusEl=
+document.getElementById("status");
+
+
+const roomDisplay=
+document.getElementById("roomDisplay");
+
+
+const playersEl=
+document.getElementById("players");
+
+
+const boardEl=
+document.getElementById("board");
+
+
+const logEl=
+document.getElementById("log");
+
+
+const authorityText=
+document.getElementById("authorityText");
+
+
+
+// ===============================
 // 日志
-// =================================================
-
-function log(...items) {
-
-    const line =
-        document.createElement("div");
-
-    line.textContent =
-        new Date().toLocaleTimeString()
-        + "  "
-        + items.join(" ");
-
-    logEl.appendChild(line);
-
-    logEl.scrollTop =
-        logEl.scrollHeight;
-}
+// ===============================
 
 
-// =================================================
-// 状态
-// =================================================
+function log(...items){
 
-function setStatus(text) {
 
-    statusEl.textContent = text;
+let line=document.createElement("div");
+
+
+line.textContent=
+new Date().toLocaleTimeString()
++" "
++items.join(" ");
+
+
+logEl.appendChild(line);
+
+
+logEl.scrollTop=
+logEl.scrollHeight;
+
 
 }
 
 
-// =================================================
+
+
+function setStatus(text){
+
+
+statusEl.textContent=text;
+
+
+}
+
+
+
+// ===============================
 // 房间码
-// =================================================
+// ===============================
 
-function makeRoomCode() {
 
-    return Math.random()
-        .toString(36)
-        .substring(2, 7)
-        .toUpperCase();
+function makeRoomCode(){
+
+
+return Math.random()
+.toString(36)
+.substring(2,7)
+.toUpperCase();
+
 
 }
 
 
-// =================================================
-// 玩家列表
-// =================================================
-
-function renderPlayers() {
-
-    playersEl.innerHTML = "";
-
-    if (players.size === 0) {
-
-        playersEl.textContent =
-            "暂无玩家";
-
-        return;
-    }
+// ===============================
+// v2 房主心跳
+// ===============================
 
 
-    for (const player of players.values()) {
-
-        const row =
-            document.createElement("div");
-
-        row.className = "player";
+function startHeartbeat(){
 
 
-        const left =
-            document.createElement("span");
+if(heartbeatTimer){
 
-        left.textContent =
-            player.name
-            + (player.host ? " 👑" : "");
-
-
-        const right =
-            document.createElement("span");
-
-        right.textContent =
-            (gameState.steps[player.id] || 0)
-            + " steps";
-
-
-        row.appendChild(left);
-
-        row.appendChild(right);
-
-        playersEl.appendChild(row);
-
-    }
+clearInterval(heartbeatTimer);
 
 }
 
 
-// =================================================
-// 游戏棋盘
-// =================================================
-
-function renderBoard() {
-
-    boardEl.innerHTML = "";
+heartbeatTimer=setInterval(()=>{
 
 
-    /*
-        这里只是一个假的测试棋盘。
-
-        真正推箱子的时候，
-        这里完全可以替换成你的现有游戏状态。
-    */
-
-    const walls = new Set([
-
-        0,1,2,3,4,
-
-        5,9,
-
-        10,14,
-
-        15,19,
-
-        20,21,22,23,24
-
-    ]);
+broadcast({
 
 
-    for (let i = 0; i < 25; i++) {
-
-        const cell =
-            document.createElement("div");
-
-        cell.className = "cell";
+type:"heartbeat",
 
 
-        if (walls.has(i)) {
-
-            cell.classList.add("wall");
-
-        }
+time:Date.now()
 
 
-        for (
-            const player
-            of players.values()
-        ) {
-
-            if (
-                gameState.positions[player.id]
-                === i
-            ) {
-
-                cell.textContent = "●";
-
-                cell.classList.add(
-                    "player" + player.number
-                );
-
-            }
-
-        }
+});
 
 
-        boardEl.appendChild(cell);
+},2000);
 
-    }
+
+
+log("房主心跳启动");
+
+
+}
+// ===============================
+// 玩家列表显示
+// ===============================
+
+
+function renderPlayers(){
+
+
+playersEl.innerHTML="";
+
+
+if(players.size===0){
+
+playersEl.textContent="暂无玩家";
+
+return;
 
 }
 
 
-// =================================================
-// 广播
-// =================================================
 
-function send(connection, message) {
-
-    if (
-        connection &&
-        connection.open
-    ) {
-
-        connection.send(message);
-
-    }
-
-}
+for(const player of players.values()){
 
 
-function broadcast(message) {
+let row=document.createElement("div");
 
-    for (
-        const connection
-        of connections.values()
-    ) {
-
-        send(connection, message);
-
-    }
-
-}
+row.className="player";
 
 
-// =================================================
-// 房主：处理玩家加入
-// =================================================
+let left=document.createElement("span");
 
-function hostHandleJoin(
-    connection,
-    message
-) {
-
-    if (players.size >= MAX_PLAYERS) {
-
-        send(connection, {
-
-            type: "roomFull"
-
-        });
-
-        return;
-
-    }
+left.textContent=
+player.name
++
+(player.host?" 👑":"");
 
 
-    const player = {
 
-        id: connection.peer,
+let right=document.createElement("span");
 
-        name:
-            String(message.name || "Player")
-            .substring(0, 12),
-
-        host: false,
-
-        number: players.size + 1
-
-    };
+right.textContent=
+(gameState.steps[player.id]||0)
++
+" steps";
 
 
-    players.set(
-        player.id,
-        player
-    );
+
+row.appendChild(left);
+
+row.appendChild(right);
 
 
-    gameState.positions[player.id] =
-        6 + players.size;
-
-    gameState.steps[player.id] = 0;
+playersEl.appendChild(row);
 
 
-    /*
-        先给新玩家完整状态。
-    */
-
-    send(connection, {
-
-        type: "welcome",
-
-        room: roomCode,
-
-        state: gameState,
-
-        players:
-            Array.from(players.values())
-
-    });
-
-
-    /*
-        再告诉所有旧玩家：
-        房间里增加了一个人。
-    */
-
-    broadcast({
-
-        type: "state",
-
-        state: gameState,
-
-        players:
-            Array.from(players.values())
-
-    });
-
-
-    renderPlayers();
-
-    renderBoard();
-
-
-    log(
-        "玩家加入：",
-        player.name
-    );
 
 }
 
 
-// =================================================
-// 房主：处理移动
-// =================================================
-
-function hostHandleMove(
-    connection,
-    message
-) {
-
-    const player =
-        players.get(connection.peer);
-
-
-    if (!player) {
-
-        return;
-
-    }
-
-
-    let current =
-        gameState.positions[player.id];
-
-
-    let next =
-        current;
-
-
-    /*
-        这里只是测试移动。
-
-        真正游戏里这里应该调用
-        Sokoban 的真实移动逻辑。
-
-        也就是说：
-
-        玩家只发送：
-
-            up
-            down
-            left
-            right
-
-        而不是直接发送：
-
-            "我现在在 x=3 y=4"
-
-        这样房主才是真正的权威。
-    */
-
-    if (message.direction === "up") {
-
-        next -= 5;
-
-    }
-
-    if (message.direction === "down") {
-
-        next += 5;
-
-    }
-
-    if (message.direction === "left") {
-
-        next -= 1;
-
-    }
-
-    if (message.direction === "right") {
-
-        next += 1;
-
-    }
-
-
-    /*
-        防止跑出测试区域。
-    */
-
-    next =
-        Math.max(
-            6,
-            Math.min(18, next)
-        );
-
-
-    gameState.positions[player.id] =
-        next;
-
-
-    gameState.steps[player.id] =
-        (gameState.steps[player.id] || 0) + 1;
-
-
-    gameState.sequence++;
-
-
-    log(
-        "房主处理：",
-        player.name,
-        message.direction,
-        "SEQ",
-        gameState.sequence
-    );
-
-
-    /*
-        房主处理完成后：
-
-        广播完整权威状态。
-
-        这就是以后多人推箱子的核心。
-    */
-
-    broadcast({
-
-        type: "state",
-
-        state: gameState,
-
-        players:
-            Array.from(players.values())
-
-    });
-
-
-    /*
-        房主自己的画面也更新。
-    */
-
-    renderPlayers();
-
-    renderBoard();
 
 }
 
 
-// =================================================
-// 房主接收消息
-// =================================================
-
-function hostReceive(
-    connection,
-    message
-) {
-
-    if (message.type === "join") {
-
-        hostHandleJoin(
-            connection,
-            message
-        );
-
-    }
 
 
-    if (message.type === "move") {
-
-        hostHandleMove(
-            connection,
-            message
-        );
-
-    }
-
-}
+// ===============================
+// 棋盘显示
+// ===============================
 
 
-// =================================================
-// 客户端收到消息
-// =================================================
-
-function clientReceive(message) {
+function renderBoard(){
 
 
-    if (message.type === "roomFull") {
-
-        setStatus(
-            "房间已满（最多 4 人）"
-        );
-
-        return;
-
-    }
+boardEl.innerHTML="";
 
 
-    if (
-        message.type === "welcome"
-        ||
-        message.type === "state"
-    ) {
+const walls=new Set([
 
-        roomCode =
-            message.room || roomCode;
+0,1,2,3,4,
 
+5,9,
 
-        roomDisplay.textContent =
-            roomCode;
+10,14,
 
+15,19,
 
-        /*
-            客户端完全接受
-            房主广播的状态。
-        */
+20,21,22,23,24
 
-        gameState =
-            structuredClone(
-                message.state
-            );
+]);
 
 
-        players.clear();
+
+for(let i=0;i<25;i++){
 
 
-        for (
-            const player
-            of message.players
-        ) {
-
-            players.set(
-                player.id,
-                player
-            );
-
-        }
+let cell=document.createElement("div");
 
 
-        setStatus(
-            "已连接房主 · 权威状态同步中"
-        );
+cell.className="cell";
 
 
-        authorityText.textContent =
-            "当前设备不是主机。所有移动都由房主确认。";
 
+if(walls.has(i)){
 
-        renderPlayers();
-
-        renderBoard();
-
-
-        if (gameState.sequence) {
-
-            log(
-                "收到房主状态 SEQ",
-                gameState.sequence
-            );
-
-        }
-
-    }
+cell.classList.add("wall");
 
 }
 
 
-// =================================================
+
+for(const player of players.values()){
+
+
+if(
+gameState.positions[player.id]===i
+){
+
+
+cell.textContent="●";
+
+
+cell.classList.add(
+"player"+player.number
+);
+
+
+}
+
+
+}
+
+
+
+boardEl.appendChild(cell);
+
+
+}
+
+
+
+}
+
+
+
+
+// ===============================
+// 网络发送
+// ===============================
+
+
+function send(connection,message){
+
+
+if(connection && connection.open){
+
+connection.send(message);
+
+}
+
+
+}
+
+
+
+
+function broadcast(message){
+
+
+for(const connection of connections.values()){
+
+
+send(connection,message);
+
+
+}
+
+
+}
+
+
+
+
+
+// ===============================
+// 房主处理加入
+// ===============================
+
+
+function hostHandleJoin(connection,message){
+
+
+
+if(players.size>=MAX_PLAYERS){
+
+
+send(connection,{
+
+type:"roomFull"
+
+});
+
+
+return;
+
+
+}
+
+
+
+let player={
+
+
+id:connection.peer,
+
+
+name:
+String(message.name||"Player")
+.substring(0,12),
+
+
+host:false,
+
+
+number:players.size+1
+
+
+};
+
+
+
+players.set(
+player.id,
+player
+);
+
+
+
+gameState.positions[player.id]
+=
+6+players.size;
+
+
+
+gameState.steps[player.id]
+=
+0;
+
+
+
+send(connection,{
+
+
+type:"welcome",
+
+
+room:roomCode,
+
+
+state:gameState,
+
+
+players:
+Array.from(players.values())
+
+
+});
+
+
+
+
+broadcast({
+
+
+type:"state",
+
+
+state:gameState,
+
+
+players:
+Array.from(players.values())
+
+
+});
+
+
+
+renderPlayers();
+
+renderBoard();
+
+
+log(
+"玩家加入",
+player.name
+);
+
+
+
+}
+
+
+
+
+// ===============================
+// 房主处理移动
+// ===============================
+
+
+function hostHandleMove(connection,message){
+
+
+
+if(gameStatus==="WAIT_HOST"){
+
+return;
+
+}
+
+
+
+
+let player=
+players.get(connection.peer);
+
+
+
+if(!player){
+
+return;
+
+}
+
+
+
+
+let current=
+gameState.positions[player.id];
+
+
+
+let next=current;
+
+
+
+if(message.direction==="up"){
+
+next-=5;
+
+}
+
+
+
+if(message.direction==="down"){
+
+next+=5;
+
+}
+
+
+
+if(message.direction==="left"){
+
+next-=1;
+
+}
+
+
+
+if(message.direction==="right"){
+
+next+=1;
+
+}
+
+
+
+
+next=Math.max(
+6,
+Math.min(18,next)
+);
+
+
+
+gameState.positions[player.id]
+=
+next;
+
+
+
+gameState.steps[player.id]
+=
+(gameState.steps[player.id]||0)+1;
+
+
+
+gameState.sequence++;
+
+
+
+broadcast({
+
+
+type:"state",
+
+
+state:gameState,
+
+
+players:
+Array.from(players.values())
+
+
+});
+
+
+
+renderPlayers();
+
+renderBoard();
+
+
+
+log(
+"处理移动",
+player.name,
+message.direction,
+"SEQ",
+gameState.sequence
+);
+
+
+
+}
+
+
+
+
+
+// ===============================
+// 房主消息
+// ===============================
+
+
+function hostReceive(connection,message){
+
+
+
+if(message.type==="join"){
+
+
+hostHandleJoin(
+connection,
+message
+);
+
+
+}
+
+
+
+
+if(message.type==="move"){
+
+
+hostHandleMove(
+connection,
+message
+);
+
+
+}
+
+
+
+}
+
+
+
+
+
+// ===============================
+// 客户端消息
+// ===============================
+
+
+function clientReceive(message){
+
+
+
+// ---------- v2 心跳 ----------
+
+
+if(message.type==="heartbeat"){
+
+
+
+lastHostHeartbeat=
+Date.now();
+
+
+
+if(gameStatus==="WAIT_HOST"){
+
+
+gameStatus="PLAYING";
+
+
+setStatus(
+"🟢 房主恢复，游戏继续"
+);
+
+
+log(
+"收到房主恢复"
+);
+
+
+}
+
+
+
+return;
+
+
+}
+
+
+
+
+if(message.type==="roomFull"){
+
+
+setStatus(
+"房间已满"
+);
+
+
+return;
+
+
+}
+
+
+
+
+
+if(
+message.type==="welcome"
+||
+message.type==="state"
+){
+
+
+
+roomCode=
+message.room||roomCode;
+
+
+
+roomDisplay.textContent=
+roomCode;
+
+
+
+gameState=
+structuredClone(
+message.state
+);
+
+
+
+players.clear();
+
+
+
+for(
+const p of message.players
+){
+
+
+players.set(
+p.id,
+p
+);
+
+
+}
+
+
+
+gameStatus="PLAYING";
+
+
+
+setStatus(
+"🟢 已连接房主"
+);
+
+
+
+renderPlayers();
+
+renderBoard();
+
+
+
+if(message.state.sequence){
+
+log(
+"同步SEQ",
+message.state.sequence
+);
+
+
+}
+
+
+}
+
+
+
+}
+
+
+
+
+
+// ===============================
 // 设置连接
-// =================================================
-
-function setupConnection(
-    connection,
-    hostSide
-) {
+// ===============================
 
 
-    connection.on(
-        "data",
-        message => {
-
-            if (hostSide) {
-
-                hostReceive(
-                    connection,
-                    message
-                );
-
-            } else {
-
-                clientReceive(
-                    message
-                );
-
-            }
-
-        }
-    );
+function setupConnection(connection,hostSide){
 
 
-    connection.on(
-        "close",
-        () => {
 
-            log(
-                "连接断开：",
-                connection.peer
-            );
+connection.on(
+"data",
+message=>{
 
 
-            if (hostSide) {
-
-                const player =
-                    players.get(
-                        connection.peer
-                    );
+if(hostSide){
 
 
-                players.delete(
-                    connection.peer
-                );
+hostReceive(
+connection,
+message
+);
 
 
-                delete gameState.positions[
-                    connection.peer
-                ];
+
+}else{
 
 
-                delete gameState.steps[
-                    connection.peer
-                ];
+clientReceive(
+message
+);
 
 
-                connections.delete(
-                    connection.peer
-                );
-
-
-                broadcast({
-
-                    type: "state",
-
-                    state: gameState,
-
-                    players:
-                        Array.from(
-                            players.values()
-                        )
-
-                });
-
-
-                renderPlayers();
-
-                renderBoard();
-
-            }
-
-        }
-    );
 
 }
 
 
-// =================================================
-// 创建房间
-// =================================================
+}
+
+);
+
+
+
+
+
+connection.on(
+"close",
+()=>{
+
+
+
+log(
+"连接关闭",
+connection.peer
+);
+
+
+
+}
+
+);
+
+
+
+}
+
+
+
+
+
+// ===============================
+// 房主创建
+// ===============================
+
 
 document
 .getElementById("createButton")
-.onclick = function() {
+.onclick=function(){
 
 
-    if (peer) {
 
-        peer.destroy();
+if(peer){
 
-    }
-
-
-    isHost = true;
-
-
-    myName =
-        document
-        .getElementById("hostName")
-        .value
-        .trim()
-        || "Host";
-
-
-    roomCode =
-        makeRoomCode();
-
-
-    /*
-        PeerJS 的 ID 直接使用：
-
-            box-host-XXXXX
-
-        这样其他玩家只需要知道房间码
-        就能找到房主。
-    */
-
-    const hostPeerId =
-        "box-host-" + roomCode;
-
-
-    peer =
-        new Peer(
-            hostPeerId,
-            {
-                debug: 1
-            }
-        );
-
-
-    peer.on(
-        "open",
-        id => {
-
-
-            myId = id;
-
-
-            roomDisplay.textContent =
-                roomCode;
-
-
-            players.set(
-                myId,
-                {
-
-                    id: myId,
-
-                    name: myName,
-
-                    host: true,
-
-                    number: 1
-
-                }
-            );
-
-
-            gameState.positions[myId] =
-                12;
-
-
-            gameState.steps[myId] =
-                0;
-
-
-            setStatus(
-                "房主模式 · 等待玩家加入"
-            );
-
-
-            authorityText.textContent =
-                "当前设备是房主。所有移动由本机确认后广播。";
-
-
-            renderPlayers();
-
-            renderBoard();
-
-
-            log(
-                "房间创建：",
-                roomCode
-            );
-
-        }
-    );
-
-
-    peer.on(
-        "connection",
-        connection => {
-
-
-            connection.on(
-                "open",
-                () => {
-
-                    connections.set(
-                        connection.peer,
-                        connection
-                    );
-
-
-                    setupConnection(
-                        connection,
-                        true
-                    );
-
-
-                    log(
-                        "收到新连接：",
-                        connection.peer
-                    );
-
-                }
-            );
-
-        }
-    );
-
-
-    peer.on(
-        "error",
-        error => {
-
-            log(
-                "Peer 错误：",
-                error.type
-            );
-
-
-            setStatus(
-                "连接错误：" + error.type
-            );
-
-        }
-    );
-
-};
-
-
-// =================================================
-// 加入房间
-// =================================================
-
-document
-.getElementById("joinButton")
-.onclick = function() {
-
-
-    const code =
-        document
-        .getElementById("roomInput")
-        .value
-        .trim()
-        .toUpperCase();
-
-
-    myName =
-        document
-        .getElementById("playerName")
-        .value
-        .trim()
-        || "Player";
-
-
-    if (!code) {
-
-        log("请输入房间码");
-
-        return;
-
-    }
-
-
-    roomCode = code;
-
-
-    const hostPeerId =
-        "box-host-" + roomCode;
-
-
-    /*
-        注意：
-
-        加入者自己的 Peer ID
-        可以随机生成。
-
-        只有房主需要固定 ID。
-    */
-
-    peer =
-    new Peer(
-        undefined,
-        {
-            debug: 1
-        }
-    );
-
-
-    peer.on(
-        "open",
-        id => {
-
-
-            myId = id;
-
-
-            hostConnection =
-                peer.connect(
-                    hostPeerId,
-                    {
-                        reliable: true
-                    }
-                );
-
-
-            hostConnection.on(
-                "open",
-                () => {
-
-
-                    setupConnection(
-                        hostConnection,
-                        false
-                    );
-
-
-                    send(
-                        hostConnection,
-                        {
-
-                            type: "join",
-
-                            name: myName
-
-                        }
-                    );
-
-
-                    setStatus(
-                        "已经连接房主……"
-                    );
-
-
-                    log(
-                        "连接房主成功"
-                    );
-
-                }
-            );
-
-
-            hostConnection.on(
-                "error",
-                error => {
-
-                    log(
-                        "无法连接房主"
-                    );
-
-
-                    setStatus(
-                        "无法连接房主"
-                    );
-
-                }
-            );
-
-        }
-    );
-
-};
-
-
-// =================================================
-// 移动
-// =================================================
-
-function sendMove(direction) {
-
-
-    /*
-        房主：
-
-        不需要经过网络。
-
-        直接进入和客户端完全一样的
-        hostHandleMove()。
-    */
-
-    if (isHost) {
-
-
-        hostHandleMove(
-
-            {
-                peer: myId
-            },
-
-            {
-                type: "move",
-
-                direction: direction
-
-            }
-
-        );
-
-
-        return;
-
-    }
-
-
-    /*
-        普通玩家：
-
-        只发送“我要向哪里移动”。
-
-        不发送自己的最终位置。
-    */
-
-    if (
-        hostConnection &&
-        hostConnection.open
-    ) {
-
-
-        send(
-            hostConnection,
-            {
-
-                type: "move",
-
-                direction: direction,
-
-                clientTime: Date.now()
-
-            }
-        );
-
-
-        log(
-            "发送移动：",
-            direction
-        );
-
-
-    } else {
-
-        log(
-            "尚未连接房主"
-        );
-
-    }
+peer.destroy();
 
 }
 
 
-// =================================================
+
+isHost=true;
+
+
+myName=
+document
+.getElementById("hostName")
+.value
+.trim()
+||
+"Host";
+
+
+
+roomCode=
+makeRoomCode();
+
+
+
+let hostPeerId=
+"box-host-"+roomCode;
+
+
+
+peer=
+new Peer(
+hostPeerId,
+{
+debug:1
+}
+);
+
+
+
+peer.on(
+"open",
+id=>{
+
+
+
+myId=id;
+
+
+
+roomDisplay.textContent=
+roomCode;
+
+
+
+players.set(
+myId,
+{
+
+
+id:myId,
+
+
+name:myName,
+
+
+host:true,
+
+
+number:1
+
+
+}
+);
+
+
+
+gameState.positions[myId]=12;
+
+gameState.steps[myId]=0;
+
+
+
+gameStatus="PLAYING";
+
+
+
+setStatus(
+"🟢 房主模式等待玩家"
+);
+
+
+
+authorityText.textContent=
+"本机是房主，负责权威同步";
+
+
+
+renderPlayers();
+
+renderBoard();
+
+
+
+startHeartbeat();
+
+
+
+log(
+"创建房间",
+roomCode
+);
+
+
+
+}
+
+);
+
+
+
+
+
+peer.on(
+"connection",
+connection=>{
+
+
+
+connection.on(
+"open",
+()=>{
+
+
+connections.set(
+connection.peer,
+connection
+);
+
+
+
+setupConnection(
+connection,
+true
+);
+
+
+
+log(
+"新玩家连接"
+);
+
+
+
+}
+
+);
+
+
+
+}
+
+);
+
+
+
+
+
+};
+
+
+
+
+
+// ===============================
+// 加入房间
+// ===============================
+
+
+document
+.getElementById("joinButton")
+.onclick=function(){
+
+
+
+let code=
+document
+.getElementById("roomInput")
+.value
+.trim()
+.toUpperCase();
+
+
+
+myName=
+document
+.getElementById("playerName")
+.value
+.trim()
+||
+"Player";
+
+
+
+if(!code){
+
+return;
+
+}
+
+
+
+roomCode=code;
+
+
+
+peer=
+new Peer(
+undefined,
+{
+debug:1
+}
+);
+
+
+
+peer.on(
+"open",
+id=>{
+
+
+
+myId=id;
+
+
+
+let hostId=
+"box-host-"+roomCode;
+
+
+
+hostConnection=
+peer.connect(
+hostId,
+{
+reliable:true
+}
+);
+
+
+
+hostConnection.on(
+"open",
+()=>{
+
+
+setupConnection(
+hostConnection,
+false
+);
+
+
+
+send(
+hostConnection,
+{
+
+
+type:"join",
+
+
+name:myName
+
+
+}
+);
+
+
+
+setStatus(
+"连接房主中..."
+);
+
+
+
+log(
+"连接房主成功"
+);
+
+
+
+}
+
+);
+
+
+
+}
+
+);
+
+
+
+};
+
+
+
+
+
+// ===============================
+// 移动
+// ===============================
+
+
+function sendMove(direction){
+
+
+
+if(
+gameStatus==="WAIT_HOST"
+){
+
+
+log(
+"等待房主恢复"
+);
+
+
+return;
+
+
+}
+
+
+
+
+
+if(isHost){
+
+
+
+hostHandleMove(
+
+{
+peer:myId
+},
+
+{
+direction:direction
+}
+
+);
+
+
+
+return;
+
+
+}
+
+
+
+
+
+if(
+hostConnection
+&&
+hostConnection.open
+){
+
+
+
+send(
+hostConnection,
+{
+
+
+type:"move",
+
+
+direction:direction
+
+
+}
+
+);
+
+
+}
+
+
+
+}
+
+
+
+
+// ===============================
 // 按钮
-// =================================================
+// ===============================
+
 
 document
 .querySelectorAll("[data-dir]")
-.forEach(
-    button => {
+.forEach(button=>{
 
-        button.onclick =
-            function() {
 
-                sendMove(
-                    this.dataset.dir
-                );
+button.onclick=function(){
 
-            };
 
-    }
+sendMove(
+this.dataset.dir
 );
 
 
-// =================================================
-// 键盘
-// =================================================
-
-document.addEventListener(
-    "keydown",
-    event => {
+};
 
 
-        const map = {
-
-            ArrowUp: "up",
-
-            ArrowDown: "down",
-
-            ArrowLeft: "left",
-
-            ArrowRight: "right"
-
-        };
+});
 
 
-        if (
-            map[event.key]
-        ) {
 
-            event.preventDefault();
 
-            sendMove(
-                map[event.key]
-            );
 
-        }
+// ===============================
+// v2 房主掉线检测
+// ===============================
 
-    }
+
+setInterval(()=>{
+
+
+
+if(isHost){
+
+return;
+
+}
+
+
+
+
+if(
+Date.now()-lastHostHeartbeat
+>
+8000
+){
+
+
+
+if(gameStatus!=="WAIT_HOST"){
+
+
+
+gameStatus="WAIT_HOST";
+
+
+
+setStatus(
+"🟡 房主暂时离线，等待恢复..."
 );
 
 
-// =================================================
+
+authorityText.textContent=
+"游戏暂停，等待房主恢复";
+
+
+
+log(
+"房主心跳丢失"
+);
+
+
+
+}
+
+
+
+}
+
+
+
+},1000);
+
+
+
+
+
+// ===============================
 // 初始化
-// =================================================
+// ===============================
 
-peer.on(
-    "error",
-    error => {
 
-        log(
-            "初始化错误：",
-            error.type
-        );
-
-    }
+setStatus(
+"网络初始化中..."
 );
+
+
+log(
+"等待操作"
+);
+
+
 
 </script>
 
+
 </body>
+
 </html>
