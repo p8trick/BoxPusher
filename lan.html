@@ -1347,17 +1347,13 @@ document
         只有房主需要固定 ID。
     */
 
-    if (!peer) {
-
-        peer =
-            new Peer(
-                undefined,
-                {
-                    debug: 1
-                }
-            );
-
-    }
+    peer =
+    new Peer(
+        undefined,
+        {
+            debug: 1
+        }
+    );
 
 
     peer.on(
@@ -1583,33 +1579,6 @@ document.addEventListener(
 // =================================================
 // 初始化
 // =================================================
-
-peer =
-    new Peer(
-        undefined,
-        {
-            debug: 1
-        }
-    );
-
-
-peer.on(
-    "open",
-    id => {
-
-        myId = id;
-
-        setStatus(
-            "网络初始化完成"
-        );
-
-        log(
-            "本机 Peer 初始化完成"
-        );
-
-    }
-);
-
 
 peer.on(
     "error",
