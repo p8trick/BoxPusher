@@ -99,15 +99,24 @@ function updateDpadGapVisibility() {
   document.getElementById('dpadGapSection').style.display = settings.dpadStyle === 'split' ? '' : 'none';
 }
 
+// ===== D-pad 数值的玩家向显示(后台仍存 %/px，滑条上看到的是"档位") =====
+// 大小：每 5% 一档，从 1 起(十字 80~130% → 1~11；分离 100~170% → 1~15)；偏移：每 5px 一档，0 为居中，带方向箭头
+function dpadSizeMin() { return settings.dpadStyle === 'split' ? 100 : 80; }
+function dpadSizeMax() { return settings.dpadStyle === 'split' ? 170 : 130; }
+function fmtDpadSize(v) { return String(Math.round((v - dpadSizeMin()) / 5) + 1); }
+function fmtDpadX(v) { const n = Math.round(Math.abs(v) / 5); return v === 0 ? '0' : (v < 0 ? `\u2190 ${n}` : `${n} \u2192`); }
+function fmtDpadY(v) { const n = Math.round(Math.abs(v) / 5); return v === 0 ? '0' : (v < 0 ? `\u2191 ${n}` : `\u2193 ${n}`); }
+
 function syncDpadSliders() {
   const dc = dpadCfg();
-  document.getElementById('dpadSizeSlider').max = settings.dpadStyle === 'split' ? 180 : 140; // 分离按键上限 180%，十字连体仍 140%(要先改 max 再设 value，否则超 140 的值会被夹回)
+  document.getElementById('dpadSizeSlider').min = dpadSizeMin(); // 十字 80~130、分离 100~170(要先改 min/max 再设 value，否则范围外的值会被夹回)
+  document.getElementById('dpadSizeSlider').max = dpadSizeMax();
   document.getElementById('dpadSizeSlider').value = dc.scale;
-  document.getElementById('dpadSizeVal').textContent = `${dc.scale}%`;
+  document.getElementById('dpadSizeVal').textContent = fmtDpadSize(dc.scale);
   document.getElementById('dpadOffsetSlider').value = dc.x;
-  document.getElementById('dpadOffsetVal').textContent = `${dc.x}px`;
+  document.getElementById('dpadOffsetVal').textContent = fmtDpadX(dc.x);
   document.getElementById('dpadOffsetYSlider').value = dc.y;
-  document.getElementById('dpadOffsetYVal').textContent = `${dc.y}px`;
+  document.getElementById('dpadOffsetYVal').textContent = fmtDpadY(dc.y);
   document.getElementById('dpadGapSlider').value = settings.dpadSplit.gap;
   document.getElementById('dpadGapVal').textContent = `${settings.dpadSplit.gap}px`;
   updateDpadGapVisibility();
@@ -124,7 +133,7 @@ function syncDpadSliders() {
 
 document.getElementById('dpadSizeSlider').addEventListener('input', (e) => {
   dpadCfg().scale = Number(e.target.value);
-  document.getElementById('dpadSizeVal').textContent = `${dpadCfg().scale}%`;
+  document.getElementById('dpadSizeVal').textContent = fmtDpadSize(dpadCfg().scale);
   applySettings();
   relayoutBoard();
 });
@@ -133,7 +142,7 @@ document.getElementById('dpadSizeSlider').addEventListener('change', saveSetting
 
 document.getElementById('dpadOffsetSlider').addEventListener('input', (e) => {
   dpadCfg().x = Number(e.target.value);
-  document.getElementById('dpadOffsetVal').textContent = `${dpadCfg().x}px`;
+  document.getElementById('dpadOffsetVal').textContent = fmtDpadX(dpadCfg().x);
   applySettings();
 });
 
@@ -141,7 +150,7 @@ document.getElementById('dpadOffsetSlider').addEventListener('change', saveSetti
 
 document.getElementById('dpadOffsetYSlider').addEventListener('input', (e) => {
   dpadCfg().y = Number(e.target.value);
-  document.getElementById('dpadOffsetYVal').textContent = `${dpadCfg().y}px`;
+  document.getElementById('dpadOffsetYVal').textContent = fmtDpadY(dpadCfg().y);
   applySettings();
   relayoutBoard();
 });
