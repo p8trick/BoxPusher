@@ -123,7 +123,7 @@ var APP_VERSION = '1.25.0';
     <div class="settingsSection">
       <div class="settingsLabel" data-i18n="dpadSize">D-pad 大小</div>
       <div class="sliderRow">
-        <span class="woodSlider"><span class="wsFill"></span><input type="range" id="dpadSizeSlider" min="70" max="140" step="5"></span>
+        <span class="woodSlider"><span class="wsFill"></span><input type="range" id="dpadSizeSlider" min="80" max="130" step="5"></span>
         <span class="sliderVal" id="dpadSizeVal"></span>
       </div>
     </div>
@@ -137,7 +137,7 @@ var APP_VERSION = '1.25.0';
     <div class="settingsSection">
       <div class="settingsLabel" data-i18n="dpadY">D-pad 位置（上下偏移）</div>
       <div class="sliderRow">
-        <span class="woodSlider"><span class="wsFill"></span><input type="range" id="dpadOffsetYSlider" min="-200" max="40" step="5"></span>
+        <span class="woodSlider"><span class="wsFill"></span><input type="range" id="dpadOffsetYSlider" min="-60" max="40" step="5"></span>
         <span class="sliderVal" id="dpadOffsetYVal"></span>
       </div>
     </div>
@@ -151,14 +151,14 @@ var APP_VERSION = '1.25.0';
     <div class="settingsSection">
       <div class="settingsLabel" data-i18n="boardW">棋盘宽度</div>
       <div class="sliderRow">
-        <span class="woodSlider"><span class="wsFill"></span><input type="range" id="boardWSlider" min="50" max="110" step="1"></span>
+        <span class="woodSlider"><span class="wsFill"></span><input type="range" id="boardWSlider" min="60" max="110" step="1"></span>
         <span class="sliderVal" id="boardWVal"></span>
       </div>
     </div>
     <div class="settingsSection">
       <div class="settingsLabel" data-i18n="boardH">棋盘高度</div>
       <div class="sliderRow">
-        <span class="woodSlider"><span class="wsFill"></span><input type="range" id="boardHSlider" min="50" max="120" step="1"></span>
+        <span class="woodSlider"><span class="wsFill"></span><input type="range" id="boardHSlider" min="70" max="120" step="1"></span>
         <span class="sliderVal" id="boardHVal"></span>
       </div>
     </div>
@@ -166,7 +166,7 @@ var APP_VERSION = '1.25.0';
       <div class="settingsLabel"><span data-i18n="musicVol">音乐音量</span></div>
       <div class="sliderRow">
         <button class="muteBtn" id="musicMuteBtn" aria-label="Mute"></button>
-        <span class="woodSlider"><span class="wsFill"></span><input type="range" id="musicVolSlider" min="0" max="100" step="1"></span>
+        <span class="woodSlider"><span class="wsFill"></span><input type="range" id="musicVolSlider" min="0" max="100" step="2"></span>
         <span class="sliderVal" id="musicVolVal"></span>
       </div>
     </div>
@@ -174,7 +174,7 @@ var APP_VERSION = '1.25.0';
       <div class="settingsLabel"><span data-i18n="sfxVol">音效音量</span></div>
       <div class="sliderRow">
         <button class="muteBtn" id="sfxMuteBtn" aria-label="Mute"></button>
-        <span class="woodSlider blue"><span class="wsFill"></span><input type="range" id="sfxVolSlider" min="0" max="100" step="1"></span>
+        <span class="woodSlider blue"><span class="wsFill"></span><input type="range" id="sfxVolSlider" min="0" max="100" step="2"></span>
         <span class="sliderVal" id="sfxVolVal"></span>
       </div>
     </div>
@@ -195,8 +195,8 @@ var APP_VERSION = '1.25.0';
       <div class="settingsLabel" data-i18n="boxFx" style="margin-top:14px">箱子推动反馈</div>
       <div class="swatchRow" id="boxFxRow"></div>
     </div>
+    <div class="settingsCloseRow"><button id="closeSettings" class="pillBtn wp-l closeBtn" data-i18n="close" aria-label="Close">关闭</button></div>
    </div>
-   <button id="closeSettings" class="homeBtn panelClose" data-i18n="close" aria-label="Close">关闭</button>
   </div>
 </div>
 
