@@ -791,9 +791,10 @@ html[data-lang="zh"] .homeBtn {
 #sfxMuteBtn.on { background-image: url('assets/UI/settings/icon_mute.png'); }
 .sliderRow.muted .woodSlider, .sliderRow.muted .sliderVal { opacity: 0.45; }
 
-/* --- 设置面板标题：加大加粗的"凹刻字"(方案E，v1.25.0 去重影版) ---
-   只在字下沿留一条 1px 浅米色高光(像凹槽下唇受光)，字色压深保证清晰。
-   不要再加"字上沿深色暗边"：上下两条硬边阴影方向相反，在高分屏上会和字本体叠出重影，眼睛看着发虚。 */
+/* --- 设置面板标题：加大加粗的"凹刻字"(方案E，v1.25.0 内凹渐变版) ---
+   刻字感来自"字里面"：字身上深下浅的渐变(凹槽上唇的阴影落在字内上半部)，字下沿再加一条 1px 浅米色高光(下唇受光)。
+   不要再给字外面加"上沿深色硬边阴影"：和下沿高光方向相反，在高分屏上会叠出重影，眼睛看着发虚。
+   渐变字用 background-clip:text 实现(字色透明)，所以套了 @supports：万一不支持，退回下面的纯色字，不会变成看不见。 */
 #settingsSheet .settingsHeader {
   justify-content: center; font-size: 32px; font-weight: 900; letter-spacing: 0.3em; text-indent: 0.3em; margin-bottom: 20px;
   color: #6a3d19; text-shadow: 0 1px 0 rgba(255, 248, 228, 0.95);
@@ -801,4 +802,12 @@ html[data-lang="zh"] .homeBtn {
 #settingsSheet .settingsLabel {
   font-size: 17px; font-weight: 900; letter-spacing: 0.05em; margin-bottom: 10px;
   color: #70431e; text-shadow: 0 1px 0 rgba(255, 248, 228, 0.95);
+}
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  #settingsSheet .settingsHeader, #settingsSheet .settingsLabel {
+    color: transparent; -webkit-text-fill-color: transparent; text-shadow: none;
+    background: linear-gradient(180deg, #3d1f09 0%, #5e3414 45%, #8a5a2e 100%);
+    -webkit-background-clip: text; background-clip: text;
+    filter: drop-shadow(0 1px 0 rgba(255, 248, 228, 0.95)); /* text-shadow 会透过透明字显出来，所以高光改用 drop-shadow */
+  }
 }
