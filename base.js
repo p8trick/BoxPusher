@@ -232,8 +232,10 @@ function applySettings() {
   root.setProperty('--img-crateDone', sp(`assets/Crates/crate_${settings.crate}Done.${SPRITE_EXT}`));
   // 十字和分离式各存一份大小/位置(分离式还有间距)，切样式时滑块跟着换；这里顺便把存档里的怪值夹回范围
   const nd = (o, d, lim) => { const r = { ...d, ...(o || {}) }; Object.keys(lim).forEach(k => { r[k] = Math.max(lim[k][0], Math.min(lim[k][1], Number(r[k]) || d[k])); }); return r; };
-  settings.dpadCross = nd(settings.dpadCross, DEFAULT_SETTINGS.dpadCross, { scale: [70, 140], x: [-50, 50], y: [-200, 40] });
-  settings.dpadSplit = nd(settings.dpadSplit, DEFAULT_SETTINGS.dpadSplit, { scale: [70, 180], x: [-50, 50], y: [-200, 40], gap: [33, 95] });
+  settings.dpadCross = nd(settings.dpadCross, DEFAULT_SETTINGS.dpadCross, { scale: [80, 130], x: [-50, 50], y: [-60, 40] });
+  settings.dpadSplit = nd(settings.dpadSplit, DEFAULT_SETTINGS.dpadSplit, { scale: [100, 170], x: [-50, 50], y: [-60, 40], gap: [33, 95] });
+  settings.boardWPct = Math.max(60, Math.min(110, Number(settings.boardWPct) || 100)); // 棋盘宽高也夹回滑条范围，免得老存档的值滑条显示不出来却照样生效
+  settings.boardHPct = Math.max(70, Math.min(120, Number(settings.boardHPct) || 100));
   const dc = dpadCfg();
   root.setProperty('--dpad-scale', dc.scale / 100);
   root.setProperty('--dpad-offset', `${dc.x}px`);
