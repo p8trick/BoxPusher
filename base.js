@@ -233,7 +233,7 @@ function applySettings() {
   // 十字和分离式各存一份大小/位置(分离式还有间距)，切样式时滑块跟着换；这里顺便把存档里的怪值夹回范围
   const nd = (o, d, lim) => { const r = { ...d, ...(o || {}) }; Object.keys(lim).forEach(k => { r[k] = Math.max(lim[k][0], Math.min(lim[k][1], Number(r[k]) || d[k])); }); return r; };
   settings.dpadCross = nd(settings.dpadCross, DEFAULT_SETTINGS.dpadCross, { scale: [70, 140], x: [-50, 50], y: [-200, 40] });
-  settings.dpadSplit = nd(settings.dpadSplit, DEFAULT_SETTINGS.dpadSplit, { scale: [70, 200], x: [-50, 50], y: [-200, 40], gap: [20, 95] });
+  settings.dpadSplit = nd(settings.dpadSplit, DEFAULT_SETTINGS.dpadSplit, { scale: [70, 180], x: [-50, 50], y: [-200, 40], gap: [33, 95] });
   const dc = dpadCfg();
   root.setProperty('--dpad-scale', dc.scale / 100);
   root.setProperty('--dpad-offset', `${dc.x}px`);
