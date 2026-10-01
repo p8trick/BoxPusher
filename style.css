@@ -745,8 +745,7 @@ html[data-lang="zh"] .homeBtn {
 /* --- 木滑条：.woodSlider = 凹槽(::before) + 填充条(.wsFill) + 透明轨道的原生 range(只显示滑块图) --- */
 .woodSlider {
   --wood-thumb: url('assets/UI/settings/thumb_1.png');
-  --ws-h: 44px; --groove-h: 28px; --cap: 14px; --fill-left: 13px; --thumb-w: 41px; --pct: 0;
-  margin-right: 22px; /* 滑条比原来短约10%，右边留出一条空白带：手指在这里上下拖动只会滚动面板，不会碰到滑条 */
+  --ws-h: 40px; --groove-h: 26px; --cap: 13px; --fill-left: 12px; --thumb-w: 37px; --pct: 0;
   position: relative; flex: 1; height: var(--ws-h); min-width: 0;
 }
 .woodSlider::before { /* 凹槽：左右各 var(--cap) 端头固定(=槽高×0.5，保持原图比例)，中间横向拉伸 */
@@ -756,7 +755,7 @@ html[data-lang="zh"] .homeBtn {
   border-image-slice: 0 44 fill; border-image-width: 0 var(--cap); border-image-repeat: stretch;
 }
 .woodSlider .wsFill { /* 填充条：左端对齐凹槽内沿，右端停在滑块中心 */
-  position: absolute; left: var(--fill-left); top: 50%; height: 9px; transform: translateY(-50%);
+  position: absolute; left: var(--fill-left); top: 50%; height: 7px; transform: translateY(-50%);
   width: calc(var(--thumb-w) / 2 - var(--fill-left) + (100% - var(--thumb-w)) * var(--pct));
   border-radius: 6px; pointer-events: none;
   background: linear-gradient(#78d878, #34a34a 55%, #2a8a3d);
@@ -794,6 +793,14 @@ html[data-lang="zh"] .homeBtn {
 #sfxMuteBtn { background-image: url('assets/UI/settings/icon_vol.png'); }
 #sfxMuteBtn.on { background-image: url('assets/UI/settings/icon_mute.png'); }
 .sliderRow.muted .woodSlider, .sliderRow.muted .sliderVal { opacity: 0.45; }
+
+/* --- 数值列：居中放在「滑槽最右端 → 木框内沿」这条空白带里(手指在这条带上下拖只会滚动面板，碰不到滑条) ---
+   空白带宽 = 滑条与数值的间距 10px + 数值框 58px + 设置面板右内边距 14px(--sheet-pad)。
+   做法：数值框宽 82px(58+10+14)，左边用 -10px 抵消 gap、右边用 -14px 伸进面板内边距，文字 text-align:center。
+   面板右内边距若改了，下面 14px 要同步改。 */
+#settingsSheet .sliderRow .sliderVal {
+  flex: none; width: 82px; min-width: 0; margin: 0 -14px 0 -10px; text-align: center;
+}
 
 /* --- 设置面板标题：加大加粗的"凹刻字"(方案E，v1.25.0 内凹渐变版) ---
    刻字感来自"字里面"：字身上深下浅的渐变(凹槽上唇的阴影落在字内上半部)，字下沿再加一条 1px 浅米色高光(下唇受光)。
