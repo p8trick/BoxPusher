@@ -745,38 +745,39 @@ html[data-lang="zh"] .homeBtn {
 /* --- 木滑条：.woodSlider = 凹槽(::before) + 填充条(.wsFill) + 透明轨道的原生 range(只显示滑块图) --- */
 .woodSlider {
   --wood-thumb: url('assets/UI/settings/thumb_1.png');
-  --thumb-w: 36px; --pct: 0;
-  position: relative; flex: 1; height: 38px; min-width: 0;
+  --ws-h: 44px; --groove-h: 28px; --cap: 14px; --fill-left: 13px; --thumb-w: 41px; --pct: 0;
+  margin-right: 22px; /* 滑条比原来短约10%，右边留出一条空白带：手指在这里上下拖动只会滚动面板，不会碰到滑条 */
+  position: relative; flex: 1; height: var(--ws-h); min-width: 0;
 }
-.woodSlider::before { /* 凹槽：左右各 15px 端头固定，中间横向拉伸 */
-  content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 34px; transform: translateY(-50%); box-sizing: border-box;
-  border-style: solid; border-color: #8a5a2b; border-width: 0 15px;
+.woodSlider::before { /* 凹槽：左右各 var(--cap) 端头固定(=槽高×0.5，保持原图比例)，中间横向拉伸 */
+  content: ''; position: absolute; left: 0; right: 0; top: 50%; height: var(--groove-h); transform: translateY(-50%); box-sizing: border-box;
+  border-style: solid; border-color: #8a5a2b; border-width: 0 var(--cap);
   border-image-source: url('assets/UI/settings/groove_a.png');
-  border-image-slice: 0 44 fill; border-image-width: 0 15px; border-image-repeat: stretch;
+  border-image-slice: 0 44 fill; border-image-width: 0 var(--cap); border-image-repeat: stretch;
 }
 .woodSlider .wsFill { /* 填充条：左端对齐凹槽内沿，右端停在滑块中心 */
-  position: absolute; left: 15px; top: 50%; height: 11px; transform: translateY(-50%);
-  width: calc(3px + (100% - var(--thumb-w)) * var(--pct));
+  position: absolute; left: var(--fill-left); top: 50%; height: 9px; transform: translateY(-50%);
+  width: calc(var(--thumb-w) / 2 - var(--fill-left) + (100% - var(--thumb-w)) * var(--pct));
   border-radius: 6px; pointer-events: none;
   background: linear-gradient(#78d878, #34a34a 55%, #2a8a3d);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 0 0 1px rgba(20, 70, 25, 0.55);
 }
 .woodSlider.blue .wsFill { background: linear-gradient(#6ec3f2, #2f93d6 55%, #2678b5); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 0 0 1px rgba(15, 55, 95, 0.55); }
 .woodSlider input[type="range"] {
-  position: relative; z-index: 2; display: block; width: 100%; height: 38px; margin: 0; padding: 0;
+  position: relative; z-index: 2; display: block; width: 100%; height: var(--ws-h); margin: 0; padding: 0;
   background: transparent; -webkit-appearance: none; appearance: none; touch-action: pan-x; outline: none;
   opacity: 0; /* 原生控件整个透明，只负责接收触摸；看得见的滑块由下面的 ::after 画(iOS 的原生 thumb 会带底色/阴影，画在自己元素上最稳) */
   -webkit-tap-highlight-color: transparent;
 }
-.woodSlider input[type="range"]::-webkit-slider-runnable-track { height: 38px; background: transparent; border: 0; }
+.woodSlider input[type="range"]::-webkit-slider-runnable-track { height: var(--ws-h); background: transparent; border: 0; }
 .woodSlider input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none; appearance: none; width: var(--thumb-w); height: 38px; margin: 0; border: 0; border-radius: 0;
+  -webkit-appearance: none; appearance: none; width: var(--thumb-w); height: var(--ws-h); margin: 0; border: 0; border-radius: 0;
   background: transparent; box-shadow: none;
 }
-.woodSlider input[type="range"]::-moz-range-track { height: 38px; background: transparent; border: 0; }
-.woodSlider input[type="range"]::-moz-range-thumb { width: var(--thumb-w); height: 38px; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.woodSlider input[type="range"]::-moz-range-track { height: var(--ws-h); background: transparent; border: 0; }
+.woodSlider input[type="range"]::-moz-range-thumb { width: var(--thumb-w); height: var(--ws-h); border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .woodSlider::after { /* 可见的滑块：位置与原生 thumb 行程一致(0 ~ 100%-thumb-w) */
-  content: ''; position: absolute; z-index: 1; top: 0; height: 38px; width: var(--thumb-w);
+  content: ''; position: absolute; z-index: 1; top: 0; height: var(--ws-h); width: var(--thumb-w);
   left: calc((100% - var(--thumb-w)) * var(--pct));
   background: var(--wood-thumb) center / contain no-repeat; pointer-events: none;
 }
