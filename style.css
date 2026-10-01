@@ -185,7 +185,10 @@ body {
 .dkey {
   padding: 0; border: 0; background: transparent; outline: none; appearance: none; -webkit-appearance: none;
   -webkit-tap-highlight-color: transparent;
+  pointer-events: auto; /* 只有按键(十字用 clip-path 裁出的臂形、分离是各自 64×64 方块)接收点击 */
 }
+/* D-pad 容器本身是个 216×216 的方块，放大后会盖住右边的撤销/地图键；它只是排版用的壳，不接收点击，命中只靠上面的按键 */
+#dpad, #dpad .dpSet { pointer-events: none; }
 /* 十字 */
 #dpadCross .dl { position: absolute; inset: 0; pointer-events: none; }
 .dpBody  { background: var(--dpad);        -webkit-mask: url('assets/UI/dpad/dpad_fill.svg') center / 100% 100% no-repeat; mask: url('assets/UI/dpad/dpad_fill.svg') center / 100% 100% no-repeat; }
