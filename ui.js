@@ -101,7 +101,7 @@ function updateDpadGapVisibility() {
 
 function syncDpadSliders() {
   const dc = dpadCfg();
-  document.getElementById('dpadSizeSlider').max = settings.dpadStyle === 'split' ? 150 : 140; // 分离按键上限 150%，十字连体仍 140%(要先改 max 再设 value，否则超 140 的值会被夹回)
+  document.getElementById('dpadSizeSlider').max = settings.dpadStyle === 'split' ? 200 : 140; // 分离按键上限 200%，十字连体仍 140%(要先改 max 再设 value，否则超 140 的值会被夹回)
   document.getElementById('dpadSizeSlider').value = dc.scale;
   document.getElementById('dpadSizeVal').textContent = `${dc.scale}%`;
   document.getElementById('dpadOffsetSlider').value = dc.x;
