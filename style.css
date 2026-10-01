@@ -301,7 +301,7 @@ body {
   background-clip: padding-box;
   --ink: #4a3220; --sub: #7a5a3a; --panel-border: #b58a55; --press: #e8d4a8; --accent: #a8692f;
 }
-#settingsWrap { /* 面板外层：木框面板 + 浮在框右上角的关闭钮(钮在滚动区外面，所以滚到哪里都点得到) */
+#settingsWrap { /* 面板外层：木框面板(关闭钮已移到面板内容最底部；点木框外的空白处也能关，见 ui.js bindBackdropClose) */
   position: relative;
   width: 100%; max-width: 460px;
   max-height: 100%; /* 上下留边由 #settingsOverlay 的 padding 决定 */
@@ -317,24 +317,6 @@ body {
   overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; /* 内容超出一屏时在框内滚动 */
 }
 @media (min-width: 700px) { #settingsWrap { max-width: 640px; } }
-/* 关闭钮：小木板 btn_wood_panel.png 9-slice(36 30→12/10px)，横跨木框下边中间探出22px；::after 扩4px点击区；#settingsWrap 前缀是为了压过 .homeBtn 的 iPad 覆盖规则 */
-#settingsWrap .panelClose {
-  position: absolute; left: 0; right: 0; bottom: -22px; margin: 0 auto; z-index: 2;
-  width: 116px; height: 42px;
-  border-width: 12px 10px;
-  border-image-source: url('assets/UI/btn_wood_panel.png');
-  border-image-slice: 36 30 fill; border-image-width: 12px 10px;
-  padding: 0 0 2px;
-  font-size: 18px; letter-spacing: 1px;
-}
-#settingsWrap .panelClose::after { content: ''; position: absolute; inset: -4px; }
-#settingsWrap .panelClose:active { filter: brightness(0.86) drop-shadow(0 2px 3px rgba(0,0,0,0.35)); }
-html[data-lang="zh"] #settingsWrap .panelClose { font-size: 18px; letter-spacing: 3px; }
-@media (min-width: 700px) { /* iPad：整体放大约 10%，2× 屏上仍是缩小显示，不糊 */
-  #settingsWrap .panelClose { width: 128px; height: 46px; border-width: 13px 11px; border-image-width: 13px 11px; bottom: -24px; font-size: 20px; }
-  html[data-lang="zh"] #settingsWrap .panelClose { font-size: 20px; }
-}
-
 /* ===== iPad 横屏 =====
    三列：D-pad(左) | 棋盘(中) | 撤销+地图(右)；#controls 用 display:contents 拆壳，暂停选项竖排在右列 */
 @media (orientation: landscape) and (min-width: 900px) {
@@ -822,3 +804,8 @@ html[data-lang="zh"] .homeBtn {
     filter: drop-shadow(0 1px 0 rgba(255, 248, 228, 0.95)); /* text-shadow 会透过透明字显出来，所以高光改用 drop-shadow */
   }
 }
+
+/* --- 关闭钮(v1.25.0)：放在设置面板内容最底部，木板样式同其它按钮，上色(砖红)和普通选项区分开 --- */
+.settingsCloseRow { display: flex; justify-content: center; margin: 22px 0 8px; }
+#settingsSheet .pillBtn.closeBtn { --pw: 140px; height: 44px; font-size: 18px; letter-spacing: 0.3em; padding-left: 0.3em; color: #fff1d6; text-shadow: 0 1px 0 rgba(40, 10, 0, 0.6); }
+#settingsSheet .pillBtn.closeBtn::before { filter: hue-rotate(-16deg) saturate(1.5) brightness(0.72); } /* 同一块木板着色，不另做素材 */
