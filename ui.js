@@ -245,6 +245,27 @@ function lpColumnCount(sheetWidth) {
   return Math.max(4, Math.min(8, Math.round(sheetWidth / targetTile)));
 }
 
+// ---- v1.25.12 选关面板：标题文案 + 小木板伪随机分配 ----
+// 标题文案先放这里(zh/en 两份)；旧的 I18N.pickTitle 已不再使用，之后可在 base.js 里删掉
+const LP_TEXT = { zh: { head: '选择关卡', cleared: '已通关' }, en: { head: 'Select Level', cleared: 'Cleared' } };
+function lpText(k) { return (LP_TEXT[settings.lang] || LP_TEXT.zh)[k]; }
+// 7 种小木板(level_tile_01~07.png)的出场权重：下标 0~3 规整款(主力)，4~6 毛边款(点缀，约占 30%)；数组长度 = 种类数
+const LP_TILE_WEIGHTS = [5, 5, 5, 5, 3, 3, 3];
+const LP_ROUGH_FROM = 4; // 从这个下标起算毛边款：毛边款不会和另一块毛边款左右/上下相邻
+function lpRand(seed) { // 关卡号做种子的确定性随机数(mulberry32 单步)，每次打开面板布局一样
+  let a = (Math.imul(seed + 1, 2654435761) + 0x6D2B79F5) | 0;
+  let x = Math.imul(a ^ (a >>> 15), 1 | a);
+  x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
+  return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+}
+function lpPickTile(i, left, up) { // left/up：左边、上边那格的小木板下标(没有就 -1)；不和它们同款
+  const roughNear = left >= LP_ROUGH_FROM || up >= LP_ROUGH_FROM;
+  const w = LP_TILE_WEIGHTS.map((wt, k) => (k === left || k === up || (roughNear && k >= LP_ROUGH_FROM)) ? 0 : wt);
+  let r = lpRand(i) * w.reduce((s, v) => s + v, 0);
+  for (let k = 0; k < w.length; k++) { if (r < w[k]) return k; r -= w[k]; }
+  return w.findIndex(v => v > 0);
+}
+
 const chapterHeads = []; // openLevelPick 每次重建时填充，章节跳转要用它们的位置
 
 function openLevelPick() {
@@ -255,8 +276,13 @@ function openLevelPick() {
   const cur = state ? state.levelIndex : firstUnclearedIndex();
   let clearedTotal = 0;
   LEVELS.forEach((_, i) => { if (isCleared(i)) clearedTotal++; });
-  document.getElementById('levelPickTitle').textContent = t('pickTitle', clearedTotal, LEVELS.length);
-  sheet.style.setProperty('--lp-cols', lpColumnCount(sheet.clientWidth - 24)); // -24：#levelPickSheet 左右 padding
+  const titleEl = document.getElementById('levelPickTitle');
+  titleEl.textContent = lpText('head');
+  let subEl = document.getElementById('levelPickSub'); // 进度小行：index.html 里没有就自己补一个，不用改 HTML
+  if (!subEl) { subEl = document.createElement('span'); subEl.id = 'levelPickSub'; titleEl.after(subEl); }
+  subEl.textContent = `${lpText('cleared')} ${clearedTotal} / ${LEVELS.length}`;
+  const cols = lpColumnCount(sheet.clientWidth - 24); // -24：#levelPickSheet 左右 padding
+  sheet.style.setProperty('--lp-cols', cols);
   let curBtn = null;
   let base = 0;
   LEVEL_CHAPTERS.forEach((ch, ci) => {
@@ -264,18 +290,20 @@ function openLevelPick() {
     ch.levels.forEach((_, li) => { if (isCleared(base + li)) done++; });
     const head = document.createElement('div');
     head.className = 'chapterHead';
-    head.innerHTML = `<span>${t('chapter', ci + 1)}</span><span>${done} / ${ch.levels.length}</span>`;
+    head.innerHTML = `<span class="chName">${t('chapter', ci + 1)}</span><i class="chLine"></i><span class="chCount">${done} / ${ch.levels.length}</span>`;
     list.appendChild(head);
     chapterHeads.push(head);
     const grid = document.createElement('div');
     grid.className = 'levelPickGrid';
+    const tileOf = []; // 本章每一关的小木板下标，用来避开左边/上边同款
     ch.levels.forEach((_, li) => {
       const i = base + li;
       const unlocked = isUnlocked(i);
       const wrap = document.createElement('div');
       wrap.className = 'lpTileWrap';
       const btn = document.createElement('button');
-      btn.className = 'levelPickBtn' + (i === cur ? ' current' : '') + (unlocked ? '' : ' locked');
+      tileOf[li] = lpPickTile(i, li % cols ? tileOf[li - 1] : -1, li >= cols ? tileOf[li - cols] : -1);
+      btn.className = 'levelPickBtn t' + (tileOf[li] + 1) + (i === cur ? ' current' : '') + (unlocked ? '' : ' locked');
       btn.innerHTML = unlocked
         ? `<span class="num d${String(i + 1).length}">${i + 1}</span>` // 1/2/3 位数字用不同字号(见 .num.d1/.d2/.d3)
         : `<i class="ico lockIco" style="--ico:url(${ICON_DIR}icon_lock.svg)"></i>`;
