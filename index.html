@@ -456,7 +456,7 @@ function pushHistory() {
 }
 
 function loadLevel(idx) {
-  clearHold();
+  clearHold(); clearUndoHold();
   if (state && state.idleTimer) clearTimeout(state.idleTimer);
   if (state && state.stepAnimTimer) clearTimeout(state.stepAnimTimer);
   if (state && state.moveLockTimer) clearTimeout(state.moveLockTimer);
@@ -825,7 +825,7 @@ function holdBlocked() {
 }
 
 function startHold(dir, id) {
-  clearHold();
+  clearHold(); clearUndoHold();
   const [dr, dc] = DIR_DELTA[dir];
   requestMove(dr, dc, dir); // 按下立刻走一步(正在走别的步就进队列，和原来的点按一致)
   if (state.moveLock || state.inputQueue.length) hold = { dir, dr, dc, id, t0: performance.now() }; // 第一步就撞墙/被挡(没有任何步在进行)不用续
@@ -840,6 +840,34 @@ function holdStep() {
   const nk = (state.player.r + hold.dr) + ',' + (state.player.c + hold.dc);
   if (state.walls.has(nk) || state.boxes.has(nk)) { clearHold(); return; } // 前面是墙或箱子：静默停下(第一下按下时已经撞过一次有反馈)
   tryMove(hold.dr, hold.dc, hold.dir);
+}
+
+/* ===== 按住撤销键连续撤销(先慢后快) =====
+   按下立刻撤一步；按住满 UNDO_HOLD_DELAY 才开始连撤(正常点按/慢点按都不会误连撤)；
+   前几步慢(方便刚好停在想要的位置)，按得越久越快(撤很多步不折磨)。撤销是瞬时的，手指抬起最多再多撤 1 步，所以最快间隔不宜低于 ~60ms。
+   调手感只改这三个数：延迟、各阶段间隔表。 */
+const UNDO_HOLD_DELAY = 380;
+const UNDO_STAGES = [[3, 170], [8, 110], [Infinity, 70]]; // [连撤到第几次为止, 此后到下一次的间隔ms]
+let undoHold = null; // { id(触摸 identifier，鼠标是 'mouse'), k(已连撤次数), timer }
+
+function clearUndoHold() { if (undoHold) { clearTimeout(undoHold.timer); undoHold = null; } }
+function undoGap(k) { for (const [upto, ms] of UNDO_STAGES) if (k <= upto) return ms; return 70; }
+
+function startUndoHold(id) {
+  clearUndoHold();
+  if (holdBlocked()) return;
+  undo();
+  if (history.length === 0) return; // 没得撤了，不用续
+  undoHold = { id, k: 0, timer: setTimeout(undoRepeat, UNDO_HOLD_DELAY) };
+}
+
+function undoRepeat() {
+  if (!undoHold) return;
+  if (holdBlocked() || history.length === 0) { clearUndoHold(); return; }
+  undo();
+  if (history.length === 0) { clearUndoHold(); return; } // 撤到头自动停
+  undoHold.k++;
+  undoHold.timer = setTimeout(undoRepeat, undoGap(undoHold.k));
 }
 
 function lockMovement() {
@@ -941,7 +969,18 @@ function undo() {
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') clearHold(); });
 })();
 
-bindTap(document.getElementById('undo'), undo);
+// 撤销键：按下立刻撤一步并开始「按住连撤」(取代 bindTap，原因同方向键：必须 touchstart 起步)；松手/取消/切后台就停，兜底同方向键
+(() => {
+  const btn = document.getElementById('undo');
+  btn.addEventListener('touchstart', (e) => { e.preventDefault(); startUndoHold(e.changedTouches[0].identifier); }, { passive: false });
+  btn.addEventListener('mousedown', () => startUndoHold('mouse'));
+  document.addEventListener('mouseup', () => { if (undoHold && undoHold.id === 'mouse') clearUndoHold(); });
+  const sync = (e) => { if (undoHold && undoHold.id !== 'mouse' && !Array.from(e.touches).some(t => t.identifier === undoHold.id)) clearUndoHold(); };
+  ['touchstart', 'touchend', 'touchcancel'].forEach(ev => document.addEventListener(ev, sync, { passive: true }));
+  window.addEventListener('blur', clearUndoHold);
+  window.addEventListener('pagehide', clearUndoHold);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') clearUndoHold(); });
+})();
 
 window.addEventListener('resize', () => {
   fitTileSize();
