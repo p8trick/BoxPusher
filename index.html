@@ -5,7 +5,7 @@
 <script>
 /* ===== 版本号：发版只改这一行 =====
    主页右下角的版本号、style.css / base.js / ui.js 三个文件的 ?v= 缓存参数，全部从这里生成(避坑 B8)。 */
-var APP_VERSION = '1.25.7';
+var APP_VERSION = '1.25.8';
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -456,6 +456,7 @@ function pushHistory() {
 }
 
 function loadLevel(idx) {
+  clearHold();
   if (state && state.idleTimer) clearTimeout(state.idleTimer);
   if (state && state.stepAnimTimer) clearTimeout(state.stepAnimTimer);
   if (state && state.moveLockTimer) clearTimeout(state.moveLockTimer);
@@ -804,6 +805,43 @@ function playBoxFx(el, dr, dc) {
   el._fx.onfinish = () => { el._fx = null; };
 }
 
+/* ===== 按住方向键连续行走(只走路，遇墙/箱子就停，不连续推箱) =====
+   节拍复用 lockMovement：每一步的锁到期时，手指还按着、前面是空地就再走一步；不用 setInterval，不会错拍，也不会往 inputQueue 里堆步子。
+   松手只是不再续下一步，当前这步照常走完(停在格子正中)。要连续推箱的话，只需把 holdStep 里「遇箱子就停」那一条去掉。 */
+const HOLD_DELAY = 200; // 按住满这么久才开始连走(ms)，防止慢一点的点按多走一步；走路时长滑块最低 120ms，所以不能只靠一步的锁时间
+let hold = null;        // { dir, dr, dc, id(触摸 identifier，鼠标是 'mouse'), t0 }
+let holdTimer = null;
+const DIR_DELTA = { up: [-1, 0], down: [1, 0], left: [0, -1], right: [0, 1] };
+
+function clearHold() { hold = null; if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; } }
+function releaseHold(id) { if (hold && hold.id === id) clearHold(); } // 只认按下它的那根手指，别的手指抬起不影响
+
+function holdBlocked() {
+  const hidden = (id) => !document.getElementById(id).classList.contains('show');
+  return !state || state.won || paused || camera.mode !== 'play'
+    || document.getElementById('app').classList.contains('winShown')
+    || !document.getElementById('homeScreen').classList.contains('hide')
+    || !hidden('settingsOverlay') || !hidden('levelPickOverlay');
+}
+
+function startHold(dir, id) {
+  clearHold();
+  const [dr, dc] = DIR_DELTA[dir];
+  requestMove(dr, dc, dir); // 按下立刻走一步(正在走别的步就进队列，和原来的点按一致)
+  if (state.moveLock || state.inputQueue.length) hold = { dir, dr, dc, id, t0: performance.now() }; // 第一步就撞墙/被挡(没有任何步在进行)不用续
+}
+
+function holdStep() {
+  if (!hold) return;
+  if (holdBlocked()) { clearHold(); return; }
+  if (state.moveLock || state.inputQueue.length) return; // 还有步在进行/排队：等它们走完，锁到期会再回来
+  const wait = HOLD_DELAY - (performance.now() - hold.t0);
+  if (wait > 0) { if (holdTimer) clearTimeout(holdTimer); holdTimer = setTimeout(holdStep, wait); return; }
+  const nk = (state.player.r + hold.dr) + ',' + (state.player.c + hold.dc);
+  if (state.walls.has(nk) || state.boxes.has(nk)) { clearHold(); return; } // 前面是墙或箱子：静默停下(第一下按下时已经撞过一次有反馈)
+  tryMove(hold.dr, hold.dc, hold.dir);
+}
+
 function lockMovement() {
   state.moveLock = true;
   if (state.moveLockTimer) clearTimeout(state.moveLockTimer);
@@ -811,6 +849,7 @@ function lockMovement() {
     state.moveLock = false;
     state.moveLockTimer = null;
     processQueue();
+    holdStep(); // 手指还按着方向键就接着走下一步(见「按住方向键连续行走」)
   }, MOVE_DUR);
 }
 
@@ -837,6 +876,7 @@ function checkWin() {
 }
 
 function undo() {
+  clearHold();
   if (history.length === 0) return;
   if (state.moveLockTimer) clearTimeout(state.moveLockTimer);
   state.moveLock = false;
@@ -854,14 +894,6 @@ function undo() {
   Bus.emit('undo');
 }
 
-bindTap(document.getElementById('up'), () => requestMove(-1, 0, 'up'));
-
-bindTap(document.getElementById('down'), () => requestMove(1, 0, 'down'));
-
-bindTap(document.getElementById('left'), () => requestMove(0, -1, 'left'));
-
-bindTap(document.getElementById('right'), () => requestMove(0, 1, 'right'));
-
 // 分离式的四块键：由 DPAD_SPLIT_DEFS 生成(图形素材走 CSS 变量)，动作与十字的 up/down/left/right 同一套
 (() => {
   const host = document.getElementById('dpadSplit');
@@ -872,7 +904,6 @@ bindTap(document.getElementById('right'), () => requestMove(0, 1, 'right'));
     b.style.cssText = `--tx:${d.tx};--ty:${d.ty};--m-fill:${f('_fill')};--m-ring:${f('')};--i-hl:${f('_highlight')};clip-path:polygon(${d.poly})`;
     b.innerHTML = '<i class="pBody"></i><i class="pRing"></i><i class="pHl"></i>';
     host.appendChild(b);
-    bindTap(b, () => requestMove(d.dr, d.dc, d.dir));
   });
 })();
 
@@ -888,6 +919,26 @@ bindTap(document.getElementById('right'), () => requestMove(0, 1, 'right'));
     el.addEventListener('mousedown', on);
     ['mouseup', 'mouseleave'].forEach(ev => el.addEventListener(ev, off));
   });
+})();
+
+// 方向键输入(十字/分离共用，事件委托在 #dpad 上)：按下立刻走并开始「按住连走」，松手/取消/切后台就停。
+// 不再用 bindTap(touchend 才触发)：长按必须在 touchstart 就起步。touchstart 里 preventDefault 会让浏览器不再合成鼠标事件，所以触摸和鼠标不会重复触发。
+(() => {
+  const dpad = document.getElementById('dpad');
+  const keyOf = (e) => e.target && e.target.closest ? e.target.closest('.dkey') : null;
+  dpad.addEventListener('touchstart', (e) => {
+    const key = keyOf(e); if (!key) return;
+    e.preventDefault();
+    startHold(key.dataset.dir, e.changedTouches[0].identifier);
+  }, { passive: false });
+  dpad.addEventListener('mousedown', (e) => { const key = keyOf(e); if (key) startHold(key.dataset.dir, 'mouse'); });
+  document.addEventListener('mouseup', () => releaseHold('mouse'));
+  // 兜底：touchend 偶尔收不到(系统手势/来电/切应用)，会导致停不下来，所以多挡几层
+  const syncTouches = (e) => { if (hold && hold.id !== 'mouse' && !Array.from(e.touches).some(t => t.identifier === hold.id)) clearHold(); };
+  ['touchstart', 'touchend', 'touchcancel'].forEach(ev => document.addEventListener(ev, syncTouches, { passive: true }));
+  window.addEventListener('blur', clearHold);
+  window.addEventListener('pagehide', clearHold);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') clearHold(); });
 })();
 
 bindTap(document.getElementById('undo'), undo);
