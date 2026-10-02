@@ -728,7 +728,7 @@ html[data-lang="zh"] .homeBtn {
 .woodSlider {
   --wood-thumb: url('assets/UI/settings/thumb_1.png');
   --ws-h: 40px; --thumb-w: 37px; --pct: 0;
-  --groove-h: 22px; --cap: calc(var(--groove-h) * 44 / 87); /* groove_a.png 716×87，端头切 44px；槽高改这一个值，端头按比例跟着变 */
+  --groove-h: 24px; --cap: calc(var(--groove-h) * 44 / 87); /* groove_a.png 716×87，端头切 44px；槽高改这一个值，端头按比例跟着变 */
   --fill-h: 11.7px; --fill-cap: calc(var(--fill-h) * 40 / 68); --fill-left: 7px; --fill-dy: -0.8px; /* fill_*.png 68px 高(含阴影边)，端头切 40px；fill-dy：凹槽开口略偏上，色条跟着上提 */
   --fill-img: url('assets/UI/settings/fill_green.png');
   position: relative; flex: 1; height: var(--ws-h); min-width: 0;
