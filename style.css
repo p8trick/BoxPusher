@@ -807,5 +807,5 @@ html[data-lang="zh"] .homeBtn {
 
 /* --- 关闭钮(v1.25.0)：放在设置面板内容最底部，木板样式同其它按钮，上色(砖红)和普通选项区分开 --- */
 .settingsCloseRow { display: flex; justify-content: center; margin: 22px 0 8px; }
-#settingsSheet .pillBtn.closeBtn { --pw: 140px; height: 44px; font-size: 18px; letter-spacing: 0.3em; padding-left: 0.3em; color: #fff1d6; text-shadow: 0 1px 0 rgba(40, 10, 0, 0.6); }
+#settingsSheet .pillBtn.closeBtn { --pw: 140px; height: 44px; font-size: 18px; letter-spacing: 0.3em; text-indent: 0.3em; color: #fff1d6; text-shadow: 0 1px 0 rgba(40, 10, 0, 0.6); } /* 字距会在末字后多出一截空白→用同样宽的 text-indent 抵消，左右 padding 保持对称，字才在木板正中 */
 #settingsSheet .pillBtn.closeBtn::before { filter: hue-rotate(-16deg) saturate(1.5) brightness(0.72); } /* 同一块木板着色，不另做素材 */
