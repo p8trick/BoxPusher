@@ -266,7 +266,7 @@ body {
 #app.winShown #dpad, #app.winShown #undo, #app.winShown #modeBtn { visibility: hidden; pointer-events: none; }
 #pauseRow {
   position: absolute; left: 50%; transform: translateX(-50%);
-  top: calc(22px + (216px - 60px) / 2 - 12px); /* controls的padding-top(22) + 让60px高的一行在216px高的D-pad区域里垂直居中，再上提12px，和下面的按钮拉开一点距离 */
+  top: calc(22px + (216px - 60px) / 2 - 22px); /* controls的padding-top(22) + 让60px高的一行在216px高的D-pad区域里垂直居中，再上提22px(原12px，1.25.8 起多提10px)，和右下角的地图/返回键拉开距离；这一个数就是整排四个键的上下位置 */
   width: 336px; max-width: 100%;
   display: flex; justify-content: space-between;
 }
