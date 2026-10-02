@@ -566,17 +566,18 @@ html[data-lang="zh"] .homeBtn {
 
 /* ===== 关卡选择：木框浮层，结构同设置面板，宽度更大以放木箱网格 =====
    #levelPickWrap = 面板+底部固定木板(不随列表滚动)；每关一块木箱贴图，已解锁白字描边号/未解锁盖锁图标并降饱和；星级/皇冠按 par 点亮(规则见 §13)；iPhone 固定4列，iPad 按面板宽反推4~8列 */
+/* v1.25.12 毛玻璃：浮层自己不能带 backdrop-filter、也不能带 opacity<1 的渐隐——它们会让浮层变成"背景根"，里面的玻璃层就采样不到主页背景(糊不出东西)。
+   所以这里只用 background-color 做暗幕渐变 + visibility 显隐；模糊全部交给 #levelPickWrap::before */
 #levelPickOverlay {
   position: fixed; inset: 0;
-  background: rgba(0,0,0,0.45);
-  -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+  background: rgba(0,0,0,0);
   display: flex; align-items: center; justify-content: center;
   padding: max(5vh, env(safe-area-inset-top)) 14px 5vh;
   z-index: 250;
-  opacity: 0; pointer-events: none;
-  transition: opacity 0.2s ease;
+  visibility: hidden; pointer-events: none;
+  transition: background-color 0.2s ease, visibility 0s linear 0.2s;
 }
-#levelPickOverlay.show { opacity: 1; pointer-events: auto; }
+#levelPickOverlay.show { background: rgba(0,0,0,0.32); visibility: visible; pointer-events: auto; transition: background-color 0.2s ease, visibility 0s; }
 #levelPickWrap {
   position: relative;
   width: 100%; max-width: 620px; /* 比设置面板(460)宽，好放下 4 列木箱；iPad 上还会再放宽，见下面 media */
@@ -586,6 +587,20 @@ html[data-lang="zh"] .homeBtn {
   transition: transform 0.2s ease;
 }
 #levelPickOverlay.show #levelPickWrap { transform: scale(1); }
+/* 毛玻璃层：画在不滚动的 #levelPickWrap 上(木框 border-image 在可滚动的 sheet 上，画在 sheet 里会跟着滚)，inset 略小于木框厚度(20/17/19/17)，边缘藏在木框下面。
+   调效果只动这几个变量：--lp-blur 模糊半径；--lp-sat 饱和度(越小主页背景越不抢眼)；--lp-tint-a/b 上下两端的暖棕遮罩浓度 */
+#levelPickWrap { --lp-blur: 10px; --lp-sat: 0.55; --lp-tint-a: 0.62; --lp-tint-b: 0.72; --lp-gi: 15px 12px 14px 12px; }
+#levelPickWrap::before {
+  content: ''; position: absolute; inset: var(--lp-gi); z-index: 0; pointer-events: none; border-radius: 6px;
+  background: linear-gradient(180deg, rgba(66, 44, 26, var(--lp-tint-a)), rgba(36, 24, 14, var(--lp-tint-b)));
+  -webkit-backdrop-filter: blur(var(--lp-blur)) saturate(var(--lp-sat)); backdrop-filter: blur(var(--lp-blur)) saturate(var(--lp-sat));
+  box-shadow: inset 0 1px 0 rgba(255, 240, 210, 0.16), inset 0 0 26px rgba(0, 0, 0, 0.35);
+}
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  #levelPickWrap::before { background: linear-gradient(180deg, rgba(58, 40, 24, 0.94), rgba(34, 22, 13, 0.96)); } /* 不支持玻璃：退回更实的深棕，仍然干净 */
+}
+/* 玻璃是固定的暖深色，不随主题变：面板内的字/星/强调色在这里固定成浅色系(空星用 var(--ink) 当遮罩色，不改的话浅色主题下是深棕、在深玻璃上看不见) */
+#levelPickSheet.artPanel { position: relative; z-index: 1; background: transparent; --ink: #f3e6c8; --sub: #d9c08a; --accent: #f2b45e; }
 #levelPickSheet {
   width: 100%; min-height: 0;
   padding: 10px 12px 26px; /* 底部多留一点，避免最后一排贴着木框下边 */
@@ -593,12 +608,31 @@ html[data-lang="zh"] .homeBtn {
   overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
 }
 @media (min-width: 700px) { #levelPickWrap { max-width: 900px; } }
-.chapterHead {
-  display: flex; justify-content: space-between; align-items: baseline;
-  font-size: 13px; font-weight: 700; color: var(--sub);
-  margin: 18px 4px 10px;
+/* 选关面板标题/章节头：玻璃上用奶油金"蚀刻字"(上亮下暖渐变，字下沿一条深棕细阴影 + 很淡的柔影；不要加方向相反的硬边，见 B14)。
+   木头上的关卡数字仍是深棕刻字——材质分工：木头=刻进去(深)，玻璃=浮起来(浅)。渐变字用 background-clip:text，@supports 不支持时退回纯浅色字 */
+#levelPickSheet .settingsHeader { flex-direction: column; justify-content: center; align-items: center; gap: 6px; margin: 6px 0 4px; }
+#levelPickTitle, .chapterHead .chName {
+  color: #f3dfb2; text-shadow: 0 1px 0 rgba(30, 16, 4, 0.75), 0 2px 6px rgba(0, 0, 0, 0.4);
 }
-.chapterHead:first-child { margin-top: 2px; }
+#levelPickTitle { font-size: 34px; font-weight: 900; letter-spacing: 0.3em; text-indent: 0.3em; line-height: 1.15; }
+#levelPickSub { font-size: 14px; font-weight: 700; letter-spacing: 0.08em; color: #d9c08a; opacity: 0.85; text-shadow: 0 1px 0 rgba(30, 16, 4, 0.6); }
+.chapterHead {
+  display: flex; align-items: center; gap: 12px;
+  margin: 24px 4px 12px;
+}
+.chapterHead:first-child { margin-top: 10px; }
+.chapterHead .chName { flex: none; font-size: 21px; font-weight: 900; letter-spacing: 0.08em; }
+.chapterHead .chLine { flex: 1; height: 1px; background: linear-gradient(90deg, rgba(243, 223, 178, 0.55), rgba(243, 223, 178, 0.12)); }
+.chapterHead .chCount { flex: none; font-size: 14px; font-weight: 700; color: #d9c08a; opacity: 0.85; font-variant-numeric: tabular-nums; text-shadow: 0 1px 0 rgba(30, 16, 4, 0.6); }
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  #levelPickTitle, .chapterHead .chName {
+    color: transparent; -webkit-text-fill-color: transparent; text-shadow: none;
+    background: linear-gradient(180deg, #fff6dc 0%, #f3dfb2 50%, #dcb674 100%);
+    -webkit-background-clip: text; background-clip: text;
+    filter: drop-shadow(0 1px 0 rgba(30, 16, 4, 0.75)) drop-shadow(0 2px 5px rgba(0, 0, 0, 0.35));
+  }
+}
+@media (min-width: 700px) { #levelPickTitle { font-size: 42px; } .chapterHead .chName { font-size: 26px; } .chapterHead .chCount, #levelPickSub { font-size: 16px; } }
 .levelPickGrid {
   display: grid;
   grid-template-columns: repeat(var(--lp-cols, 4), 1fr);
@@ -610,11 +644,21 @@ html[data-lang="zh"] .homeBtn {
   padding: 0; border: 0; background: var(--lp-tile, url('assets/UI/level_tile_light.png')) center / 100% 100% no-repeat;
   display: flex; align-items: center; justify-content: center;
 }
+/* 7 种小木板(assets/UI/levelpick/level_tile_01~07.png，384×384 透明)：编号 t1~t7 由 ui.js 的 lpPickTile() 按关卡号做种子伪随机分配；01–04 规整款、05–07 毛边款。
+   少于 7 种：删图 + 改 ui.js 的 LP_TILE_WEIGHTS 长度，这里多余的行可留着 */
+.levelPickBtn.t1 { --lp-tile: url('assets/UI/levelpick/level_tile_01.png'); }
+.levelPickBtn.t2 { --lp-tile: url('assets/UI/levelpick/level_tile_02.png'); }
+.levelPickBtn.t3 { --lp-tile: url('assets/UI/levelpick/level_tile_03.png'); }
+.levelPickBtn.t4 { --lp-tile: url('assets/UI/levelpick/level_tile_04.png'); }
+.levelPickBtn.t5 { --lp-tile: url('assets/UI/levelpick/level_tile_05.png'); }
+.levelPickBtn.t6 { --lp-tile: url('assets/UI/levelpick/level_tile_06.png'); }
+.levelPickBtn.t7 { --lp-tile: url('assets/UI/levelpick/level_tile_07.png'); }
 .levelPickBtn:active { filter: brightness(0.92); }
+/* 关卡数字：木头上的"刻字"——深棕字 + 字下沿一条浅色高光(下唇受光)。300 个数字不用渐变字/filter(iOS 滚动会吃力)，纯色 + 单条 text-shadow 即可；不要加上沿硬边阴影(B14) */
 .levelPickBtn .num {
   font-family: 'KenneyFutureNarrow', 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif;
-  font-weight: 700; color: #fff;
-  -webkit-text-stroke: 0.1em #4a2f17; paint-order: stroke fill; letter-spacing: 0; /* 描边用em：字号变了描边粗细跟着变，不会显得过粗或过细 */
+  font-weight: 700; color: #4d2b12;
+  text-shadow: 0 1px 0 rgba(255, 228, 180, 0.7); letter-spacing: 0;
 }
 /* 按位数动态调字号：1/2 位数字放大(木箱显得没那么空)，3 位数保持不变 */
 .levelPickBtn .num.d1 { font-size: clamp(32px, 15vw, 46px); }
