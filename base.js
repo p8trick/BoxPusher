@@ -239,7 +239,7 @@ function applySettings() {
   settings.boardWPct = Math.max(60, Math.min(110, Number(settings.boardWPct) || 100)); // 棋盘宽高也夹回滑条范围，免得老存档的值滑条显示不出来却照样生效
   settings.boardHPct = Math.max(70, Math.min(120, Number(settings.boardHPct) || 100));
   settings.undoY = Math.max(-60, Math.min(40, Number(settings.undoY) || 0)); // 撤销键/地图键的上下偏移(px)，同样夹回滑条范围
-  settings.mapY = Math.max(-60, Math.min(40, Number(settings.mapY) || 0));
+  settings.mapY = Math.max(-10, Math.min(20, Number(settings.mapY) || 0)); // 地图键范围更窄：往下超过 20 出屏幕，往上超过 10 点开地图后会压到暂停选项按钮
   root.setProperty('--undo-dy', `${settings.undoY}px`);
   root.setProperty('--map-dy', `${settings.mapY}px`);
   const dc = dpadCfg();
