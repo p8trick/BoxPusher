@@ -688,8 +688,8 @@ html[data-lang="zh"] .homeBtn {
 @media (min-width: 700px) { .lpStars { --lp-crown: 44px; } }
 /* 底部固定木板：结构、九宫格切片都和设置面板的关闭木板(.panelClose)同一套，只是更宽、装两个图标键 */
 #lpPlank {
-  position: absolute; left: 0; right: 0; bottom: -22px; margin: 0 auto; z-index: 2;
-  width: 148px; height: 42px;
+  position: absolute; left: 0; right: 0; bottom: -27px; margin: 0 auto; z-index: 2;
+  width: 176px; height: 52px;
   display: flex; align-items: stretch; justify-content: space-evenly;
   border-style: solid; border-width: 12px 10px;
   border-image-source: url('assets/UI/btn_wood_panel.png');
@@ -697,13 +697,15 @@ html[data-lang="zh"] .homeBtn {
   filter: drop-shadow(0 4px 6px rgba(0,0,0,0.35));
 }
 #lpPlank .ico-btn { flex: 1; padding: 0; border: 0; background: transparent; display: flex; align-items: center; justify-content: center; }
-#lpPlank .ico-btn:active { filter: brightness(0.85); }
-#lpPlank .ico { width: 26px; height: 26px; }
+#lpPlank .ico-btn:active { filter: drop-shadow(0 1px 0 rgba(255, 228, 180, 0.85)) brightness(0.85); }
+#lpPlank .ico { width: 36px; height: 36px; }
 /* 底部木板上的两个图标：和关卡数字同一种"刻字"手法(深色 + 图标下沿一条浅色高光)，但颜色换成深砖红，区分"功能键"和"关卡数字"。
    图标是遮罩：背景填上深→浅的渐变(上深下浅，凹槽上唇的阴影落在里面)，高光用 drop-shadow(遮罩元素上 text-shadow 无效)。改色只动这两个变量 */
-#lpPlank { --lp-ico-a: #5c1c0a; --lp-ico-b: #8a3a1c; }
-#lpPlank .ico { background: linear-gradient(180deg, var(--lp-ico-a), var(--lp-ico-b)); filter: drop-shadow(0 1px 0 rgba(255, 228, 180, 0.7)); }
-@media (min-width: 700px) { #lpPlank { width: 164px; height: 46px; border-width: 13px 11px; border-image-width: 13px 11px; bottom: -24px; } #lpPlank .ico { width: 28px; height: 28px; } }
+#lpPlank { --lp-ico-a: #4a1506; --lp-ico-b: #7c3114; }
+#lpPlank .ico { background: linear-gradient(180deg, var(--lp-ico-a), var(--lp-ico-b)); }
+/* 高光必须加在按钮(图标的父元素)上：CSS 里 filter 先于 mask 执行，drop-shadow 直接写在带 mask 的图标上会被它自己的遮罩裁掉(上一版凹刻不明显就是这个原因) */
+#lpPlank .ico-btn { filter: drop-shadow(0 1px 0 rgba(255, 228, 180, 0.85)); }
+@media (min-width: 700px) { #lpPlank { width: 200px; height: 58px; border-width: 13px 11px; border-image-width: 13px 11px; bottom: -30px; } #lpPlank .ico { width: 42px; height: 42px; } }
 /* 章节跳转：10 块小木板(2列5行)，同一张按钮素材缩小复用；点了滚动列表到那一章并关掉浮层 */
 #chapterJumpOverlay {
   position: fixed; inset: 0; z-index: 260;
