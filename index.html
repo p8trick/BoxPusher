@@ -5,7 +5,7 @@
 <script>
 /* ===== 版本号：发版只改这一行 =====
    主页右下角的版本号、style.css / base.js / ui.js 三个文件的 ?v= 缓存参数，全部从这里生成(避坑 B8)。 */
-var APP_VERSION = '1.25.9';
+var APP_VERSION = '1.25.8';
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -844,14 +844,14 @@ function holdStep() {
 
 /* ===== 按住撤销键连续撤销(先慢后快) =====
    按下立刻撤一步；按住满 UNDO_HOLD_DELAY 才开始连撤(正常点按/慢点按都不会误连撤)；
-   前几步慢(方便刚好停在想要的位置)，按得越久越快(撤很多步不折磨)。撤销是瞬时的，手指抬起最多再多撤 1 步，所以最快间隔不宜低于 ~60ms。
+   前几步慢(方便刚好停在想要的位置)，按得越久越快(撤很多步不折磨)。撤销是瞬时的，手指抬起最多再多撤 1 步，所以最快间隔不宜太低。
    调手感只改这三个数：延迟、各阶段间隔表。 */
 const UNDO_HOLD_DELAY = 380;
-const UNDO_STAGES = [[3, 170], [8, 110], [Infinity, 70]]; // [连撤到第几次为止, 此后到下一次的间隔ms]
+const UNDO_STAGES = [[3, 180], [Infinity, 110]]; // [连撤到第几次为止, 此后到下一次的间隔ms]：第 2~5 步之间间隔 180ms，第 6 步起 110ms(第 1 步是按下立刻撤)
 let undoHold = null; // { id(触摸 identifier，鼠标是 'mouse'), k(已连撤次数), timer }
 
 function clearUndoHold() { if (undoHold) { clearTimeout(undoHold.timer); undoHold = null; } }
-function undoGap(k) { for (const [upto, ms] of UNDO_STAGES) if (k <= upto) return ms; return 70; }
+function undoGap(k) { for (const [upto, ms] of UNDO_STAGES) if (k <= upto) return ms; return 110; }
 
 function startUndoHold(id) {
   clearUndoHold();
