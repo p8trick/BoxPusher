@@ -224,27 +224,39 @@ body {
   align-items: center;
   gap: 47px; /* 步数挪走后，撤销和地图键的间距(原 16+步数行15+16)，保持两个键在原来的位置 */
 }
+/* 圆形功能键(撤销/地图)：和 D-pad 同一套做法——圆环 svg 当 mask 上色(--btn-ring)，按下换成自带渐变的 _highlight.svg + 底色变亮。
+   底色不用 svg，直接用按钮自己的 radial-gradient(半径 90%，藏在圆环 80%~100% 的下面，避免两层同边缘叠出杂边)；
+   伪元素 z-index:-1 + isolation 把它们压在文字/图标后面，不用改 index.html。 */
+:root { --btn-hl-filter: var(--dpad-hl-filter); --btn-ring: var(--dpad-fg); }
+#undo, #modeBtn {
+  position: relative; isolation: isolate; -webkit-tap-highlight-color: transparent;
+  border: none; border-radius: 50%; padding: 0;
+  background: radial-gradient(circle closest-side, var(--btn) 0 90%, transparent 91%);
+}
+#undo::before, #modeBtn::before, #undo::after, #modeBtn::after { content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none; }
+#undo::before, #modeBtn::before { background: var(--btn-ring); -webkit-mask: url('assets/UI/buttons/button_circle.svg') center / 100% 100% no-repeat; mask: url('assets/UI/buttons/button_circle.svg') center / 100% 100% no-repeat; }
+#undo::after, #modeBtn::after { background: url('assets/UI/buttons/button_circle_highlight.svg') center / 100% 100% no-repeat; filter: var(--btn-hl-filter); opacity: 0; }
+#undo:active, #modeBtn:active { --btn: var(--btn-on); }
+#undo:active::before, #modeBtn:active::before { opacity: 0; }
+#undo:active::after, #modeBtn:active::after { opacity: 1; }
+
 #undo {
+  --btn: #b8543f; --btn-on: #cf6d56;
   width: 84px; height: 84px;
-  border-radius: 50%;
-  background: #b8543f;
   color: #fdf3ea;
-  border: none;
   font-size: 16px;
   font-weight: 600;
 }
-#undo:active { background: #a1442f; }
 
-/* 右下角圆形按钮：和"撤销"同一风格(纯色圆、无材质)，只是换了颜色。游戏中是"地图"图标，暂停模式里变成"返回"，同一个位置来回切 */
+/* 右下角圆形按钮：和"撤销"同一风格，只是换了颜色。游戏中是"地图"图标，暂停模式里变成"返回"，同一个位置来回切 */
 #modeBtn {
-  width: 62px; height: 62px; padding: 0;
-  border-radius: 50%; border: none;
-  background: #c98b3a; color: #fff;
+  --btn: #c98b3a; --btn-on: #deaa5c;
+  width: 62px; height: 62px;
+  color: #fff;
   display: flex; align-items: center; justify-content: center;
 }
-#modeBtn:active { background: #b07a2e; }
 .ico { display: block; background: currentColor; pointer-events: none; -webkit-mask: var(--ico) center / contain no-repeat; mask: var(--ico) center / contain no-repeat; }
-#modeBtn .ico { width: 58%; height: 58%; }
+#modeBtn .ico { width: 54%; height: 54%; } /* 圆环占掉外圈约 20%(直径)，图标要落在内圆(约 80%)里 */
 
 /* 暂停/地图模式：#pauseRow 只在暂停时创建、退出即删，不用常驻隐藏元素，见避坑A(drop-shadow 漏投影) */
 #controls { position: relative; }
