@@ -100,10 +100,14 @@ function updateDpadGapVisibility() {
 }
 
 // ===== D-pad 数值的玩家向显示(后台仍存 %/px，滑条上看到的是"档位") =====
-// 大小：每 5% 一档，从 1 起(十字 80~130% → 1~11；分离 100~170% → 1~15)；偏移：每 5px 一档，0 为居中，带方向箭头
-function dpadSizeMin() { return settings.dpadStyle === 'split' ? 100 : 80; }
+// 间距 36~55px → 1~20(每 1px 一档)；棋盘宽 60~110% → 1~51、高 70~120% → 1~51(每 1% 一档)。
+// 大小：每 5% 一档，从 1 起(十字 85~130% → 1~10；分离 100~170% → 1~15)；偏移：每 5px 一档，0 为居中，带方向箭头
+function dpadSizeMin() { return settings.dpadStyle === 'split' ? 100 : 85; }
 function dpadSizeMax() { return settings.dpadStyle === 'split' ? 170 : 130; }
 function fmtDpadSize(v) { return String(Math.round((v - dpadSizeMin()) / 5) + 1); }
+function fmtGap(v) { return String(Math.round(v) - 35); }
+function fmtBoardW(v) { return String(Math.round(v) - 59); }
+function fmtBoardH(v) { return String(Math.round(v) - 69); }
 function fmtDpadX(v) { const n = Math.round(Math.abs(v) / 5); return v === 0 ? '0' : (v < 0 ? `\u2190 ${n}` : `${n} \u2192`); }
 function fmtDpadY(v) { const n = Math.round(Math.abs(v) / 5); return v === 0 ? '0' : (v < 0 ? `\u2191 ${n}` : `\u2193 ${n}`); }
 
@@ -118,12 +122,12 @@ function syncDpadSliders() {
   document.getElementById('dpadOffsetYSlider').value = dc.y;
   document.getElementById('dpadOffsetYVal').textContent = fmtDpadY(dc.y);
   document.getElementById('dpadGapSlider').value = settings.dpadSplit.gap;
-  document.getElementById('dpadGapVal').textContent = `${settings.dpadSplit.gap}px`;
+  document.getElementById('dpadGapVal').textContent = fmtGap(settings.dpadSplit.gap);
   updateDpadGapVisibility();
   document.getElementById('boardWSlider').value = settings.boardWPct;
-  document.getElementById('boardWVal').textContent = `${settings.boardWPct}%`;
+  document.getElementById('boardWVal').textContent = fmtBoardW(settings.boardWPct);
   document.getElementById('boardHSlider').value = settings.boardHPct;
-  document.getElementById('boardHVal').textContent = `${settings.boardHPct}%`;
+  document.getElementById('boardHVal').textContent = fmtBoardH(settings.boardHPct);
   document.getElementById('walkDurSlider').value = settings.walkMs;
   document.getElementById('walkDurVal').textContent = `${settings.walkMs}ms`;
   document.getElementById('pushDurSlider').value = settings.pushMs;
@@ -159,7 +163,7 @@ document.getElementById('dpadOffsetYSlider').addEventListener('change', saveSett
 
 document.getElementById('dpadGapSlider').addEventListener('input', (e) => {
   settings.dpadSplit.gap = Number(e.target.value);
-  document.getElementById('dpadGapVal').textContent = `${settings.dpadSplit.gap}px`;
+  document.getElementById('dpadGapVal').textContent = fmtGap(settings.dpadSplit.gap);
   applySettings();
 });
 
@@ -167,7 +171,7 @@ document.getElementById('dpadGapSlider').addEventListener('change', saveSettings
 
 document.getElementById('boardWSlider').addEventListener('input', (e) => {
   settings.boardWPct = Number(e.target.value);
-  document.getElementById('boardWVal').textContent = `${settings.boardWPct}%`;
+  document.getElementById('boardWVal').textContent = fmtBoardW(settings.boardWPct);
   relayoutBoard();
 });
 
@@ -175,7 +179,7 @@ document.getElementById('boardWSlider').addEventListener('change', saveSettings)
 
 document.getElementById('boardHSlider').addEventListener('input', (e) => {
   settings.boardHPct = Number(e.target.value);
-  document.getElementById('boardHVal').textContent = `${settings.boardHPct}%`;
+  document.getElementById('boardHVal').textContent = fmtBoardH(settings.boardHPct);
   relayoutBoard();
 });
 
