@@ -32,6 +32,9 @@ Object.assign(I18N.zh, {
   lbHintGuest: '准备好后点「准备」', lbHintReadyGuest: '已准备，等待房主开始…',
   lbErrCode: '请输入 6 位配对码', lbErrNotFound: '找不到这个房间', lbErrFull: '房间已满', lbErrStarted: '游戏已经开始', lbErrTimeout: '连接超时，请重试',
   lbClosedHost: '房主已解散房间', lbClosedLost: '与房间的连接断开了', lbStartSoon: '联机玩法开发中', lbTools: '测试工具（临时）',
+  lbErrNetwork: '连不上配对服务器，请检查网络', lbErrSelf: '不能加入自己的房间', lbErrVersion: '双方版本不一致，请更新后重试',
+  lbOffline: '掉线', lbHintPlaying: '游戏已开始（联机玩法开发中）', lbHintWaitHost: '连接中断，正在重连…', lbHintFailed: '自动重连失败，请确认房主在线后手动重连',
+  lbReconnect: '手动重连', lbEndGame: '返回大厅（测试）', lbDbgTitle: '连接状态（测试）', lbRefresh: '刷新',
 });
 Object.assign(I18N.en, {
   multi: 'MULTIPLAYER', mpCreate: 'CREATE ROOM', mpJoin: 'JOIN ROOM', mpBack: 'BACK',
@@ -45,8 +48,11 @@ Object.assign(I18N.en, {
   lbHintGuest: 'Tap Ready when you are set', lbHintReadyGuest: 'Ready — waiting for the host…',
   lbErrCode: 'Enter the 6-character code', lbErrNotFound: 'Room not found', lbErrFull: 'Room is full', lbErrStarted: 'Game already started', lbErrTimeout: 'Timed out, try again',
   lbClosedHost: 'The host closed the room', lbClosedLost: 'Connection lost', lbStartSoon: 'Multiplayer gameplay coming soon', lbTools: 'Test tools (temporary)',
+  lbErrNetwork: 'Cannot reach the pairing server', lbErrSelf: 'You cannot join your own room', lbErrVersion: 'Version mismatch, please update',
+  lbOffline: 'Offline', lbHintPlaying: 'Game started (gameplay coming soon)', lbHintWaitHost: 'Connection lost, reconnecting…', lbHintFailed: 'Auto-reconnect failed. Check the host, then reconnect',
+  lbReconnect: 'Reconnect', lbEndGame: 'Back to lobby (test)', lbDbgTitle: 'Connection (test)', lbRefresh: 'Refresh',
 });
-const ERR_KEY = { notfound: 'lbErrNotFound', full: 'lbErrFull', started: 'lbErrStarted', timeout: 'lbErrTimeout' };
+const ERR_KEY = { notfound: 'lbErrNotFound', full: 'lbErrFull', started: 'lbErrStarted', timeout: 'lbErrTimeout', network: 'lbErrNetwork', self: 'lbErrSelf', version: 'lbErrVersion' };
 
 /* ---------- 样式 ---------- */
 const css = document.createElement('style');
@@ -150,6 +156,8 @@ html[data-lang="en"] .lbBtn { font-size: 16px; letter-spacing: 0.06em; text-inde
 .lbMini { height: 32px; padding: 0 12px; border-radius: 16px; border: 1px solid rgba(217, 192, 138, 0.5);
   background: rgba(255, 236, 200, 0.08); color: #f3e6c8; font-size: 13px; font-weight: 700; }
 .lbMini:active { background: rgba(255, 236, 200, 0.22); }
+.lbDbg { width: 100%; margin: 0; text-align: left; white-space: pre-wrap; word-break: break-all; font: 11px/1.45 ui-monospace, Menlo, monospace;
+  color: #d9c08a; -webkit-user-select: text; user-select: text; }
 `;
 document.head.appendChild(css);
 
@@ -205,7 +213,8 @@ const MockNet = {
     });
   },
   setReady(v) { const p = this._mine(); if (p) { p.ready = !!v; this._push(); } },
-  start() { return wait(150); },
+  start() { this.room.phase = 'playing'; this._push(); return Promise.resolve(); },
+  endGame() { if (!this.room) return; this.room.phase = 'lobby'; this.room.players.forEach((p) => { if (p.token !== this.room.hostToken) p.ready = false; }); this._push(); },
   leave() { this.room = null; },
   // ---- 测试工具 ----
   mockAdd() {
@@ -232,7 +241,7 @@ const MockNet = {
 };
 
 /* ---------- 大厅 ---------- */
-const LB = { form: 'create', view: 'form', room: null, me: null, busy: false };
+const LB = { form: 'create', view: 'form', room: null, me: null, busy: false, status: 'ok', lastPhase: 'lobby' };
 let net = null;
 
 const ov = document.createElement('div');
@@ -246,11 +255,11 @@ function tap(id, fn) { // 带「灰掉就不响应」保护的 bindTap
 }
 function showMsg(text, info) { const m = $('lbMsg'); if (m) { m.textContent = text || ''; m.classList.toggle('info', !!info); } }
 function setBusy(b) { LB.busy = b; const g = $('lbGo'); if (g) g.classList.toggle('off', b); }
-function getNet() { return window.LAN_NET || MockNet; } // 以后 lan.js 挂 window.LAN_NET 就自动换成真网络
+function getNet() { return (window.LAN_NET && !/[?&]mock\b/.test(location.search)) ? window.LAN_NET : MockNet; } // 有 lan.js 就用真网络；网址加 ?mock 强制用模拟
 
 function openLobby(form) {
-  LB.me = loadProfile(); LB.form = form; LB.room = null; LB.busy = false;
-  net = getNet(); net.onRoom = onRoom; net.onClosed = onClosed;
+  LB.me = loadProfile(); LB.form = form; LB.room = null; LB.busy = false; LB.status = 'ok'; LB.lastPhase = 'lobby';
+  net = getNet(); net.onRoom = onRoom; net.onClosed = onClosed; net.onStatus = onStatus;
   renderForm();
   ov.classList.add('show');
 }
@@ -260,7 +269,7 @@ function closeLobby() { // 回到多人主页
   ov.classList.remove('show');
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
 }
-function leaveRoom() { if (net) net.leave(); LB.room = null; renderForm(); }
+function leaveRoom() { if (net) net.leave(); LB.room = null; LB.status = 'ok'; LB.lastPhase = 'lobby'; renderForm(); }
 
 function renderForm() {
   LB.view = 'form';
@@ -301,11 +310,17 @@ async function doGo() {
 }
 
 function onRoom(room) {
-  LB.room = room;
-  if (ov.classList.contains('show')) renderRoom();
+  const prev = LB.lastPhase; LB.lastPhase = room.phase; LB.room = room;
+  if (!ov.classList.contains('show')) return;
+  renderRoom();
+  if (room.phase === 'playing' && prev !== 'playing') showToast(t('lbStartSoon')); // 房主和玩家都由房间状态切到 playing 触发
+}
+function onStatus(s) { // 'ok' | 'waiting' | 'failed'(来自 lan.js 的掉线/重连状态)
+  LB.status = s;
+  if (ov.classList.contains('show') && LB.view === 'room' && LB.room) renderRoom();
 }
 function onClosed(reason) {
-  LB.room = null;
+  LB.room = null; LB.status = 'ok'; LB.lastPhase = 'lobby';
   if (!ov.classList.contains('show')) return;
   renderForm();
   showMsg(t(reason === 'host' ? 'lbClosedHost' : 'lbClosedLost'));
@@ -328,26 +343,33 @@ function renderRoom() {
   for (let i = 0; i < MAX_PLAYERS; i++) {
     const p = r.players[i];
     if (!p) { rows += `<div class="lbRow empty"><i class="lbDot"></i><span class="lbName">${t('lbWaitSlot')}</span></div>`; continue; }
-    const tag = p.token === r.hostToken ? `<span class="lbTag host">${t('lbHost')}</span>`
+    const tag = p.online === false ? `<span class="lbTag wait">${t('lbOffline')}</span>`
+      : p.token === r.hostToken ? `<span class="lbTag host">${t('lbHost')}</span>`
       : p.ready ? `<span class="lbTag ready">${t('lbReady')}</span>` : `<span class="lbTag wait">${t('lbNotReady')}</span>`;
     rows += `<div class="lbRow${p.token === myTok ? ' me' : ''}"><i class="lbDot" style="${skinDot(p.skin)}"></i>` +
       `<span class="lbName">${esc(p.name)}${p.token === myTok ? `<em>(${t('lbMe')})</em>` : ''}</span>${tag}</div>`;
   }
 
+  const playing = r.phase === 'playing', live = LB.status === 'ok';
   let hint, action;
   if (isHost) {
-    hint = r.players.length < 2 ? t('lbHintNeed') : (canStart ? t('lbHintGo') : t('lbHintWait', readyN, guests.length));
-    action = `<button id="lbStart" class="lbBtn${canStart ? '' : ' off'}">${t('lbStart')}</button>`;
+    hint = playing ? t('lbHintPlaying') : r.players.length < 2 ? t('lbHintNeed') : (canStart ? t('lbHintGo') : t('lbHintWait', readyN, guests.length));
+    action = `<button id="lbStart" class="lbBtn${canStart && !playing && live ? '' : ' off'}">${t('lbStart')}</button>`;
   } else {
-    hint = me.ready ? t('lbHintReadyGuest') : t('lbHintGuest');
-    action = `<button id="lbReady" class="lbBtn${me.ready ? ' on' : ''}">${t(me.ready ? 'lbUnready' : 'lbReadyBtn')}</button>`;
+    hint = playing ? t('lbHintPlaying') : me.ready ? t('lbHintReadyGuest') : t('lbHintGuest');
+    action = `<button id="lbReady" class="lbBtn${me.ready ? ' on' : ''}${playing || !live ? ' off' : ''}">${t(me.ready ? 'lbUnready' : 'lbReadyBtn')}</button>`;
   }
+  if (LB.status === 'waiting') hint = t('lbHintWaitHost');
+  if (LB.status === 'failed') { hint = t('lbHintFailed'); action = `<button id="lbReconn" class="lbBtn">${t('lbReconnect')}</button>`; }
 
+  const endBtn = isHost && playing && net && net.endGame ? `<button id="mkEnd" class="lbMini">${t('lbEndGame')}</button>` : '';
   let tools = '';
   if (LOBBY_MOCK && net && net.mockAdd) {
     tools = `<div class="lbTools"><div class="lbToolsTitle">${t('lbTools')}</div>` + (isHost
       ? `<button id="mkAdd" class="lbMini">＋ 玩家</button><button id="mkDel" class="lbMini">－ 玩家</button><button id="mkRdy" class="lbMini">全员 准备/取消</button>`
-      : `<button id="mkAdd" class="lbMini">＋ 玩家</button><button id="mkDel" class="lbMini">－ 玩家</button><button id="mkClose" class="lbMini">房主解散</button>`) + `</div>`;
+      : `<button id="mkAdd" class="lbMini">＋ 玩家</button><button id="mkDel" class="lbMini">－ 玩家</button><button id="mkClose" class="lbMini">房主解散</button>`) + endBtn + `</div>`;
+  } else if (net && net.debugInfo) { // 真网络：显示连接状态，真机没有控制台，靠这里排查
+    tools = `<div class="lbTools"><div class="lbToolsTitle">${t('lbDbgTitle')}</div><pre id="lbDbg" class="lbDbg">${esc(net.debugInfo())}</pre><button id="dbgRefresh" class="lbMini">${t('lbRefresh')}</button>${endBtn}</div>`;
   }
 
   // 已准备的玩家：整个房间界面只剩「取消准备」和「离开房间」可点(名字等都不可改)，见上面 action 只有一个键
@@ -357,8 +379,11 @@ function renderRoom() {
     `<div class="lbBtns">${action}<button id="lbLeave" class="lbBtn red">${t(isHost ? 'lbDisband' : 'lbLeave')}</button></div>${tools}`;
 
   tap('lbReady', () => net.setReady(!me.ready));
-  tap('lbStart', () => { net.start().then(() => showToast(t('lbStartSoon'))); });
+  tap('lbStart', () => { net.start().catch(() => {}); }); // 成功后由 onRoom 里 phase 变 playing 统一弹提示
+  tap('lbReconn', () => net.reconnect());
   tap('lbLeave', leaveRoom);
+  tap('mkEnd', () => net.endGame());
+  tap('dbgRefresh', () => { const d = $('lbDbg'); if (d) d.textContent = net.debugInfo(); });
   if (tools) {
     tap('mkAdd', () => net.mockAdd()); tap('mkDel', () => net.mockDel());
     tap('mkRdy', () => net.mockToggleAll()); tap('mkClose', () => net.mockHostClose());
