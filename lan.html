@@ -1,4 +1,4 @@
-/* lan.js — v1.26.4 本地多人·网络层(第一版：只服务大厅，游戏内同步以后由 Multiplayer.js 经本层收发)。
+/* lan.js — v1.26 本地多人·网络层(第一版：只服务大厅，游戏内同步以后由 Multiplayer.js 经本层收发)。
    方案依据：PeerJS + WebRTC、最多 4 人、Host Authoritative(房主是唯一权威)、不做 Host Migration、玩家身份用 playerToken(不用 Peer ID)。
    本文件只管网络：PeerJS 懒加载 / 房间 / 加入 / 心跳 / 掉线检测 / 自动重连+Resume / 手动重连 / 房主 Peer 重建；不含任何游戏逻辑。
    加载顺序：… → look.js → lobby.js → lan.js。PeerJS 库不在页面打开时加载，第一次「创建/加入房间」才从 CDN 取(固定版本)。
@@ -16,7 +16,7 @@
    debugInfo()             一段给真机排查用的状态文字
    me = { token, name }；room = { code, mode:'race', phase:'lobby'|'playing', hostToken, seq, players:[{token,name,skin,ready,online}] }
 
-   ── 消息(JSON，t=类型)──
+   ── 消息(对象，t=类型；PeerJS 默认序列化)──
    玩家→房主：hello{v,token,name,resume} / ready{v} / ping / leave
    房主→玩家：welcome{room} / reject{reason} / room{room}(完整状态) / hb{seq,ts,p}(每 1s，p=各玩家延迟) / log{e} / closed{reason}
    玩家→房主还有 pong{ts}：收到 hb 立刻原样回 ts，房主用「现在 − ts」算往返延迟，同时它也是玩家「还活着」的信号。
@@ -30,10 +30,9 @@ const HOST_PREFIX = 'box-host-';
 const MAX_PLAYERS = 4;
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 去掉容易混的 0/O/1/I，和 lobby.js 一致
 const SESSION_KEY = 'boxpusher_lan_session_v1';        // 预留给「房主 PWA 被杀后恢复」，这一版只记录不读取
-const PEERJS_URLS = [
-  'https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js',
-  'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js',
-]; // 固定版本；window.LAN_PEERJS_URL 可覆盖(优先尝试)
+// 与已验证的 LAN2.1 实测工具完全一致：unpkg 的 peerjs@1.5.5；不自定义 PeerServer，不配 ICE；
+// Host: new Peer('box-host-'+code, {debug:1})；Player: new Peer(undefined, {debug:1}) + peer.connect(hostId, {reliable:true})
+const PEERJS_URLS = ['https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js'];
 const DEF = {
   HB_MS: 1000,         // 心跳间隔(同时也是延迟刷新间隔)
   DEAD_MS: 8000,       // 超过这么久没动静=掉线
@@ -112,7 +111,7 @@ function createLAN(cfg) {
   function loadPeerJS() {
     if (getPeerCtor()) return Promise.resolve();
     if (libPromise) return libPromise;
-    const urls = [window.LAN_PEERJS_URL].concat(PEERJS_URLS).filter(Boolean);
+    const urls = PEERJS_URLS;
     libPromise = (async () => {
       for (const u of urls) {
         try { await loadScript(u, 10000); if (getPeerCtor()) { dlog('PeerJS loaded', u); return; } } catch (e) { dlog('PeerJS load failed', u); }
@@ -124,8 +123,7 @@ function createLAN(cfg) {
   }
   function newPeer(id) {
     const P = getPeerCtor();
-    const o = Object.assign({ debug: 1 }, window.LAN_PEER_OPTIONS || {});
-    return id ? new P(id, o) : new P(o);
+    return new P(id || undefined, { debug: 1 });
   }
   // 建一个 Peer 并等它连上配对服务器(open)。id 为空=让服务器分配随机 ID
   function openPeer(id, ms) {
@@ -387,7 +385,7 @@ function createLAN(cfg) {
         if (done || ep !== epoch) { safeDestroy(p); fail('cancelled'); return; }
         peer = p;
         peer.on('error', (err) => { if (err && err.type === 'peer-unavailable') fail('notfound'); else dlog('guest peer error', err && err.type); });
-        conn = peer.connect(HOST_PREFIX + code, { reliable: true, serialization: 'json' });
+        conn = peer.connect(HOST_PREFIX + code, { reliable: true });
         conn.on('open', () => { if (!sendTo(conn, { t: 'hello', v: PROTO, token: me.token, name: me.name, resume: !!resume })) fail('timeout'); });
         conn.on('data', (m) => {
           if (done || !m) return;
