@@ -1,4 +1,4 @@
-/* lobby.js — v1.26.4 本地多人：大厅界面（主页多人菜单 / 创建·加入面板 / 房间列表·准备·开始游戏）。
+/* lobby.js — v1.26 本地多人：大厅界面（主页多人菜单 / 创建·加入面板 / 房间列表·准备·开始游戏）。
    自带 DOM / 样式 / 文案(同 look.js 的做法)，只依赖 base.js(Bus·t·I18N·bindTap·SKIN_KEYS·SKIN_COLORS·settings) 和 ui.js(showToast)。
    加载顺序：… → sound.js → look.js → lobby.js →（以后）lan.js。
 
@@ -114,6 +114,9 @@ css.textContent = `
 .lbInput.code { text-align: center; font-size: 24px; font-weight: 900; letter-spacing: 0.35em; text-indent: 0.35em; text-transform: uppercase; }
 .lbMsg { min-height: 22px; margin: 0 0 10px; text-align: center; font-size: 14px; font-weight: 700; color: #ffb089; }
 .lbMsg.info { color: #d9c08a; }
+.lbDiag { margin: -4px 0 10px; max-height: 130px; overflow-y: auto; font: 11px/1.45 ui-monospace, Menlo, monospace; color: rgba(217, 192, 138, 0.75);
+  white-space: pre-wrap; word-break: break-all; text-align: left; -webkit-user-select: text; user-select: text; }
+.lbDiag:empty { display: none; }
 .lbBtns { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-top: 4px; }
 
 /* 木板按钮(素材同设置面板 plank_l)：选中/按下态=整块压暗，红色=关闭类 */
@@ -197,6 +200,7 @@ function tap(id, fn) { // 带「灰掉就不响应」保护的 bindTap
   if (el) bindTap(el, () => { if (!el.classList.contains('off')) fn(); });
 }
 function showMsg(text, info) { const m = $('lbMsg'); if (m) { m.textContent = text || ''; m.classList.toggle('info', !!info); } }
+function showDiag(text) { const d = $('lbDiag'); if (d) d.textContent = text || ''; }
 function setBusy(b) { LB.busy = b; const g = $('lbGo'); if (g) g.classList.toggle('off', b); }
 function getNet() { return window.LAN_NET || null; }
 
@@ -223,7 +227,7 @@ function renderForm() {
   $('lbBody').innerHTML =
     `<div class="lbField"><label>${t('lbName')}</label><input id="lbName" class="lbInput" maxlength="${NAME_MAX}" autocomplete="off" autocorrect="off" spellcheck="false" value="${esc(LB.me.name)}"></div>` +
     (join ? `<div class="lbField"><label>${t('lbCode')}</label><input id="lbCode" class="lbInput code" maxlength="6" inputmode="text" autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="${t('lbCodePh')}"></div>` : '') +
-    `<div id="lbMsg" class="lbMsg"></div>` +
+    `<div id="lbMsg" class="lbMsg"></div><div id="lbDiag" class="lbDiag"></div>` +
     `<div class="lbBtns"><button id="lbGo" class="lbBtn">${t(join ? 'lbJoinGo' : 'lbCreateGo')}</button><button id="lbBack" class="lbBtn red">${t('lbBack')}</button></div>`;
   const nameEl = $('lbName'), codeEl = $('lbCode');
   nameEl.addEventListener('blur', () => { LB.me.name = cleanName(nameEl.value) || LB.me.name; nameEl.value = LB.me.name; saveProfile(LB.me); window.scrollTo(0, 0); });
@@ -248,9 +252,12 @@ async function doGo() {
     if (code.length !== 6) { showMsg(t('lbErrCode')); return; }
   }
   if (!net) { showMsg(t('lbErrNetwork')); return; } // lan.js 没加载
-  setBusy(true); showMsg(join ? t('lbConnecting') : '', true);
+  setBusy(true); showMsg(join ? t('lbConnecting') : '', true); showDiag('');
   try { if (join) await net.join({ code, me: meInfo }); else await net.create({ me: meInfo }); } // 成功后房间状态走 onRoom 渲染
-  catch (e) { showMsg(t(ERR_KEY[e && e.reason] || 'lbErrTimeout') + (e && e.detail ? ` [${e.detail}]` : '')); } // 网络类错误附上原因代码，方便排查
+  catch (e) {
+    showMsg(t(ERR_KEY[e && e.reason] || 'lbErrTimeout') + (e && e.detail ? ` [${e.detail}]` : '')); // 网络类错误附上原因代码，方便排查
+    if (e && e.reason === 'network' && net.diag) showDiag(net.diag()); // 并把最近几条网络日志直接显示在屏幕上(真机没有控制台)
+  }
   setBusy(false);
 }
 
