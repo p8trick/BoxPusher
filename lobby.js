@@ -1,4 +1,4 @@
-/* lobby.js — v1.26.2 本地多人：大厅界面（主页多人菜单 / 创建·加入面板 / 房间列表·准备·开始游戏）。
+/* lobby.js — v1.26 本地多人：大厅界面（主页多人菜单 / 创建·加入面板 / 房间列表·准备·开始游戏）。
    自带 DOM / 样式 / 文案(同 look.js 的做法)，只依赖 base.js(Bus·t·I18N·bindTap·SKIN_KEYS·SKIN_COLORS·settings) 和 ui.js(showToast)。
    加载顺序：… → sound.js → look.js → lobby.js →（以后）lan.js。
 
@@ -250,7 +250,7 @@ async function doGo() {
   if (!net) { showMsg(t('lbErrNetwork')); return; } // lan.js 没加载
   setBusy(true); showMsg(join ? t('lbConnecting') : '', true);
   try { if (join) await net.join({ code, me: meInfo }); else await net.create({ me: meInfo }); } // 成功后房间状态走 onRoom 渲染
-  catch (e) { showMsg(t(ERR_KEY[e && e.reason] || 'lbErrTimeout')); }
+  catch (e) { showMsg(t(ERR_KEY[e && e.reason] || 'lbErrTimeout') + (e && e.detail ? ` [${e.detail}]` : '')); } // 网络类错误附上原因代码，方便排查
   setBusy(false);
 }
 
