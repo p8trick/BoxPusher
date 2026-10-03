@@ -1,4 +1,4 @@
-/* lobby.js — v1.26 本地多人：大厅界面（主页多人菜单 / 创建·加入面板 / 房间列表·准备·开始游戏）。
+/* lobby.js — v1.26.1 本地多人：大厅界面（主页多人菜单 / 创建·加入面板 / 房间列表·准备·开始游戏）。
    自带 DOM / 样式 / 文案(同 look.js 的做法)，只依赖 base.js(Bus·t·I18N·bindTap·SKIN_KEYS·SKIN_COLORS·settings) 和 ui.js(showToast)。
    加载顺序：… → sound.js → look.js → lobby.js →（以后）lan.js。
 
