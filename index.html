@@ -5,7 +5,7 @@
 <script>
 /* ===== 版本号：发版只改这一行 =====
    主页右下角的版本号、style.css / base.js / ui.js 三个文件的 ?v= 缓存参数，全部从这里生成(避坑 B8)。 */
-var APP_VERSION = '1.3.0';
+var APP_VERSION = '1.25.15';
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1068,5 +1068,7 @@ loadInitialLevel();
 <script>document.write('<scr' + 'ipt src="look.js?v=' + APP_VERSION + '"></scr' + 'ipt>');</script>
 <!-- 本地多人大厅(v1.26)：自带 DOM/样式/文案，依赖 base.js/ui.js；以后的 lan.js 放它后面；?v= 同样跟 APP_VERSION -->
 <script>document.write('<scr' + 'ipt src="lobby.js?v=' + APP_VERSION + '"></scr' + 'ipt>');</script>
+<!-- 本地多人网络层(v1.26)：PeerJS 在第一次创建/加入房间时才从 CDN 加载；没有它大厅自动退回模拟模式 -->
+<script>document.write('<scr' + 'ipt src="lan.js?v=' + APP_VERSION + '"></scr' + 'ipt>');</script>
 </body>
 </html>
