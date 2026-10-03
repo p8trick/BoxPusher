@@ -1,4 +1,4 @@
-/* lan.js — v1.26.5 本地多人·网络层(第一版：只服务大厅，游戏内同步以后由 Multiplayer.js 经本层收发)。
+/* lan.js — v1.26 本地多人·网络层(第一版：只服务大厅，游戏内同步以后由 Multiplayer.js 经本层收发)。
    方案依据：PeerJS + WebRTC、最多 4 人、Host Authoritative(房主是唯一权威)、不做 Host Migration、玩家身份用 playerToken(不用 Peer ID)。
    本文件只管网络：PeerJS 懒加载 / 房间 / 加入 / 心跳 / 掉线检测 / 自动重连+Resume / 手动重连 / 房主 Peer 重建；不含任何游戏逻辑。
    加载顺序：… → look.js → lobby.js → lan.js。PeerJS 库不在页面打开时加载，第一次「创建/加入房间」才从 CDN 取(固定版本)。
@@ -100,9 +100,10 @@ function createLAN(cfg) {
     return new Promise((resolve, reject) => {
       const s = document.createElement('script');
       let done = false;
-      const to = setTimeout(() => { if (!done) { done = true; s.remove(); reject(new Error('timeout')); } }, ms);
-      s.onload = () => { if (!done) { done = true; clearTimeout(to); resolve(); } };
-      s.onerror = () => { if (!done) { done = true; clearTimeout(to); s.remove(); reject(new Error('load error')); } };
+      const t0 = Date.now();
+      const to = setTimeout(() => { if (!done) { done = true; s.remove(); dlog('script timeout', ms + 'ms'); reject(new Error('timeout')); } }, ms);
+      s.onload = () => { if (!done) { done = true; clearTimeout(to); dlog('script loaded', (Date.now() - t0) + 'ms'); resolve(); } };
+      s.onerror = () => { if (!done) { done = true; clearTimeout(to); s.remove(); dlog('script error event', (Date.now() - t0) + 'ms'); reject(new Error('load error')); } };
       s.src = url;
       document.head.appendChild(s);
     });
@@ -114,7 +115,8 @@ function createLAN(cfg) {
     const urls = PEERJS_URLS;
     libPromise = (async () => {
       for (const u of urls) {
-        try { await loadScript(u, 10000); if (getPeerCtor()) { dlog('PeerJS loaded', u); return; } } catch (e) { dlog('PeerJS load failed', u); }
+        dlog('loading', u);
+        try { await loadScript(u, 10000); if (getPeerCtor()) { dlog('PeerJS ready'); return; } dlog('script ok but no window.Peer; keys=', Object.keys(window).filter((k) => /peer/i.test(k)).join(',')); } catch (e) { dlog('PeerJS load failed:', e && e.message); }
       }
       throw { reason: 'network', detail: 'lib' }; // 所有 CDN 地址都没加载成功
     })();
@@ -129,13 +131,16 @@ function createLAN(cfg) {
   function openPeer(id, ms) {
     return new Promise((resolve, reject) => {
       let peer, settled = false;
+      const t0 = Date.now();
+      dlog('new Peer', id || '(auto id)');
       try { peer = newPeer(id); } catch (e) { dlog('new Peer threw', e && e.message); reject({ reason: 'network', detail: 'ctor' }); return; }
-      const to = setTimeout(() => { if (settled) return; settled = true; dlog('peer open timeout'); safeDestroy(peer); reject({ reason: 'network', detail: 'open-timeout' }); }, ms);
-      peer.on('open', () => { if (settled) return; settled = true; clearTimeout(to); resolve(peer); });
+      const to = setTimeout(() => { if (settled) return; settled = true; dlog('peer open timeout after', (Date.now() - t0) + 'ms'); safeDestroy(peer); reject({ reason: 'network', detail: 'open-timeout' }); }, ms);
+      peer.on('open', () => { if (settled) return; settled = true; clearTimeout(to); dlog('peer open', peer.id, (Date.now() - t0) + 'ms'); resolve(peer); });
+      peer.on('disconnected', () => { if (!settled) dlog('peer disconnected before open', (Date.now() - t0) + 'ms'); });
       peer.on('error', (err) => {
         if (settled) return; settled = true; clearTimeout(to); safeDestroy(peer);
         const type = (err && err.type) || 'unknown';
-        dlog('peer error', type, err && err.message);
+        dlog('peer error', type, (err && err.message) || '', (Date.now() - t0) + 'ms');
         reject(type === 'unavailable-id' ? { reason: 'idtaken' } : { reason: 'network', detail: 'peer:' + type });
       });
     });
@@ -151,6 +156,7 @@ function createLAN(cfg) {
     if (state !== 'IDLE') teardown();
     const ep = ++epoch;
     state = 'CREATING';
+    dlog('create start; online=' + navigator.onLine + ' standalone=' + !!(navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches)) + ' page=' + location.protocol + '//' + location.host);
     try {
       await loadPeerJS();
       if (ep !== epoch) throw { reason: 'cancelled' };
@@ -532,7 +538,7 @@ function createLAN(cfg) {
   }
 
   Object.assign(L, {
-    create, join, setReady, start, cancelStart: () => cancelStart('host'), endGame, leave, reconnect, debugInfo, loadPeerJS,
+    create, join, setReady, diag: () => logs.slice(-10).join('\n'), start, cancelStart: () => cancelStart('host'), endGame, leave, reconnect, debugInfo, loadPeerJS,
     session() { try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch (e) { return null; } },
   });
   // 只读属性必须用 defineProperty：Object.assign 会把 getter 当场求值成死值
