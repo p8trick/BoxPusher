@@ -30,7 +30,7 @@ const PROTO = 1;
 const HOST_PREFIX = 'box-host-';
 const MAX_PLAYERS = 4;
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 去掉容易混的 0/O/1/I，和 lobby.js 一致
-const SESSION_KEY = 'boxpusher_lan_session_v1';        // 预留给「房主 PWA 被杀后恢复」，这一版只记录不读取
+const SESSION_KEY = 'boxpusher_lan_session_v1';        // 房主：{role:'host',code,token,players,t}，App 被杀后用来恢复同一个房间；玩家：{role:'guest',code,token,t}
 // 与已验证的 LAN2.1 实测工具完全一致：unpkg 的 peerjs@1.5.5；不自定义 PeerServer，不配 ICE；
 // Host: new Peer('box-host-'+code, {debug:1})；Player: new Peer(undefined, {debug:1}) + peer.connect(hostId, {reliable:true})
 const PEERJS_URLS = ['https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js'];
@@ -44,6 +44,11 @@ const DEF = {
   JOIN_MS: 16000,      // 一次加入的总超时
   ATTEMPT_MS: 7000,    // 一次自动重连的总超时
   HELLO_MS: 6000,      // 房主等对方 hello 的超时
+  CONNECT_MS: 10000,   // 已连上配对服务器后，等房主应答(P2P 建立)的超时
+  RESTORE_MS: 45000,   // 恢复房间时，旧连接还占着配对码，最多等多久
+  RESTORE_RETRY_MS: 2500,
+  SESSION_TTL: 30 * 60 * 1000, // 房主会话(用于被杀后恢复房间)的有效期
+  NO_RECOVER: false,   // 测试用：关掉房主 Peer 自动重建
   CD_SEC: 3,           // 开始游戏倒计时秒数
   CD_MS: 1000,         // 倒计时每一格的毫秒数(测试里调小)
 };
@@ -65,6 +70,7 @@ function createLAN(cfg) {
   const offlineSince = new Map(); // 房主：token → 掉线时间
   const pings = new Map();        // 房主：token → 最近一次往返延迟(ms)
   let cdTimer = null, cdLeft = 0; // 开始倒计时
+  let saveTick = 0;
   let lastTickAt = 0, hiddenAt = 0, resumedAt = 0, awayMs = 0, hostBackAt = 0; // 判断「是谁掉线/被挂起」用
   const G = { me: null, code: '', peer: null, conn: null, tick: null, lastHb: 0, attempts: 0, retryTimer: null };
 
@@ -185,7 +191,7 @@ function createLAN(cfg) {
         players: [{ token: me.token, name: cleanName(me.name) || 'Player', skin: skinKeys()[0], ready: true, online: true }] };
       wireHostPeer(peer);
       startHostTick();
-      saveSession({ role: 'host', code, token: me.token, t: Date.now() });
+      persistHost();
       state = 'HOST_ACTIVE';
       dlog('room created', code, 'peer', peer.id);
       logEv('created');
@@ -196,6 +202,53 @@ function createLAN(cfg) {
       throw (e && e.reason) ? e : { reason: 'network', detail: 'unknown' };
     }
   }
+
+  // 房主 App 被杀(主动划掉或被系统杀掉)后重新打开：用同一个配对码重建房间。玩家 token 不变，他们点「手动重连」/自动重连就能回来。
+  // 主动点「解散房间」的不会被恢复(会话已清掉)。恢复后全员「准备」重置、回到大厅阶段。
+  async function restore(args) {
+    const me = args && args.me;
+    const ss = readHostSession(me && me.token);
+    if (!ss) throw { reason: 'nosession' };
+    if (state !== 'IDLE') teardown();
+    const ep = ++epoch;
+    state = 'CREATING';
+    const t0 = Date.now(), nap = (ms) => new Promise((r) => setTimeout(r, ms));
+    try {
+      await loadPeerJS();
+      if (ep !== epoch) throw { reason: 'cancelled' };
+      let peer = null, netFails = 0;
+      while (!peer) {
+        try { peer = await openPeer(HOST_PREFIX + ss.code, C.OPEN_MS); }
+        catch (e) {
+          if (ep !== epoch) throw { reason: 'cancelled' };
+          if (e.reason === 'idtaken') { // 被杀前的旧连接还在服务器上占着这个 ID(最长约一分钟)，隔几秒再试
+            if (Date.now() - t0 > C.RESTORE_MS) throw { reason: 'busy', detail: 'id-held' };
+            dlog('restore: id still held, retry'); await nap(C.RESTORE_RETRY_MS);
+            if (ep !== epoch) throw { reason: 'cancelled' };
+          } else { if (++netFails >= 2) throw e; await nap(800); }
+        }
+      }
+      if (ep !== epoch) { safeDestroy(peer); throw { reason: 'cancelled' }; }
+      role = 'host'; hostPeer = peer;
+      const now = Date.now();
+      const players = ss.players.filter((p) => p && p.token && p.token !== me.token).slice(0, MAX_PLAYERS - 1).map((p) => ({ // 其余玩家先标记掉线，等他们重连；给足时间不被移出
+        token: String(p.token), name: cleanName(p.name) || 'Player', skin: p.skin || 'classic', ready: false, online: false }));
+      players.forEach((p) => offlineSince.set(p.token, now + 60000));
+      const mine = ss.players.find((p) => p && p.token === me.token);
+      room = { code: ss.code, mode: 'race', phase: 'lobby', hostToken: me.token, seq: 0,
+        players: [{ token: me.token, name: cleanName(me.name) || (mine && mine.name) || 'Player', skin: (mine && mine.skin) || skinKeys()[0], ready: true, online: true }].concat(players) };
+      wireHostPeer(peer); startHostTick(); persistHost();
+      state = 'HOST_ACTIVE';
+      dlog('room restored', ss.code, 'players', room.players.length);
+      logEv('restored');
+      emitStatus('ok'); emitRoom();
+    } catch (e) {
+      if (ep === epoch) { teardown(); saveSession(ss); } // 失败不丢会话，稍后还能再试
+      dlog('restore failed', e && e.reason, e && e.detail);
+      throw (e && e.reason) ? e : { reason: 'network', detail: 'unknown' };
+    }
+  }
+  function hostSession(tok) { const s = readHostSession(tok); return s ? { code: s.code, count: s.players.length } : null; }
 
   function wireHostPeer(peer) {
     peer.on('connection', onIncoming);
@@ -214,7 +267,7 @@ function createLAN(cfg) {
   }
   // 房主的 Peer 整个失效(iOS 切后台太久等)：用同一个房间码重建，玩家会自动/手动重连回来
   function hostRecover() {
-    if (role !== 'host' || state === 'HOST_RECOVERING') return;
+    if (role !== 'host' || state === 'HOST_RECOVERING' || C.NO_RECOVER) return;
     state = 'HOST_RECOVERING'; emitStatus('waiting');
     cancelStart('host');
     const ep = epoch; let n = 0;
@@ -229,7 +282,7 @@ function createLAN(cfg) {
         hostPeer = peer; wireHostPeer(peer); state = 'HOST_ACTIVE'; emitStatus('ok'); dlog('host rebuilt after', n, 'tries'); hostBackLog();
       }).catch(() => {
         if (ep !== epoch) return;
-        if (n >= 12) { state = 'HOST_INVALID'; emitStatus('failed'); dlog('host rebuild gave up'); }
+        if (n >= 24) { state = 'HOST_INVALID'; emitStatus('failed'); dlog('host rebuild gave up'); }
         else setTimeout(attempt, 2500); // 旧 ID 可能还在服务器上占着，过几秒再试
       });
     };
@@ -288,7 +341,7 @@ function createLAN(cfg) {
     room.seq++;
     sendTo(conn, { t: 'welcome', room: snap() });
     bcast({ t: 'room', room: snap() }, tok);
-    emitRoom();
+    emitRoom(); persistHost();
     logEv(resumed ? 'back' : 'join', { n: p.name }); // 日志发给包括他自己在内的所有人：他看到的第一条就是自己加入
   }
 
@@ -324,7 +377,18 @@ function createLAN(cfg) {
     bcast({ t: 'log', e });
     if (L.onLog) { try { L.onLog(e); } catch (x) { console.error(x); } }
   }
-  function changed(exceptTok) { room.seq++; bcast({ t: 'room', room: snap() }, exceptTok); emitRoom(); }
+  function changed(exceptTok) { room.seq++; bcast({ t: 'room', room: snap() }, exceptTok); emitRoom(); persistHost(); }
+  function persistHost() { // 房间每变一次、以及每隔几秒存一份：房主 App 被杀后能用同一个配对码恢复，玩家身份(token)不变
+    if (role !== 'host' || !room) return;
+    saveSession({ role: 'host', code: room.code, token: room.hostToken, t: Date.now(),
+      players: room.players.map((p) => ({ token: p.token, name: p.name, skin: p.skin })) });
+  }
+  function readHostSession(tok) {
+    const s = L.session();
+    if (!s || s.role !== 'host' || !tok || s.token !== tok || !/^[A-Z2-9]{6}$/.test(s.code || '') || !Array.isArray(s.players)) return null;
+    if (Date.now() - (s.t || 0) > C.SESSION_TTL) return null;
+    return s;
+  }
   function bcast(msg, exceptTok) { conns.forEach((c, tok) => { if (tok !== exceptTok) sendTo(c, msg); }); }
 
   function startHostTick() {
@@ -356,7 +420,7 @@ function createLAN(cfg) {
           room.players = keep; dirty = true; dlog('drop long-offline');
         }
       }
-      if (dirty) changed();
+      if (dirty) changed(); else if (++saveTick % 5 === 0) persistHost(); // 没变化时也刷新时间戳，保证长时间待机的房间不会过期
     }, C.HB_MS);
   }
 
@@ -393,25 +457,40 @@ function createLAN(cfg) {
      玩家
      ====================================================================== */
   // 一次「连上房主 → hello → 等 welcome」。成功 resolve {peer, conn, room}，失败 reject {reason}
+  // 探测房间是否存在：试着自己注册房主的 ID。注册成功=没有房主在用它(房间不存在)，服务器会立刻回应，不用等 5 秒以上的「找不到对方」超时；
+  // 报「ID 已被占用」=房主在线。其他错误=不确定，交给后面的正常连接去判断。
+  async function probeHost(code) {
+    let p;
+    try { p = await openPeer(HOST_PREFIX + code, 6000); }
+    catch (e) { return e && e.reason === 'idtaken' ? true : null; }
+    safeDestroy(p);
+    return false;
+  }
+  // 一次「探测 → 连上房主 → hello → 等 welcome」。成功 resolve {peer, conn, room}，失败 reject {reason}
   function dial(code, me, resume, budgetMs, ep) {
     return new Promise((resolve, reject) => {
-      let peer = null, conn = null, done = false;
+      let peer = null, conn = null, done = false, connTimer = null;
       const to = setTimeout(() => fail('timeout'), budgetMs);
-      function fail(reason, detail) { if (done) return; done = true; clearTimeout(to); safeDestroy(peer); reject({ reason, detail }); }
-      openPeer(null, Math.min(C.OPEN_MS, budgetMs)).then((p) => {
+      function fail(reason, detail) { if (done) return; done = true; clearTimeout(to); clearTimeout(connTimer); safeDestroy(peer); reject({ reason, detail }); }
+      (async () => {
+        const exists = await probeHost(code);
+        if (done || ep !== epoch) { fail('cancelled'); return; }
+        if (exists === false) { dlog('probe: no host for', code); fail('notfound'); return; }
+        const p = await openPeer(null, Math.min(C.OPEN_MS, budgetMs));
         if (done || ep !== epoch) { safeDestroy(p); fail('cancelled'); return; }
         peer = p;
         peer.on('error', (err) => { if (err && err.type === 'peer-unavailable') fail('notfound'); else dlog('guest peer error', err && err.type); });
         conn = peer.connect(HOST_PREFIX + code, { reliable: true });
+        connTimer = setTimeout(() => { dlog('no answer from host in', C.CONNECT_MS + 'ms'); fail('timeout', 'connect'); }, C.CONNECT_MS);
         conn.on('open', () => { if (!sendTo(conn, { t: 'hello', v: PROTO, token: me.token, name: me.name, resume: !!resume })) fail('timeout'); });
         conn.on('data', (m) => {
           if (done || !m) return;
-          if (m.t === 'welcome') { done = true; clearTimeout(to); resolve({ peer, conn, room: m.room }); }
+          if (m.t === 'welcome') { done = true; clearTimeout(to); clearTimeout(connTimer); resolve({ peer, conn, room: m.room }); }
           else if (m.t === 'reject') fail(m.reason || 'timeout');
         });
         conn.on('close', () => fail('timeout'));
         conn.on('error', () => fail('timeout'));
-      }).catch((e) => fail((e && e.reason) || 'network', e && e.detail));
+      })().catch((e) => fail((e && e.reason) || 'network', e && e.detail));
     });
   }
 
@@ -556,7 +635,7 @@ function createLAN(cfg) {
   }
 
   Object.assign(L, {
-    create, join, setReady, diag: () => logs.slice(-10).join('\n'), start, cancelStart: () => cancelStart('host'), endGame, leave, reconnect, debugInfo, loadPeerJS,
+    create, restore, hostSession, join, setReady, diag: () => logs.slice(-10).join('\n'), start, cancelStart: () => cancelStart('host'), endGame, leave, reconnect, debugInfo, loadPeerJS,
     session() { try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch (e) { return null; } },
   });
   // 只读属性必须用 defineProperty：Object.assign 会把 getter 当场求值成死值
