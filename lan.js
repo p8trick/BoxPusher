@@ -1,4 +1,4 @@
-/* lan.js — v1.26.6 本地多人·网络层(第一版：只服务大厅，游戏内同步以后由 Multiplayer.js 经本层收发)。
+/* lan.js — 本地多人·网络层(目前只服务大厅，游戏内同步以后由 Multiplayer.js 经本层收发)。
    方案依据：PeerJS + WebRTC、最多 4 人、Host Authoritative(房主是唯一权威)、不做 Host Migration、玩家身份用 playerToken(不用 Peer ID)。
    本文件只管网络：PeerJS 懒加载 / 房间 / 加入 / 心跳 / 掉线检测 / 自动重连+Resume / 手动重连 / 房主 Peer 重建；不含任何游戏逻辑。
    加载顺序：… → look.js → lobby.js → lan.js。PeerJS 库不在页面打开时加载，第一次「创建/加入房间」才从 CDN 取(固定版本)。
@@ -49,7 +49,7 @@ const DEF = {
 
 function createLAN(cfg) {
   const C = Object.assign({}, DEF, cfg || {});
-  const L = { version: '0.2.0', onRoom: null, onClosed: null, onStatus: null, onLatency: null, onLog: null };
+  const L = { onRoom: null, onClosed: null, onStatus: null, onLatency: null, onLog: null };
 
   /* ---------- 状态 ----------
      房主：IDLE → CREATING → HOST_ACTIVE ⇄ HOST_RECOVERING → (HOST_INVALID：重建失败，等手动)
