@@ -1,4 +1,4 @@
-/* lobby.js — v1.26.6 本地多人：大厅界面（主页多人菜单 / 创建·加入面板 / 房间列表·准备·开始游戏）。
+/* lobby.js — 本地多人：大厅界面（主页多人菜单 / 创建·加入面板 / 房间列表·准备·开始游戏）。
    自带 DOM / 样式 / 文案(同 look.js 的做法)，只依赖 base.js(Bus·t·I18N·bindTap·SKIN_KEYS·SKIN_COLORS·settings) 和 ui.js(showToast)。
    加载顺序：… → sound.js → look.js → lobby.js →（以后）lan.js。
 
@@ -30,7 +30,7 @@ Object.assign(I18N.zh, {
   lbHintGuest: '准备好后点「准备」', lbHintReadyGuest: '已准备，等待房主开始…',
   lbErrCode: '请输入 6 位配对码', lbErrNotFound: '找不到这个房间，请检查配对码', lbErrFull: '房间已满', lbErrStarted: '游戏已经开始', lbErrTimeout: '连接超时，请重试',
   lbClosedHost: '房主已解散房间', lbClosedLost: '与房间的连接断开了', lbStartSoon: '联机玩法开发中',
-  lbErrNetwork: '连不上配对服务器，请检查网络', lbErrSelf: '不能加入自己的房间', lbErrVersion: '双方版本不一致，请更新后重试',
+  lbErrNetwork: '连不上配对服务器，请检查网络', lbErrNoLan: '联机模块 lan.js 没有加载：请检查 index.html 是否引入了 lan.js，且文件在根目录', lbErrSelf: '不能加入自己的房间', lbErrVersion: '双方版本不一致，请更新后重试',
   lbOffline: '掉线', lbHintPlaying: '游戏已开始（联机玩法开发中）', lbHintWaitHost: '连接中断，正在重连…', lbHintFailed: '自动重连失败，请确认房主在线后手动重连',
   lbReconnect: '手动重连', lbCancelStart: '取消开始', lbBackLobby: '返回大厅', lbHintStarting: (n) => `游戏将在 ${n} 秒后开始…`,
   lbLogCreated: '房间已创建', lbLogJoin: (n) => `${n} 加入了房间`, lbLogLeave: (n) => `${n} 离开了房间`, lbLogOffline: (n) => `${n} 掉线了`, lbLogBack: (n) => `${n} 重新连上了`,
@@ -49,7 +49,7 @@ Object.assign(I18N.en, {
   lbHintGuest: 'Tap Ready when you are set', lbHintReadyGuest: 'Ready — waiting for the host…',
   lbErrCode: 'Enter the 6-character code', lbErrNotFound: 'Room not found, check the code', lbErrFull: 'Room is full', lbErrStarted: 'Game already started', lbErrTimeout: 'Timed out, try again',
   lbClosedHost: 'The host closed the room', lbClosedLost: 'Connection lost', lbStartSoon: 'Multiplayer gameplay coming soon',
-  lbErrNetwork: 'Cannot reach the pairing server', lbErrSelf: 'You cannot join your own room', lbErrVersion: 'Version mismatch, please update',
+  lbErrNetwork: 'Cannot reach the pairing server', lbErrNoLan: 'lan.js is not loaded: check index.html includes it and the file is in the root', lbErrSelf: 'You cannot join your own room', lbErrVersion: 'Version mismatch, please update',
   lbOffline: 'Offline', lbHintPlaying: 'Game started (gameplay coming soon)', lbHintWaitHost: 'Connection lost, reconnecting…', lbHintFailed: 'Auto-reconnect failed. Check the host, then reconnect',
   lbReconnect: 'Reconnect', lbCancelStart: 'Cancel', lbBackLobby: 'Back to lobby', lbHintStarting: (n) => `Starting in ${n}…`,
   lbLogCreated: 'Room created', lbLogJoin: (n) => `${n} joined`, lbLogLeave: (n) => `${n} left`, lbLogOffline: (n) => `${n} went offline`, lbLogBack: (n) => `${n} reconnected`,
@@ -209,6 +209,7 @@ function openLobby(form) {
   net = getNet();
   if (net) { net.onRoom = onRoom; net.onClosed = onClosed; net.onStatus = onStatus; net.onLatency = onLatency; net.onLog = onLog; }
   renderForm();
+  if (!net) showMsg(t('lbErrNoLan')); // 一打开面板就提示，不用等点创建
   ov.classList.add('show');
 }
 function closeLobby() { // 回到多人主页
@@ -251,7 +252,7 @@ async function doGo() {
     code = $('lbCode').value.toUpperCase().replace(/[^A-Z0-9]/g, '');
     if (code.length !== 6) { showMsg(t('lbErrCode')); return; }
   }
-  if (!net) { showMsg(t('lbErrNetwork')); return; } // lan.js 没加载
+  if (!net) { showMsg(t('lbErrNoLan')); return; } // lan.js 没加载：这和「网络不通」是两回事，要分开提示
   setBusy(true); showMsg(join ? t('lbConnecting') : '', true); showDiag('');
   try { if (join) await net.join({ code, me: meInfo }); else await net.create({ me: meInfo }); } // 成功后房间状态走 onRoom 渲染
   catch (e) {
