@@ -39,7 +39,7 @@ var APP_VERSION = '1.25.15';
     <button class="homeBtn" id="homeStart">START</button>
     <button class="homeBtn" id="homeLevels" data-i18n="levels">LEVELS</button>
     <button class="homeBtn" id="homeSettings" data-i18n="settings">SETTINGS</button>
-    <button class="homeBtn disabled" id="homeDev" disabled data-i18n="soon">COMING SOON</button>
+    <button class="homeBtn" id="homeMulti" data-i18n="multi">MULTIPLAYER</button>
   </div>
   <div id="homeVersion"></div><script>document.getElementById('homeVersion').textContent = 'v' + APP_VERSION;</script>
   <div id="homeCredit">Assets: Kenney Sokoban Pack (CC0)<br>Levels: David W. Skinner</div>
@@ -1052,7 +1052,7 @@ document.addEventListener('contextmenu', (e) => e.preventDefault()); // 拦长�
 // range滑块需要原生touch拖拽手势，排除在外，否则拖不动
 document.addEventListener('touchstart', (e) => {
   if (e.target.tagName === 'INPUT' && e.target.type === 'range') return;
-  if (e.target.closest && e.target.closest('#levelPickSheet, #settingsSheet')) return; // 选关面板(滚动容器是sheet本身，不是list)/设置面板要能滚动
+  if (e.target.closest && e.target.closest('#levelPickSheet, #settingsSheet, #lobbySheet')) return; // 选关面板(滚动容器是sheet本身，不是list)/设置面板/多人大厅(含输入框，必须放行才能聚焦)要能滚动
   e.preventDefault();
 }, { passive: false });
 
@@ -1066,5 +1066,7 @@ loadInitialLevel();
 <script>document.write('<scr' + 'ipt src="sound.js?v=' + APP_VERSION + '"></scr' + 'ipt>');</script>
 <!-- 游戏外观二级面板：独立模块，自带入口按钮/DOM/样式/文案，只依赖 base.js/ui.js 的公开函数；?v= 同样跟 APP_VERSION -->
 <script>document.write('<scr' + 'ipt src="look.js?v=' + APP_VERSION + '"></scr' + 'ipt>');</script>
+<!-- 本地多人大厅(v1.26)：自带 DOM/样式/文案，依赖 base.js/ui.js；以后的 lan.js 放它后面；?v= 同样跟 APP_VERSION -->
+<script>document.write('<scr' + 'ipt src="lobby.js?v=' + APP_VERSION + '"></scr' + 'ipt>');</script>
 </body>
 </html>
