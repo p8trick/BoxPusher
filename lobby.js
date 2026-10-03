@@ -33,7 +33,8 @@ Object.assign(I18N.zh, {
   lbErrNetwork: '连不上配对服务器，请检查网络', lbErrNoLan: '联机模块 lan.js 没有加载：请检查 index.html 是否引入了 lan.js，且文件在根目录', lbErrSelf: '不能加入自己的房间', lbErrVersion: '双方版本不一致，请更新后重试',
   lbOffline: '掉线', lbHintPlaying: '游戏已开始（联机玩法开发中）', lbHintWaitHost: '连接中断，正在重连…', lbHintFailed: '自动重连失败，请确认房主在线后手动重连',
   lbReconnect: '手动重连', lbCancelStart: '取消开始', lbBackLobby: '返回大厅', lbHintStarting: (n) => `游戏将在 ${n} 秒后开始…`,
-  lbLogCreated: '房间已创建', lbLogJoin: (n) => `${n} 加入了房间`, lbLogLeave: (n) => `${n} 离开了房间`, lbLogOffline: (n) => `${n} 掉线了`, lbLogBack: (n) => `${n} 重新连上了`,
+  lbLogCreated: '房间已创建', lbLogJoin: (n) => `${n} 加入了房间`, lbLogLeave: (n) => `${n} 离开了房间`, lbLogOffline: (n) => `玩家 ${n} 掉线了`, lbLogBack: (n) => `玩家 ${n} 已重新上线`, lbLogTimeout: (n) => `${n} 掉线超时，已移出房间`,
+  lbLogHostOff: (n) => `房主 ${n} 掉线了`, lbLogHostBack: (n) => `房主 ${n} 已重新上线`, lbRejoin: '加入上次房间', lbLastCode: (c) => `上次的配对码：${c}`,
   lbLogCd: (s) => `游戏将在 ${s} 秒后开始…`, lbLogGo: '游戏开始！（联机玩法开发中）',
   lbLogCdCancel: (why, n) => (why === 'host' ? '房主取消了开始' : why === 'unready' ? `${n} 取消了准备，已取消开始` : why === 'left' ? `${n} 离开了，已取消开始` : why === 'offline' ? `${n} 掉线了，已取消开始` : '已取消开始'),
 });
@@ -52,7 +53,8 @@ Object.assign(I18N.en, {
   lbErrNetwork: 'Cannot reach the pairing server', lbErrNoLan: 'lan.js is not loaded: check index.html includes it and the file is in the root', lbErrSelf: 'You cannot join your own room', lbErrVersion: 'Version mismatch, please update',
   lbOffline: 'Offline', lbHintPlaying: 'Game started (gameplay coming soon)', lbHintWaitHost: 'Connection lost, reconnecting…', lbHintFailed: 'Auto-reconnect failed. Check the host, then reconnect',
   lbReconnect: 'Reconnect', lbCancelStart: 'Cancel', lbBackLobby: 'Back to lobby', lbHintStarting: (n) => `Starting in ${n}…`,
-  lbLogCreated: 'Room created', lbLogJoin: (n) => `${n} joined`, lbLogLeave: (n) => `${n} left`, lbLogOffline: (n) => `${n} went offline`, lbLogBack: (n) => `${n} reconnected`,
+  lbLogCreated: 'Room created', lbLogJoin: (n) => `${n} joined`, lbLogLeave: (n) => `${n} left`, lbLogOffline: (n) => `Player ${n} went offline`, lbLogBack: (n) => `Player ${n} is back online`, lbLogTimeout: (n) => `${n} timed out and was removed`,
+  lbLogHostOff: (n) => `Host ${n} went offline`, lbLogHostBack: (n) => `Host ${n} is back online`, lbRejoin: 'Rejoin last room', lbLastCode: (c) => `Last room code: ${c}`,
   lbLogCd: (s) => `Starting in ${s}…`, lbLogGo: 'Go! (gameplay coming soon)',
   lbLogCdCancel: (why, n) => (why === 'host' ? 'Host cancelled the start' : why === 'unready' ? `${n} cancelled ready, start cancelled` : why === 'left' ? `${n} left, start cancelled` : why === 'offline' ? `${n} went offline, start cancelled` : 'Start cancelled'),
 });
@@ -114,6 +116,8 @@ css.textContent = `
 .lbInput.code { text-align: center; font-size: 24px; font-weight: 900; letter-spacing: 0.35em; text-indent: 0.35em; text-transform: uppercase; }
 .lbMsg { min-height: 22px; margin: 0 0 10px; text-align: center; font-size: 14px; font-weight: 700; color: #ffb089; }
 .lbMsg.info { color: #d9c08a; }
+.lbLast { margin: -6px 0 2px; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: rgba(217, 192, 138, 0.75); }
+.lbLast b { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-weight: 900; letter-spacing: 0.18em; color: #f6e3ae; }
 .lbDiag { margin: -4px 0 10px; max-height: 130px; overflow-y: auto; font: 11px/1.45 ui-monospace, Menlo, monospace; color: rgba(217, 192, 138, 0.75);
   white-space: pre-wrap; word-break: break-all; text-align: left; -webkit-user-select: text; user-select: text; }
 .lbDiag:empty { display: none; }
@@ -182,7 +186,7 @@ function loadProfile() {
   saveProfile(p);
   return p;
 }
-function saveProfile(p) { try { localStorage.setItem(PROFILE_KEY, JSON.stringify({ token: p.token, name: p.name })); } catch (e) {} }
+function saveProfile(p) { try { localStorage.setItem(PROFILE_KEY, JSON.stringify({ token: p.token, name: p.name, last: p.last || '' })); } catch (e) {} } // last=最后一次成功加入的房间配对码
 function skinDot(skin) { const c = (typeof SKIN_COLORS !== 'undefined' && SKIN_COLORS[skin]) || ['#2ECC71', '#E74C3C']; return `--c1:${c[0]};--c2:${c[1]}`; }
 
 /* ---------- 大厅 ---------- */
@@ -229,7 +233,9 @@ function renderForm() {
     `<div class="lbField"><label>${t('lbName')}</label><input id="lbName" class="lbInput" maxlength="${NAME_MAX}" autocomplete="off" autocorrect="off" spellcheck="false" value="${esc(LB.me.name)}"></div>` +
     (join ? `<div class="lbField"><label>${t('lbCode')}</label><input id="lbCode" class="lbInput code" maxlength="6" inputmode="text" autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="${t('lbCodePh')}"></div>` : '') +
     `<div id="lbMsg" class="lbMsg"></div><div id="lbDiag" class="lbDiag"></div>` +
-    `<div class="lbBtns"><button id="lbGo" class="lbBtn">${t(join ? 'lbJoinGo' : 'lbCreateGo')}</button><button id="lbBack" class="lbBtn red">${t('lbBack')}</button></div>`;
+    `<div class="lbBtns"><button id="lbGo" class="lbBtn">${t(join ? 'lbJoinGo' : 'lbCreateGo')}</button>` +
+    (join && LB.me.last ? `<button id="lbRejoin" class="lbBtn">${t('lbRejoin')}</button><div class="lbLast">${t('lbLastCode', `<b>${esc(LB.me.last)}</b>`)}</div>` : '') +
+    `<button id="lbBack" class="lbBtn red">${t('lbBack')}</button></div>`;
   const nameEl = $('lbName'), codeEl = $('lbCode');
   nameEl.addEventListener('blur', () => { LB.me.name = cleanName(nameEl.value) || LB.me.name; nameEl.value = LB.me.name; saveProfile(LB.me); window.scrollTo(0, 0); });
   if (codeEl) {
@@ -238,6 +244,7 @@ function renderForm() {
   }
   [nameEl, codeEl].forEach((el) => { if (el) el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { el.blur(); doGo(); } }); });
   tap('lbGo', doGo);
+  tap('lbRejoin', () => { const c = $('lbCode'); if (c) c.value = LB.me.last; doGo(); }); // 杀后台/重开后不用再手输配对码
   tap('lbBack', closeLobby);
 }
 
@@ -254,7 +261,9 @@ async function doGo() {
   }
   if (!net) { showMsg(t('lbErrNoLan')); return; } // lan.js 没加载：这和「网络不通」是两回事，要分开提示
   setBusy(true); showMsg(join ? t('lbConnecting') : '', true); showDiag('');
-  try { if (join) await net.join({ code, me: meInfo }); else await net.create({ me: meInfo }); } // 成功后房间状态走 onRoom 渲染
+  try {
+    if (join) { await net.join({ code, me: meInfo }); LB.me.last = code; saveProfile(LB.me); } else await net.create({ me: meInfo });
+  } // 成功后房间状态走 onRoom 渲染
   catch (e) {
     showMsg(t(ERR_KEY[e && e.reason] || 'lbErrTimeout') + (e && e.detail ? ` [${e.detail}]` : '')); // 网络类错误附上原因代码，方便排查
     if (e && e.reason === 'network' && net.diag) showDiag(net.diag()); // 并把最近几条网络日志直接显示在屏幕上(真机没有控制台)
@@ -274,6 +283,7 @@ function onStatus(s) { // 'ok' | 'waiting' | 'failed'(来自 lan.js 的掉线/�
   if (ov.classList.contains('show') && LB.view === 'room' && LB.room) renderRoom();
 }
 function onClosed(reason) {
+  if (reason === 'host' && LB.me && LB.me.last) { LB.me.last = ''; saveProfile(LB.me); } // 房主主动解散的房间码已作废，不再提示
   LB.room = null; resetLive();
   if (!ov.classList.contains('show')) return;
   renderForm();
@@ -288,13 +298,16 @@ function logText(e) {
     case 'leave': return t('lbLogLeave', n);
     case 'offline': return t('lbLogOffline', n);
     case 'back': return t('lbLogBack', n);
+    case 'timeout': return t('lbLogTimeout', n);
+    case 'hostoff': return t('lbLogHostOff', n);
+    case 'hostback': return t('lbLogHostBack', n);
     case 'cd': return t('lbLogCd', e.s);
     case 'cdcancel': return t('lbLogCdCancel', e.why, n);
     case 'go': return t('lbLogGo');
   }
   return '';
 }
-const LOG_CLS = { offline: 'warn', cdcancel: 'warn', go: 'go', cd: 'cd' };
+const LOG_CLS = { offline: 'warn', hostoff: 'warn', timeout: 'warn', cdcancel: 'warn', go: 'go', cd: 'cd' };
 const p2 = (x) => String(x).padStart(2, '0');
 function paintLog() {
   const box = $('lbLog'); if (!box) return;
