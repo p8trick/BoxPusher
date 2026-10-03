@@ -28,7 +28,7 @@ Object.assign(I18N.zh, {
   lbReadyBtn: '准备', lbUnready: '取消准备', lbStart: '开始游戏', lbLeave: '离开房间', lbDisband: '解散房间',
   lbHintNeed: '至少需要 2 名玩家', lbHintWait: (a, b) => `等待玩家准备（${a}/${b}）`, lbHintGo: '全员已准备，可以开始',
   lbHintGuest: '准备好后点「准备」', lbHintReadyGuest: '已准备，等待房主开始…',
-  lbErrCode: '请输入 6 位配对码', lbErrNotFound: '找不到这个房间，请检查配对码', lbErrFull: '房间已满', lbErrStarted: '游戏已经开始', lbErrTimeout: '连接超时，请重试',
+  lbErrCode: '请输入 6 位配对码', lbErrNotFound: '找不到这个房间，请检查配对码', lbErrFull: '房间已满', lbErrStarted: '游戏已经开始', lbErrTimeout: '连接超时，请确认房主在线后重试', lbErrNoSession: '没有可恢复的房间（已解散或超过 30 分钟）', lbErrRestoreBusy: '旧连接还占着这个配对码，请稍等一会儿再试', lbRestore: '恢复上次的房间', lbRestoring: '正在恢复房间…（旧连接释放最长约 45 秒）', lbLogRestored: '房间已恢复，等待玩家重新连上',
   lbClosedHost: '房主已解散房间', lbClosedLost: '与房间的连接断开了', lbStartSoon: '联机玩法开发中',
   lbErrNetwork: '连不上配对服务器，请检查网络', lbErrNoLan: '联机模块 lan.js 没有加载：请检查 index.html 是否引入了 lan.js，且文件在根目录', lbErrSelf: '不能加入自己的房间', lbErrVersion: '双方版本不一致，请更新后重试',
   lbOffline: '掉线', lbHintPlaying: '游戏已开始（联机玩法开发中）', lbHintWaitHost: '连接中断，正在重连…', lbHintFailed: '自动重连失败，请确认房主在线后手动重连',
@@ -48,7 +48,7 @@ Object.assign(I18N.en, {
   lbReadyBtn: 'Ready', lbUnready: 'Cancel', lbStart: 'Start', lbLeave: 'Leave', lbDisband: 'Close room',
   lbHintNeed: 'Need at least 2 players', lbHintWait: (a, b) => `Waiting for players (${a}/${b})`, lbHintGo: 'Everyone is ready',
   lbHintGuest: 'Tap Ready when you are set', lbHintReadyGuest: 'Ready — waiting for the host…',
-  lbErrCode: 'Enter the 6-character code', lbErrNotFound: 'Room not found, check the code', lbErrFull: 'Room is full', lbErrStarted: 'Game already started', lbErrTimeout: 'Timed out, try again',
+  lbErrCode: 'Enter the 6-character code', lbErrNotFound: 'Room not found, check the code', lbErrFull: 'Room is full', lbErrStarted: 'Game already started', lbErrTimeout: 'Timed out, check the host is online and retry', lbErrNoSession: 'No room to restore (closed or older than 30 min)', lbErrRestoreBusy: 'The old connection still holds this code, try again shortly', lbRestore: 'Restore last room', lbRestoring: 'Restoring room… (up to ~45 s)', lbLogRestored: 'Room restored, waiting for players to reconnect',
   lbClosedHost: 'The host closed the room', lbClosedLost: 'Connection lost', lbStartSoon: 'Multiplayer gameplay coming soon',
   lbErrNetwork: 'Cannot reach the pairing server', lbErrNoLan: 'lan.js is not loaded: check index.html includes it and the file is in the root', lbErrSelf: 'You cannot join your own room', lbErrVersion: 'Version mismatch, please update',
   lbOffline: 'Offline', lbHintPlaying: 'Game started (gameplay coming soon)', lbHintWaitHost: 'Connection lost, reconnecting…', lbHintFailed: 'Auto-reconnect failed. Check the host, then reconnect',
@@ -58,7 +58,7 @@ Object.assign(I18N.en, {
   lbLogCd: (s) => `Starting in ${s}…`, lbLogGo: 'Go! (gameplay coming soon)',
   lbLogCdCancel: (why, n) => (why === 'host' ? 'Host cancelled the start' : why === 'unready' ? `${n} cancelled ready, start cancelled` : why === 'left' ? `${n} left, start cancelled` : why === 'offline' ? `${n} went offline, start cancelled` : 'Start cancelled'),
 });
-const ERR_KEY = { notfound: 'lbErrNotFound', full: 'lbErrFull', started: 'lbErrStarted', timeout: 'lbErrTimeout', network: 'lbErrNetwork', self: 'lbErrSelf', version: 'lbErrVersion' };
+const ERR_KEY = { notfound: 'lbErrNotFound', full: 'lbErrFull', started: 'lbErrStarted', timeout: 'lbErrTimeout', network: 'lbErrNetwork', self: 'lbErrSelf', version: 'lbErrVersion', nosession: 'lbErrNoSession', busy: 'lbErrRestoreBusy' };
 
 /* ---------- 样式 ---------- */
 const css = document.createElement('style');
@@ -205,7 +205,7 @@ function tap(id, fn) { // 带「灰掉就不响应」保护的 bindTap
 }
 function showMsg(text, info) { const m = $('lbMsg'); if (m) { m.textContent = text || ''; m.classList.toggle('info', !!info); } }
 function showDiag(text) { const d = $('lbDiag'); if (d) d.textContent = text || ''; }
-function setBusy(b) { LB.busy = b; const g = $('lbGo'); if (g) g.classList.toggle('off', b); }
+function setBusy(b) { LB.busy = b; ['lbGo', 'lbRejoin', 'lbRestore'].forEach((id) => { const el = $(id); if (el) el.classList.toggle('off', b); }); }
 function getNet() { return window.LAN_NET || null; }
 
 function openLobby(form) {
@@ -217,7 +217,7 @@ function openLobby(form) {
   ov.classList.add('show');
 }
 function closeLobby() { // 回到多人主页
-  if (LB.room && net) net.leave();
+  if ((LB.room || LB.busy) && net) net.leave(); // 正在连接/恢复时点返回，也要取消掉
   LB.room = null;
   ov.classList.remove('show');
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
@@ -227,6 +227,7 @@ function leaveRoom() { if (net) net.leave(); LB.room = null; resetLive(); render
 function renderForm() {
   LB.view = 'form';
   const join = LB.form === 'join';
+  const hs = (!join && net && net.hostSession) ? net.hostSession(LB.me.token) : null; // 房主 App 被杀前的房间(30 分钟内、没主动解散)
   $('lbTitle').textContent = t(join ? 'lbJoinTitle' : 'lbCreateTitle');
   $('lbSub').innerHTML = '';
   $('lbBody').innerHTML =
@@ -235,6 +236,7 @@ function renderForm() {
     `<div id="lbMsg" class="lbMsg"></div><div id="lbDiag" class="lbDiag"></div>` +
     `<div class="lbBtns"><button id="lbGo" class="lbBtn">${t(join ? 'lbJoinGo' : 'lbCreateGo')}</button>` +
     (join && LB.me.last ? `<button id="lbRejoin" class="lbBtn">${t('lbRejoin')}</button><div class="lbLast">${t('lbLastCode', `<b>${esc(LB.me.last)}</b>`)}</div>` : '') +
+    (!join && hs ? `<button id="lbRestore" class="lbBtn">${t('lbRestore')}</button><div class="lbLast">${t('lbLastCode', `<b>${esc(hs.code)}</b>`)}</div>` : '') +
     `<button id="lbBack" class="lbBtn red">${t('lbBack')}</button></div>`;
   const nameEl = $('lbName'), codeEl = $('lbCode');
   nameEl.addEventListener('blur', () => { LB.me.name = cleanName(nameEl.value) || LB.me.name; nameEl.value = LB.me.name; saveProfile(LB.me); window.scrollTo(0, 0); });
@@ -244,6 +246,7 @@ function renderForm() {
   }
   [nameEl, codeEl].forEach((el) => { if (el) el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { el.blur(); doGo(); } }); });
   tap('lbGo', doGo);
+  tap('lbRestore', doRestore);
   tap('lbRejoin', () => { const c = $('lbCode'); if (c) c.value = LB.me.last; doGo(); }); // 杀后台/重开后不用再手输配对码
   tap('lbBack', closeLobby);
 }
@@ -271,6 +274,21 @@ async function doGo() {
   setBusy(false);
 }
 
+async function doRestore() {
+  if (LB.busy || !net) return;
+  const nameEl = $('lbName');
+  LB.me.name = cleanName(nameEl.value) || LB.me.name; nameEl.value = LB.me.name; saveProfile(LB.me);
+  setBusy(true); showMsg(t('lbRestoring'), true); showDiag('');
+  try { await net.restore({ me: { token: LB.me.token, name: LB.me.name } }); } // 成功后房间状态走 onRoom 渲染
+  catch (e) {
+    if (!(e && e.reason === 'cancelled')) {
+      showMsg(t(ERR_KEY[e && e.reason] || 'lbErrTimeout') + (e && e.detail ? ` [${e.detail}]` : ''));
+      if (e && e.reason === 'network' && net.diag) showDiag(net.diag());
+    }
+  }
+  setBusy(false);
+}
+
 function onRoom(room) {
   const prev = LB.lastPhase; LB.lastPhase = room.phase; LB.room = room;
   if (room.phase !== 'starting') LB.cd = 0;
@@ -294,6 +312,7 @@ function logText(e) {
   const n = e.n || '';
   switch (e.k) {
     case 'created': return t('lbLogCreated');
+    case 'restored': return t('lbLogRestored');
     case 'join': return t('lbLogJoin', n);
     case 'leave': return t('lbLogLeave', n);
     case 'offline': return t('lbLogOffline', n);
