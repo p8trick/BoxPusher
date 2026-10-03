@@ -1,19 +1,17 @@
-/* lobby.js — v1.26.1 本地多人：大厅界面（主页多人菜单 / 创建·加入面板 / 房间列表·准备·开始游戏）。
+/* lobby.js — v1.26.2 本地多人：大厅界面（主页多人菜单 / 创建·加入面板 / 房间列表·准备·开始游戏）。
    自带 DOM / 样式 / 文案(同 look.js 的做法)，只依赖 base.js(Bus·t·I18N·bindTap·SKIN_KEYS·SKIN_COLORS·settings) 和 ui.js(showToast)。
    加载顺序：… → sound.js → look.js → lobby.js →（以后）lan.js。
 
-   ── 网络适配器 net（这版用下面的 MockNet 模拟；以后 lan.js 提供同样接口的 window.LAN_NET，大厅 UI 不用改）──
-   net.create({me})            → Promise；成功后用 net.onRoom(room) 推送房间状态
-   net.join({code, me})        → Promise；失败 reject {reason:'notfound'|'full'|'started'|'timeout'}
-   net.setReady(bool) / net.start() → Promise / net.leave()
-   net.onRoom   = room => {}   每次变化都推「完整」房间状态(以主机为准，不合并)
-   net.onClosed = reason => {} 房间没了：'host'=房主解散 / 'lost'=断线
-   room = { code, mode:'race', phase:'lobby', hostToken, players:[{ token, name, skin, ready }] }；me = { token, name }
-   玩家身份用 token(存 localStorage，见联网方案§2)，名字只是显示用；远端传来的名字一律转义后再进 innerHTML。 */
+   ── 网络层 net = window.LAN_NET(lan.js)，本文件只管界面，接口：
+   net.create({me}) / net.join({code, me}) → Promise(失败 reject {reason:'notfound'|'full'|'started'|'self'|'version'|'timeout'|'network'})
+   net.setReady(bool) / net.start() / net.cancelStart() / net.endGame() / net.reconnect() / net.leave()
+   net.onRoom(room)  每次变化推「完整」房间状态(以房主为准，不合并)；net.onClosed(reason) 'host'|'lost'；net.onStatus('ok'|'waiting'|'failed')
+   net.onLatency({token:ms}) 每秒一次，只更新数字、不重绘；net.onLog(e) 大厅日志事件，只显示加入之后发生的
+   room = { code, mode:'race', phase:'lobby'|'starting'|'playing', hostToken, players:[{ token, name, skin, ready, online }] }；me = { token, name }
+   玩家身份用 token(存 localStorage)，名字只是显示用；远端传来的名字一律转义后再进 innerHTML。 */
 (function () {
 'use strict';
 
-const LOBBY_MOCK = true; // 测试期：房间里显示「测试工具」(模拟玩家加入/准备/离开)；接上真网络后改 false
 const MAX_PLAYERS = 4;
 const NAME_MAX = 8;
 const PROFILE_KEY = 'boxpusher_mp_v1'; // { token, name }
@@ -30,11 +28,14 @@ Object.assign(I18N.zh, {
   lbReadyBtn: '准备', lbUnready: '取消准备', lbStart: '开始游戏', lbLeave: '离开房间', lbDisband: '解散房间',
   lbHintNeed: '至少需要 2 名玩家', lbHintWait: (a, b) => `等待玩家准备（${a}/${b}）`, lbHintGo: '全员已准备，可以开始',
   lbHintGuest: '准备好后点「准备」', lbHintReadyGuest: '已准备，等待房主开始…',
-  lbErrCode: '请输入 6 位配对码', lbErrNotFound: '找不到这个房间', lbErrFull: '房间已满', lbErrStarted: '游戏已经开始', lbErrTimeout: '连接超时，请重试',
-  lbClosedHost: '房主已解散房间', lbClosedLost: '与房间的连接断开了', lbStartSoon: '联机玩法开发中', lbTools: '测试工具（临时）',
+  lbErrCode: '请输入 6 位配对码', lbErrNotFound: '找不到这个房间，请检查配对码', lbErrFull: '房间已满', lbErrStarted: '游戏已经开始', lbErrTimeout: '连接超时，请重试',
+  lbClosedHost: '房主已解散房间', lbClosedLost: '与房间的连接断开了', lbStartSoon: '联机玩法开发中',
   lbErrNetwork: '连不上配对服务器，请检查网络', lbErrSelf: '不能加入自己的房间', lbErrVersion: '双方版本不一致，请更新后重试',
   lbOffline: '掉线', lbHintPlaying: '游戏已开始（联机玩法开发中）', lbHintWaitHost: '连接中断，正在重连…', lbHintFailed: '自动重连失败，请确认房主在线后手动重连',
-  lbReconnect: '手动重连', lbEndGame: '返回大厅（测试）', lbDbgTitle: '连接状态（测试）', lbRefresh: '刷新',
+  lbReconnect: '手动重连', lbCancelStart: '取消开始', lbBackLobby: '返回大厅', lbHintStarting: (n) => `游戏将在 ${n} 秒后开始…`,
+  lbLogCreated: '房间已创建', lbLogJoin: (n) => `${n} 加入了房间`, lbLogLeave: (n) => `${n} 离开了房间`, lbLogOffline: (n) => `${n} 掉线了`, lbLogBack: (n) => `${n} 重新连上了`,
+  lbLogCd: (s) => `游戏将在 ${s} 秒后开始…`, lbLogGo: '游戏开始！（联机玩法开发中）',
+  lbLogCdCancel: (why, n) => (why === 'host' ? '房主取消了开始' : why === 'unready' ? `${n} 取消了准备，已取消开始` : why === 'left' ? `${n} 离开了，已取消开始` : why === 'offline' ? `${n} 掉线了，已取消开始` : '已取消开始'),
 });
 Object.assign(I18N.en, {
   multi: 'MULTIPLAYER', mpCreate: 'CREATE ROOM', mpJoin: 'JOIN ROOM', mpBack: 'BACK',
@@ -46,11 +47,14 @@ Object.assign(I18N.en, {
   lbReadyBtn: 'Ready', lbUnready: 'Cancel', lbStart: 'Start', lbLeave: 'Leave', lbDisband: 'Close room',
   lbHintNeed: 'Need at least 2 players', lbHintWait: (a, b) => `Waiting for players (${a}/${b})`, lbHintGo: 'Everyone is ready',
   lbHintGuest: 'Tap Ready when you are set', lbHintReadyGuest: 'Ready — waiting for the host…',
-  lbErrCode: 'Enter the 6-character code', lbErrNotFound: 'Room not found', lbErrFull: 'Room is full', lbErrStarted: 'Game already started', lbErrTimeout: 'Timed out, try again',
-  lbClosedHost: 'The host closed the room', lbClosedLost: 'Connection lost', lbStartSoon: 'Multiplayer gameplay coming soon', lbTools: 'Test tools (temporary)',
+  lbErrCode: 'Enter the 6-character code', lbErrNotFound: 'Room not found, check the code', lbErrFull: 'Room is full', lbErrStarted: 'Game already started', lbErrTimeout: 'Timed out, try again',
+  lbClosedHost: 'The host closed the room', lbClosedLost: 'Connection lost', lbStartSoon: 'Multiplayer gameplay coming soon',
   lbErrNetwork: 'Cannot reach the pairing server', lbErrSelf: 'You cannot join your own room', lbErrVersion: 'Version mismatch, please update',
   lbOffline: 'Offline', lbHintPlaying: 'Game started (gameplay coming soon)', lbHintWaitHost: 'Connection lost, reconnecting…', lbHintFailed: 'Auto-reconnect failed. Check the host, then reconnect',
-  lbReconnect: 'Reconnect', lbEndGame: 'Back to lobby (test)', lbDbgTitle: 'Connection (test)', lbRefresh: 'Refresh',
+  lbReconnect: 'Reconnect', lbCancelStart: 'Cancel', lbBackLobby: 'Back to lobby', lbHintStarting: (n) => `Starting in ${n}…`,
+  lbLogCreated: 'Room created', lbLogJoin: (n) => `${n} joined`, lbLogLeave: (n) => `${n} left`, lbLogOffline: (n) => `${n} went offline`, lbLogBack: (n) => `${n} reconnected`,
+  lbLogCd: (s) => `Starting in ${s}…`, lbLogGo: 'Go! (gameplay coming soon)',
+  lbLogCdCancel: (why, n) => (why === 'host' ? 'Host cancelled the start' : why === 'unready' ? `${n} cancelled ready, start cancelled` : why === 'left' ? `${n} left, start cancelled` : why === 'offline' ? `${n} went offline, start cancelled` : 'Start cancelled'),
 });
 const ERR_KEY = { notfound: 'lbErrNotFound', full: 'lbErrFull', started: 'lbErrStarted', timeout: 'lbErrTimeout', network: 'lbErrNetwork', self: 'lbErrSelf', version: 'lbErrVersion' };
 
@@ -135,7 +139,7 @@ html[data-lang="en"] .lbBtn { font-size: 16px; letter-spacing: 0.06em; text-inde
 .lbMode b.on { background: rgba(242, 180, 94, 0.2); color: #f6e3ae; box-shadow: inset 0 0 0 1px rgba(242, 180, 94, 0.55); }
 .lbMode b.off { color: rgba(217, 192, 138, 0.5); box-shadow: inset 0 0 0 1px rgba(217, 192, 138, 0.2); }
 #lbList { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
-.lbRow { display: flex; align-items: center; gap: 12px; height: 52px; padding: 0 14px; border-radius: 10px;
+.lbRow { display: flex; align-items: center; gap: 8px; height: 52px; padding: 0 14px; border-radius: 10px;
   background: rgba(255, 236, 200, 0.07); box-shadow: inset 0 0 0 1px rgba(243, 223, 178, 0.14); }
 .lbRow.me { box-shadow: inset 0 0 0 1.5px rgba(242, 180, 94, 0.6); }
 .lbRow.empty { background: none; box-shadow: none; border: 1px dashed rgba(217, 192, 138, 0.28); }
@@ -143,37 +147,28 @@ html[data-lang="en"] .lbBtn { font-size: 16px; letter-spacing: 0.06em; text-inde
 .lbDot { flex: none; width: 22px; height: 22px; border-radius: 50%; box-shadow: 0 0 0 2px rgba(255, 240, 210, 0.3);
   background: linear-gradient(90deg, var(--c1, transparent) 50%, var(--c2, transparent) 50%); }
 .lbRow.empty .lbDot { background: none; box-shadow: none; border: 1px dashed rgba(217, 192, 138, 0.3); }
-.lbName { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 18px; font-weight: 800; color: #f6e8c4; }
+.lbName { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 17px; font-weight: 800; color: #f6e8c4; }
 .lbName em { font-style: normal; font-size: 13px; font-weight: 700; color: #d9c08a; margin-left: 6px; }
 .lbTag { flex: none; padding: 4px 11px; border-radius: 12px; font-size: 13px; font-weight: 800; letter-spacing: 0.06em; }
 .lbTag.host { color: #f2b45e; background: rgba(242, 180, 94, 0.16); box-shadow: inset 0 0 0 1px rgba(242, 180, 94, 0.5); }
 .lbTag.ready { color: #c9eb92; background: rgba(140, 200, 70, 0.2); box-shadow: inset 0 0 0 1px rgba(170, 220, 100, 0.55); }
 .lbTag.wait { color: rgba(217, 192, 138, 0.7); box-shadow: inset 0 0 0 1px rgba(217, 192, 138, 0.25); }
 .lbHint { min-height: 20px; margin: -4px 0 12px; text-align: center; font-size: 14px; font-weight: 700; color: #d9c08a; }
-.lbTools { margin-top: 18px; padding: 10px; border: 1px dashed rgba(217, 192, 138, 0.35); border-radius: 10px;
-  display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-.lbToolsTitle { width: 100%; text-align: center; font-size: 12px; color: rgba(217, 192, 138, 0.6); }
-.lbMini { height: 32px; padding: 0 12px; border-radius: 16px; border: 1px solid rgba(217, 192, 138, 0.5);
-  background: rgba(255, 236, 200, 0.08); color: #f3e6c8; font-size: 13px; font-weight: 700; }
-.lbMini:active { background: rgba(255, 236, 200, 0.22); }
-.lbDbg { width: 100%; margin: 0; text-align: left; white-space: pre-wrap; word-break: break-all; font: 11px/1.45 ui-monospace, Menlo, monospace;
-  color: #d9c08a; -webkit-user-select: text; user-select: text; }
+.lbPing { flex: none; min-width: 42px; text-align: right; font-size: 12px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.lbPing.good { color: #9fd66b; } .lbPing.mid { color: #f2c14e; } .lbPing.bad { color: #ff8f6b; } .lbPing.off { color: rgba(217, 192, 138, 0.5); }
+#lbLog { margin-top: 18px; height: 120px; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding: 8px 10px; border-radius: 10px;
+  background: rgba(15, 9, 4, 0.5); box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.4), inset 0 0 0 1px rgba(243, 223, 178, 0.1);
+  font-size: 13px; line-height: 1.6; color: #d9c08a; touch-action: pan-y; }
+.lbLogRow time { margin-right: 7px; opacity: 0.5; font-variant-numeric: tabular-nums; }
+.lbLogRow.warn { color: #ffb089; } .lbLogRow.go { color: #c9eb92; font-weight: 800; } .lbLogRow.cd { color: #f6e3ae; font-weight: 800; }
 `;
 document.head.appendChild(css);
 
 /* ---------- 工具 ---------- */
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 function randHex(n) {
   try { const a = new Uint8Array(n); crypto.getRandomValues(a); return Array.from(a, (b) => b.toString(16).padStart(2, '0')).join(''); }
   catch (e) { return Math.random().toString(16).slice(2).padEnd(n * 2, '0').slice(0, n * 2); }
-}
-const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 去掉容易混的 0/O/1/I
-function genCode() {
-  let s = '';
-  try { const a = new Uint8Array(6); crypto.getRandomValues(a); a.forEach((b) => { s += CODE_CHARS[b % CODE_CHARS.length]; }); }
-  catch (e) { for (let i = 0; i < 6; i++) s += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]; }
-  return s;
 }
 function cleanName(s) { return [...String(s || '').replace(/[\u0000-\u001f<>]/g, '').trim()].slice(0, NAME_MAX).join(''); }
 function loadProfile() {
@@ -187,61 +182,9 @@ function loadProfile() {
 function saveProfile(p) { try { localStorage.setItem(PROFILE_KEY, JSON.stringify({ token: p.token, name: p.name })); } catch (e) {} }
 function skinDot(skin) { const c = (typeof SKIN_COLORS !== 'undefined' && SKIN_COLORS[skin]) || ['#2ECC71', '#E74C3C']; return `--c1:${c[0]};--c2:${c[1]}`; }
 
-/* ---------- MockNet：本地模拟(没有网络)，用来先把大厅界面和流程在真机上跑通 ----------
-   测试用配对码：ZZZZZZ → 找不到房间；FFFFFF → 房间已满；其它 6 位码 → 加入一个有「房主小明」的房间 */
-const MOCK_NAMES = { classic: '小绿', blue: '小蓝', purple: '小紫', gold: '小黄' }; // 名字跟它分到的人物配色对应，方便在列表里一眼对上
-const MockNet = {
-  room: null, me: null, onRoom: null, onClosed: null,
-  _push() { if (this.room && this.onRoom) this.onRoom(JSON.parse(JSON.stringify(this.room))); },
-  _freeSkin() { const used = this.room.players.map((p) => p.skin); return SKIN_KEYS.find((k) => !used.includes(k)) || 'classic'; },
-  _mine() { return this.room && this.room.players.find((p) => p.token === this.me.token); },
-  create({ me }) {
-    return wait(250).then(() => {
-      this.me = me;
-      this.room = { code: genCode(), mode: 'race', phase: 'lobby', hostToken: me.token, players: [{ token: me.token, name: me.name, skin: 'classic', ready: true }] };
-      this._push();
-    });
-  },
-  join({ code, me }) {
-    return wait(700).then(() => {
-      if (code === 'ZZZZZZ') throw { reason: 'notfound' };
-      if (code === 'FFFFFF') throw { reason: 'full' };
-      this.me = me;
-      this.room = { code, mode: 'race', phase: 'lobby', hostToken: 'mock-host', players: [{ token: 'mock-host', name: '房主小明', skin: 'classic', ready: true }] };
-      this.room.players.push({ token: me.token, name: me.name, skin: this._freeSkin(), ready: false });
-      this._push();
-    });
-  },
-  setReady(v) { const p = this._mine(); if (p) { p.ready = !!v; this._push(); } },
-  start() { this.room.phase = 'playing'; this._push(); return Promise.resolve(); },
-  endGame() { if (!this.room) return; this.room.phase = 'lobby'; this.room.players.forEach((p) => { if (p.token !== this.room.hostToken) p.ready = false; }); this._push(); },
-  leave() { this.room = null; },
-  // ---- 测试工具 ----
-  mockAdd() {
-    if (!this.room || this.room.players.length >= MAX_PLAYERS) return;
-    const skin = this._freeSkin();
-    this.room.players.push({ token: 'mock-' + randHex(3), name: MOCK_NAMES[skin], skin, ready: false });
-    this._push();
-  },
-  mockDel() {
-    if (!this.room) return;
-    for (let i = this.room.players.length - 1; i >= 0; i--) {
-      const tk = this.room.players[i].token;
-      if (tk.startsWith('mock-') && tk !== 'mock-host') { this.room.players.splice(i, 1); this._push(); return; }
-    }
-  },
-  mockToggleAll() { // 模拟玩家(不含我、不含房主)：有人没准备就全部准备，否则全部取消
-    if (!this.room) return;
-    const gs = this.room.players.filter((p) => p.token.startsWith('mock-') && p.token !== 'mock-host' && p.token !== this.me.token);
-    const allReady = gs.length && gs.every((p) => p.ready);
-    gs.forEach((p) => { p.ready = !allReady; });
-    this._push();
-  },
-  mockHostClose() { const cb = this.onClosed; this.room = null; if (cb) cb('host'); },
-};
-
 /* ---------- 大厅 ---------- */
-const LB = { form: 'create', view: 'form', room: null, me: null, busy: false, status: 'ok', lastPhase: 'lobby' };
+const LB = { form: 'create', view: 'form', room: null, me: null, busy: false, status: 'ok', lastPhase: 'lobby', log: [], ping: {}, cd: 0 };
+function resetLive() { LB.log = []; LB.ping = {}; LB.cd = 0; LB.status = 'ok'; LB.lastPhase = 'lobby'; }
 let net = null;
 
 const ov = document.createElement('div');
@@ -255,11 +198,12 @@ function tap(id, fn) { // 带「灰掉就不响应」保护的 bindTap
 }
 function showMsg(text, info) { const m = $('lbMsg'); if (m) { m.textContent = text || ''; m.classList.toggle('info', !!info); } }
 function setBusy(b) { LB.busy = b; const g = $('lbGo'); if (g) g.classList.toggle('off', b); }
-function getNet() { return (window.LAN_NET && !/[?&]mock\b/.test(location.search)) ? window.LAN_NET : MockNet; } // 有 lan.js 就用真网络；网址加 ?mock 强制用模拟
+function getNet() { return window.LAN_NET || null; }
 
 function openLobby(form) {
-  LB.me = loadProfile(); LB.form = form; LB.room = null; LB.busy = false; LB.status = 'ok'; LB.lastPhase = 'lobby';
-  net = getNet(); net.onRoom = onRoom; net.onClosed = onClosed; net.onStatus = onStatus;
+  LB.me = loadProfile(); LB.form = form; LB.room = null; LB.busy = false; resetLive();
+  net = getNet();
+  if (net) { net.onRoom = onRoom; net.onClosed = onClosed; net.onStatus = onStatus; net.onLatency = onLatency; net.onLog = onLog; }
   renderForm();
   ov.classList.add('show');
 }
@@ -269,7 +213,7 @@ function closeLobby() { // 回到多人主页
   ov.classList.remove('show');
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
 }
-function leaveRoom() { if (net) net.leave(); LB.room = null; LB.status = 'ok'; LB.lastPhase = 'lobby'; renderForm(); }
+function leaveRoom() { if (net) net.leave(); LB.room = null; resetLive(); renderForm(); }
 
 function renderForm() {
   LB.view = 'form';
@@ -303,6 +247,7 @@ async function doGo() {
     code = $('lbCode').value.toUpperCase().replace(/[^A-Z0-9]/g, '');
     if (code.length !== 6) { showMsg(t('lbErrCode')); return; }
   }
+  if (!net) { showMsg(t('lbErrNetwork')); return; } // lan.js 没加载
   setBusy(true); showMsg(join ? t('lbConnecting') : '', true);
   try { if (join) await net.join({ code, me: meInfo }); else await net.create({ me: meInfo }); } // 成功后房间状态走 onRoom 渲染
   catch (e) { showMsg(t(ERR_KEY[e && e.reason] || 'lbErrTimeout')); }
@@ -311,6 +256,7 @@ async function doGo() {
 
 function onRoom(room) {
   const prev = LB.lastPhase; LB.lastPhase = room.phase; LB.room = room;
+  if (room.phase !== 'starting') LB.cd = 0;
   if (!ov.classList.contains('show')) return;
   renderRoom();
   if (room.phase === 'playing' && prev !== 'playing') showToast(t('lbStartSoon')); // 房主和玩家都由房间状态切到 playing 触发
@@ -320,11 +266,53 @@ function onStatus(s) { // 'ok' | 'waiting' | 'failed'(来自 lan.js 的掉线/�
   if (ov.classList.contains('show') && LB.view === 'room' && LB.room) renderRoom();
 }
 function onClosed(reason) {
-  LB.room = null; LB.status = 'ok'; LB.lastPhase = 'lobby';
+  LB.room = null; resetLive();
   if (!ov.classList.contains('show')) return;
   renderForm();
   showMsg(t(reason === 'host' ? 'lbClosedHost' : 'lbClosedLost'));
 }
+
+function logText(e) {
+  const n = e.n || '';
+  switch (e.k) {
+    case 'created': return t('lbLogCreated');
+    case 'join': return t('lbLogJoin', n);
+    case 'leave': return t('lbLogLeave', n);
+    case 'offline': return t('lbLogOffline', n);
+    case 'back': return t('lbLogBack', n);
+    case 'cd': return t('lbLogCd', e.s);
+    case 'cdcancel': return t('lbLogCdCancel', e.why, n);
+    case 'go': return t('lbLogGo');
+  }
+  return '';
+}
+const LOG_CLS = { offline: 'warn', cdcancel: 'warn', go: 'go', cd: 'cd' };
+const p2 = (x) => String(x).padStart(2, '0');
+function paintLog() {
+  const box = $('lbLog'); if (!box) return;
+  box.innerHTML = LB.log.map((x) => { const d = new Date(x.ts); return `<div class="lbLogRow ${LOG_CLS[x.e.k] || ''}"><time>${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}</time>${esc(logText(x.e))}</div>`; }).join('');
+  box.scrollTop = box.scrollHeight;
+}
+function onLog(e) { // 大厅日志：只收「加入之后」发生的事件；倒计时的每一格也在这里驱动提示文字
+  if (!e || !e.k) return;
+  if (e.k === 'cd') {
+    LB.cd = e.s;
+    const h = document.querySelector('#lobbySheet .lbHint');
+    if (h && LB.room && LB.room.phase === 'starting' && LB.status === 'ok') h.textContent = t('lbHintStarting', LB.cd);
+  }
+  LB.log.push({ e, ts: Date.now() }); if (LB.log.length > 40) LB.log.shift();
+  paintLog();
+}
+function paintPings() { // 只改数字和颜色，不重绘房间(重绘会吃掉正在进行的点按)
+  document.querySelectorAll('#lbList .lbPing').forEach((el) => {
+    const on = el.dataset.on === '1', ms = LB.ping[el.dataset.tok];
+    let cls = 'off', txt = '—';
+    if (on && typeof ms === 'number') { txt = ms + 'ms'; cls = ms < 60 ? 'good' : ms < 150 ? 'mid' : 'bad'; }
+    else if (on) txt = '…';
+    el.className = 'lbPing ' + cls; el.textContent = txt;
+  });
+}
+function onLatency(m) { LB.ping = m || {}; paintPings(); }
 
 function renderRoom() {
   LB.view = 'room';
@@ -335,6 +323,7 @@ function renderRoom() {
   const guests = r.players.filter((p) => p.token !== r.hostToken);
   const readyN = guests.filter((p) => p.ready).length;
   const canStart = r.players.length >= 2 && readyN === guests.length;
+  const starting = r.phase === 'starting', playing = r.phase === 'playing', live = LB.status === 'ok';
 
   $('lbTitle').textContent = t('lbRoomTitle');
   $('lbSub').innerHTML = `<small>${t('lbCode')}</small><b>${esc(r.code)}</b>`;
@@ -343,51 +332,42 @@ function renderRoom() {
   for (let i = 0; i < MAX_PLAYERS; i++) {
     const p = r.players[i];
     if (!p) { rows += `<div class="lbRow empty"><i class="lbDot"></i><span class="lbName">${t('lbWaitSlot')}</span></div>`; continue; }
+    const isH = p.token === r.hostToken;
     const tag = p.online === false ? `<span class="lbTag wait">${t('lbOffline')}</span>`
-      : p.token === r.hostToken ? `<span class="lbTag host">${t('lbHost')}</span>`
+      : isH ? `<span class="lbTag host">${t('lbHost')}</span>`
       : p.ready ? `<span class="lbTag ready">${t('lbReady')}</span>` : `<span class="lbTag wait">${t('lbNotReady')}</span>`;
+    const ping = isH ? '' : `<span class="lbPing off" data-tok="${esc(p.token)}" data-on="${p.online === false ? 0 : 1}"></span>`; // 房主自己没有延迟
     rows += `<div class="lbRow${p.token === myTok ? ' me' : ''}"><i class="lbDot" style="${skinDot(p.skin)}"></i>` +
-      `<span class="lbName">${esc(p.name)}${p.token === myTok ? `<em>(${t('lbMe')})</em>` : ''}</span>${tag}</div>`;
+      `<span class="lbName">${esc(p.name)}${p.token === myTok ? `<em>(${t('lbMe')})</em>` : ''}</span>${ping}${tag}</div>`;
   }
 
-  const playing = r.phase === 'playing', live = LB.status === 'ok';
   let hint, action;
   if (isHost) {
-    hint = playing ? t('lbHintPlaying') : r.players.length < 2 ? t('lbHintNeed') : (canStart ? t('lbHintGo') : t('lbHintWait', readyN, guests.length));
-    action = `<button id="lbStart" class="lbBtn${canStart && !playing && live ? '' : ' off'}">${t('lbStart')}</button>`;
+    if (playing) { hint = t('lbHintPlaying'); action = `<button id="lbEnd" class="lbBtn">${t('lbBackLobby')}</button>`; }
+    else if (starting) { hint = t('lbHintStarting', LB.cd || '…'); action = `<button id="lbCancelStart" class="lbBtn red">${t('lbCancelStart')}</button>`; }
+    else {
+      hint = r.players.length < 2 ? t('lbHintNeed') : (canStart ? t('lbHintGo') : t('lbHintWait', readyN, guests.length));
+      action = `<button id="lbStart" class="lbBtn${canStart && live ? '' : ' off'}">${t('lbStart')}</button>`;
+    }
   } else {
-    hint = playing ? t('lbHintPlaying') : me.ready ? t('lbHintReadyGuest') : t('lbHintGuest');
+    hint = playing ? t('lbHintPlaying') : starting ? t('lbHintStarting', LB.cd || '…') : me.ready ? t('lbHintReadyGuest') : t('lbHintGuest');
     action = `<button id="lbReady" class="lbBtn${me.ready ? ' on' : ''}${playing || !live ? ' off' : ''}">${t(me.ready ? 'lbUnready' : 'lbReadyBtn')}</button>`;
   }
   if (LB.status === 'waiting') hint = t('lbHintWaitHost');
   if (LB.status === 'failed') { hint = t('lbHintFailed'); action = `<button id="lbReconn" class="lbBtn">${t('lbReconnect')}</button>`; }
 
-  const endBtn = isHost && playing && net && net.endGame ? `<button id="mkEnd" class="lbMini">${t('lbEndGame')}</button>` : '';
-  let tools = '';
-  if (LOBBY_MOCK && net && net.mockAdd) {
-    tools = `<div class="lbTools"><div class="lbToolsTitle">${t('lbTools')}</div>` + (isHost
-      ? `<button id="mkAdd" class="lbMini">＋ 玩家</button><button id="mkDel" class="lbMini">－ 玩家</button><button id="mkRdy" class="lbMini">全员 准备/取消</button>`
-      : `<button id="mkAdd" class="lbMini">＋ 玩家</button><button id="mkDel" class="lbMini">－ 玩家</button><button id="mkClose" class="lbMini">房主解散</button>`) + endBtn + `</div>`;
-  } else if (net && net.debugInfo) { // 真网络：显示连接状态，真机没有控制台，靠这里排查
-    tools = `<div class="lbTools"><div class="lbToolsTitle">${t('lbDbgTitle')}</div><pre id="lbDbg" class="lbDbg">${esc(net.debugInfo())}</pre><button id="dbgRefresh" class="lbMini">${t('lbRefresh')}</button>${endBtn}</div>`;
-  }
-
-  // 已准备的玩家：整个房间界面只剩「取消准备」和「离开房间」可点(名字等都不可改)，见上面 action 只有一个键
   $('lbBody').innerHTML =
     `<div class="lbMode"><span>${t('lbMode')}</span><b class="on">${t('lbRace')}</b><b class="off">${t('lbCoop')}</b></div>` +
     `<div id="lbList">${rows}</div><div class="lbHint">${hint}</div>` +
-    `<div class="lbBtns">${action}<button id="lbLeave" class="lbBtn red">${t(isHost ? 'lbDisband' : 'lbLeave')}</button></div>${tools}`;
+    `<div class="lbBtns">${action}<button id="lbLeave" class="lbBtn red">${t(isHost ? 'lbDisband' : 'lbLeave')}</button></div><div id="lbLog"></div>`;
 
   tap('lbReady', () => net.setReady(!me.ready));
-  tap('lbStart', () => { net.start().catch(() => {}); }); // 成功后由 onRoom 里 phase 变 playing 统一弹提示
+  tap('lbStart', () => { net.start().catch(() => {}); }); // 先倒计时，结束后 phase 变 playing，由 onRoom 统一弹提示
+  tap('lbCancelStart', () => net.cancelStart());
+  tap('lbEnd', () => net.endGame());
   tap('lbReconn', () => net.reconnect());
   tap('lbLeave', leaveRoom);
-  tap('mkEnd', () => net.endGame());
-  tap('dbgRefresh', () => { const d = $('lbDbg'); if (d) d.textContent = net.debugInfo(); });
-  if (tools) {
-    tap('mkAdd', () => net.mockAdd()); tap('mkDel', () => net.mockDel());
-    tap('mkRdy', () => net.mockToggleAll()); tap('mkClose', () => net.mockHostClose());
-  }
+  paintPings(); paintLog();
 }
 
 /* ---------- 主页：多人菜单 ---------- */
