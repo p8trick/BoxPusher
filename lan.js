@@ -11,7 +11,8 @@
    onClosed(reason)        'host'=房主解散 / 'lost'=彻底失联(放弃重连)
    onStatus(s)             'ok' | 'waiting'(等待房主/正在重连) | 'failed'(自动重连失败，等玩家点手动重连)
    onLatency(map)          每秒一次：{ token: 毫秒 }，房主测得的各玩家往返延迟(只含在线的玩家)
-   onLog(e)                大厅日志事件 e={k,...}：created/join/leave/offline/back/cd{s}/cdcancel{why,n}/go；只在发生那一刻广播，晚加入的人看不到之前的
+   onLog(e)                大厅日志事件 e={k,...}：created/join/leave(主动离开)/timeout(掉线超时被移出)/offline/back(玩家)、cd{s}/cdcancel{why,n}/go，
+                           以及只在本机产生的 hostoff/hostback(房主掉线/上线)；广播类只在发生那一刻发出，晚加入的人看不到之前的
    cancelStart()           房主：倒计时期间取消开始
    debugInfo()             一段给真机排查用的状态文字
    me = { token, name }；room = { code, mode:'race', phase:'lobby'|'playing', hostToken, seq, players:[{token,name,skin,ready,online}] }
@@ -64,6 +65,7 @@ function createLAN(cfg) {
   const offlineSince = new Map(); // 房主：token → 掉线时间
   const pings = new Map();        // 房主：token → 最近一次往返延迟(ms)
   let cdTimer = null, cdLeft = 0; // 开始倒计时
+  let lastTickAt = 0, hiddenAt = 0, resumedAt = 0, awayMs = 0, hostBackAt = 0; // 判断「是谁掉线/被挂起」用
   const G = { me: null, code: '', peer: null, conn: null, tick: null, lastHb: 0, attempts: 0, retryTimer: null };
 
   /* ---------- 日志(真机没有控制台，debugInfo 里能看到最近几条) ---------- */
@@ -85,6 +87,10 @@ function createLAN(cfg) {
   function cleanName(s) { return [...String(s || '').replace(/[\u0000-\u001f<>]/g, '').trim()].slice(0, 8).join(''); }
   const snap = () => JSON.parse(JSON.stringify(room));
   function emitRoom() { if (room && L.onRoom) { try { L.onRoom(snap()); } catch (e) { console.error(e); } } }
+  function hostName() { const h = room && room.players.find((p) => p.token === room.hostToken); return h ? h.name : ''; }
+  function logLocal(k, n) { if (L.onLog) { try { L.onLog({ k, n }); } catch (x) { console.error(x); } } } // 只在本机显示的日志(别人看不到)
+  function hostBackLog() { const now = Date.now(); if (now - hostBackAt < 5000) return; hostBackAt = now; logLocal('hostback', hostName()); } // 房主这台设备「回来了」
+  function selfAway() { const now = Date.now(); return (now - resumedAt < 5000 && awayMs > 3000) || now - (G.suspendedAt || 0) < 5000; } // 本机刚被挂起过：掉线的是自己，不是房主
   function emitStatus(s) { if (L.onStatus) { try { L.onStatus(s); } catch (e) { console.error(e); } } }
   function safeDestroy(p) { try { if (p && !p.destroyed) p.destroy(); } catch (e) {} }
   function safeClose(c) { try { if (c) c.close(); } catch (e) {} }
@@ -220,7 +226,7 @@ function createLAN(cfg) {
       n++;
       openPeer(HOST_PREFIX + room.code, C.OPEN_MS).then((peer) => {
         if (ep !== epoch) { safeDestroy(peer); return; }
-        hostPeer = peer; wireHostPeer(peer); state = 'HOST_ACTIVE'; emitStatus('ok'); dlog('host rebuilt after', n, 'tries');
+        hostPeer = peer; wireHostPeer(peer); state = 'HOST_ACTIVE'; emitStatus('ok'); dlog('host rebuilt after', n, 'tries'); hostBackLog();
       }).catch(() => {
         if (ep !== epoch) return;
         if (n >= 12) { state = 'HOST_INVALID'; emitStatus('failed'); dlog('host rebuild gave up'); }
@@ -322,10 +328,15 @@ function createLAN(cfg) {
   function bcast(msg, exceptTok) { conns.forEach((c, tok) => { if (tok !== exceptTok) sendTo(c, msg); }); }
 
   function startHostTick() {
-    clearInterval(hostTick);
+    clearInterval(hostTick); lastTickAt = Date.now();
     hostTick = setInterval(() => {
       if (role !== 'host' || !room) return;
       const now = Date.now();
+      const gap = lastTickAt ? now - lastTickAt : 0; lastTickAt = now;
+      if (gap > C.DEAD_MS) { // 房主这台设备被系统挂起过(切后台/锁屏)：玩家没动静是我这边的问题，不能记成他们掉线
+        lastSeen.forEach((_, k) => lastSeen.set(k, now)); offlineSince.forEach((_, k) => offlineSince.set(k, now));
+        dlog('host was suspended for', Math.round(gap / 1000) + 's, forgive players'); hostBackLog();
+      }
       const pm = {};
       room.players.forEach((pl) => { if (pl.token !== room.hostToken && pl.online && pings.has(pl.token)) pm[pl.token] = pings.get(pl.token); });
       bcast({ t: 'hb', seq: room.seq, ts: now, p: pm });
@@ -341,7 +352,7 @@ function createLAN(cfg) {
       if (room.phase === 'lobby') { // 大厅里掉线太久的才真正移出房间
         const keep = room.players.filter((p) => p.online || p.token === room.hostToken || now - (offlineSince.get(p.token) || now) <= C.LOBBY_DROP_MS);
         if (keep.length !== room.players.length) {
-          room.players.filter((p) => !keep.includes(p)).forEach((p) => logEv('leave', { n: p.name }));
+          room.players.filter((p) => !keep.includes(p)).forEach((p) => logEv('timeout', { n: p.name })); // 掉线太久被移出，和「主动离开」分开记
           room.players = keep; dirty = true; dlog('drop long-offline');
         }
       }
@@ -430,15 +441,18 @@ function createLAN(cfg) {
   }
 
   function attachGuest(peer, conn) {
-    G.peer = peer; G.conn = conn; G.lastHb = Date.now(); G.attempts = 0;
+    G.peer = peer; G.conn = conn; G.lastHb = Date.now(); G.attempts = 0; G.tickAt = Date.now();
     conn.on('data', (m) => onGuestData(conn, m));
     conn.on('close', () => { if (G.conn === conn) enterWait('conn closed'); });
     conn.on('error', () => { if (G.conn === conn) enterWait('conn error'); });
     peer.on('disconnected', () => { try { peer.reconnect(); } catch (e) {} }); // 和配对服务器断开不影响已建立的 P2P，顺手重连
     clearInterval(G.tick);
     G.tick = setInterval(() => {
+      const now = Date.now();
+      const gap = G.tickAt ? now - G.tickAt : 0; G.tickAt = now;
       if (state !== 'IN_ROOM') return;
-      if (Date.now() - G.lastHb > C.DEAD_MS) enterWait('heartbeat timeout');
+      if (gap > C.DEAD_MS) { G.suspendedAt = now; G.lastHb = now; dlog('guest was suspended for', Math.round(gap / 1000) + 's'); return; } // 自己被挂起：先别怪房主，给他一秒发新心跳
+      if (now - G.lastHb > C.DEAD_MS) enterWait('heartbeat timeout');
     }, C.HB_MS);
   }
 
@@ -459,6 +473,8 @@ function createLAN(cfg) {
     dlog('WAIT_HOST:', why);
     state = 'WAIT_HOST'; G.attempts = 0;
     clearInterval(G.tick);
+    G.hostoffLogged = false;
+    if (!selfAway()) { logLocal('hostoff', hostName()); G.hostoffLogged = true; } // 房主掉线才记；如果是自己刚从后台回来，这条由房主广播的「玩家 xx 已重新上线」代替
     const pp = G.peer; G.peer = null; G.conn = null; safeDestroy(pp); // 旧连接作废(可能已是僵尸状态)，重连用全新的 Peer
     emitStatus('waiting');
     scheduleRetry(300);
@@ -473,6 +489,7 @@ function createLAN(cfg) {
       if (ep !== epoch || role !== 'guest') { safeDestroy(r.peer); return; }
       room = r.room; state = 'IN_ROOM'; attachGuest(r.peer, r.conn);
       dlog('resume ok'); emitStatus('ok'); emitRoom();
+      if (G.hostoffLogged) { G.hostoffLogged = false; logLocal('hostback', hostName()); }
     }).catch((e) => {
       if (ep !== epoch || role !== 'guest') return;
       const r = e && e.reason;
@@ -521,7 +538,8 @@ function createLAN(cfg) {
   }
 
   document.addEventListener('visibilitychange', () => { // 切回前台：别等心跳超时，马上检查
-    if (document.hidden) return;
+    if (document.hidden) { hiddenAt = Date.now(); return; }
+    awayMs = hiddenAt ? Date.now() - hiddenAt : 0; resumedAt = Date.now(); hiddenAt = 0;
     if (role === 'host' && hostPeer) {
       if (hostPeer.destroyed) hostRecover();
       else if (hostPeer.disconnected) { try { hostPeer.reconnect(); } catch (e) {} }
