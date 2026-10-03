@@ -1,4 +1,4 @@
-/* lan.js — v1.26.2 本地多人·网络层(第一版：只服务大厅，游戏内同步以后由 Multiplayer.js 经本层收发)。
+/* lan.js — v1.26.4 本地多人·网络层(第一版：只服务大厅，游戏内同步以后由 Multiplayer.js 经本层收发)。
    方案依据：PeerJS + WebRTC、最多 4 人、Host Authoritative(房主是唯一权威)、不做 Host Migration、玩家身份用 playerToken(不用 Peer ID)。
    本文件只管网络：PeerJS 懒加载 / 房间 / 加入 / 心跳 / 掉线检测 / 自动重连+Resume / 手动重连 / 房主 Peer 重建；不含任何游戏逻辑。
    加载顺序：… → look.js → lobby.js → lan.js。PeerJS 库不在页面打开时加载，第一次「创建/加入房间」才从 CDN 取(固定版本)。
@@ -40,8 +40,8 @@ const DEF = {
   RETRY_MS: 3000,      // 自动重连间隔
   MAX_AUTO: 6,         // 自动重连最多几次，之后显示「手动重连」
   LOBBY_DROP_MS: 25000,// 大厅阶段，玩家掉线超过这么久才从房间里移除(期间保留身份，能 resume)
-  OPEN_MS: 8000,       // 连上配对服务器(拿到 Peer ID)的超时
-  JOIN_MS: 12000,      // 一次加入的总超时
+  OPEN_MS: 12000,      // 连上配对服务器(拿到 Peer ID)的超时(手机首次连接可能较慢)
+  JOIN_MS: 16000,      // 一次加入的总超时
   ATTEMPT_MS: 7000,    // 一次自动重连的总超时
   HELLO_MS: 6000,      // 房主等对方 hello 的超时
   CD_SEC: 3,           // 开始游戏倒计时秒数
@@ -117,7 +117,7 @@ function createLAN(cfg) {
       for (const u of urls) {
         try { await loadScript(u, 10000); if (getPeerCtor()) { dlog('PeerJS loaded', u); return; } } catch (e) { dlog('PeerJS load failed', u); }
       }
-      throw { reason: 'network' };
+      throw { reason: 'network', detail: 'lib' }; // 所有 CDN 地址都没加载成功
     })();
     libPromise.catch(() => { libPromise = null; }); // 失败后允许下次再试
     return libPromise;
@@ -131,12 +131,14 @@ function createLAN(cfg) {
   function openPeer(id, ms) {
     return new Promise((resolve, reject) => {
       let peer, settled = false;
-      try { peer = newPeer(id); } catch (e) { reject({ reason: 'network' }); return; }
-      const to = setTimeout(() => { if (settled) return; settled = true; safeDestroy(peer); reject({ reason: 'network' }); }, ms);
+      try { peer = newPeer(id); } catch (e) { dlog('new Peer threw', e && e.message); reject({ reason: 'network', detail: 'ctor' }); return; }
+      const to = setTimeout(() => { if (settled) return; settled = true; dlog('peer open timeout'); safeDestroy(peer); reject({ reason: 'network', detail: 'open-timeout' }); }, ms);
       peer.on('open', () => { if (settled) return; settled = true; clearTimeout(to); resolve(peer); });
       peer.on('error', (err) => {
         if (settled) return; settled = true; clearTimeout(to); safeDestroy(peer);
-        reject({ reason: err && err.type === 'unavailable-id' ? 'idtaken' : 'network', err });
+        const type = (err && err.type) || 'unknown';
+        dlog('peer error', type, err && err.message);
+        reject(type === 'unavailable-id' ? { reason: 'idtaken' } : { reason: 'network', detail: 'peer:' + type });
       });
     });
   }
@@ -155,13 +157,19 @@ function createLAN(cfg) {
       await loadPeerJS();
       if (ep !== epoch) throw { reason: 'cancelled' };
       let peer = null, code = '';
-      for (let i = 0; i < 6 && !peer; i++) { // 房间码撞了(公共配对服务器上 ID 是全局的)就换一个重来
+      let netFails = 0;
+      for (let i = 0; i < 8 && !peer; i++) { // 房间码撞了(公共配对服务器上 ID 是全局的)就换一个重来；连接服务器失败也重试一次
         code = genCode();
         try { peer = await openPeer(HOST_PREFIX + code, C.OPEN_MS); }
-        catch (e) { if (ep !== epoch) throw { reason: 'cancelled' }; if (e.reason !== 'idtaken') throw e; dlog('code taken, retry', code); }
+        catch (e) {
+          if (ep !== epoch) throw { reason: 'cancelled' };
+          if (e.reason === 'idtaken') { dlog('code taken, retry', code); continue; }
+          if (++netFails >= 2) throw e;
+          dlog('open failed, retry once', e.detail); await new Promise((r) => setTimeout(r, 800));
+        }
       }
       if (ep !== epoch) { safeDestroy(peer); throw { reason: 'cancelled' }; }
-      if (!peer) throw { reason: 'network' };
+      if (!peer) throw { reason: 'network', detail: 'no-peer' };
       role = 'host'; hostPeer = peer;
       room = { code, mode: 'race', phase: 'lobby', hostToken: me.token, seq: 0,
         players: [{ token: me.token, name: cleanName(me.name) || 'Player', skin: skinKeys()[0], ready: true, online: true }] };
@@ -174,7 +182,8 @@ function createLAN(cfg) {
       emitStatus('ok'); emitRoom();
     } catch (e) {
       if (ep === epoch) teardown();
-      throw (e && e.reason) ? e : { reason: 'network' };
+      dlog('create failed', e && e.reason, e && e.detail);
+      throw (e && e.reason) ? e : { reason: 'network', detail: 'unknown' };
     }
   }
 
@@ -373,7 +382,7 @@ function createLAN(cfg) {
     return new Promise((resolve, reject) => {
       let peer = null, conn = null, done = false;
       const to = setTimeout(() => fail('timeout'), budgetMs);
-      function fail(reason) { if (done) return; done = true; clearTimeout(to); safeDestroy(peer); reject({ reason }); }
+      function fail(reason, detail) { if (done) return; done = true; clearTimeout(to); safeDestroy(peer); reject({ reason, detail }); }
       openPeer(null, Math.min(C.OPEN_MS, budgetMs)).then((p) => {
         if (done || ep !== epoch) { safeDestroy(p); fail('cancelled'); return; }
         peer = p;
@@ -387,7 +396,7 @@ function createLAN(cfg) {
         });
         conn.on('close', () => fail('timeout'));
         conn.on('error', () => fail('timeout'));
-      }).catch((e) => fail((e && e.reason) || 'network'));
+      }).catch((e) => fail((e && e.reason) || 'network', e && e.detail));
     });
   }
 
@@ -411,6 +420,7 @@ function createLAN(cfg) {
       emitStatus('ok'); emitRoom();
     } catch (e) {
       if (ep === epoch) teardown();
+      dlog('join failed', e && e.reason, e && e.detail);
       throw (e && e.reason) ? e : { reason: 'timeout' };
     }
   }
