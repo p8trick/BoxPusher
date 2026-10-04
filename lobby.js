@@ -7,7 +7,8 @@
    net.setReady(bool) / net.start() / net.cancelStart() / net.endGame() / net.reconnect() / net.leave()
    net.onRoom(room)  每次变化推「完整」房间状态(以房主为准，不合并)；net.onClosed(reason) 'host'|'lost'；net.onStatus('ok'|'waiting'|'failed')
    net.onLatency({token:ms}) 每秒一次，只更新数字、不重绘；net.onLog(e) 大厅日志事件，只显示加入之后发生的
-   room = { code, mode:'race', phase:'lobby'|'starting'|'playing', hostToken, players:[{ token, name, skin, ready, online }] }；me = { token, name }
+   room = { code, mode:'race', phase:'lobby'|'starting'|'playing', hostPid, you, players:[{ pid, name, skin, ready, online }] }：只有公开的 pid，没有 token；you=自己的 pid
+   me = { token, name }：token 是本机私密的随机串(只用于向房主证明「我还是我」)，昵称仅用于显示
    玩家身份用 token(存 localStorage)，名字只是显示用；远端传来的名字一律转义后再进 innerHTML。 */
 (function () {
 'use strict';
@@ -345,7 +346,7 @@ function onLog(e) { // 大厅日志：只收「加入之后」发生的事件；
 }
 function paintPings() { // 只改数字和颜色，不重绘房间(重绘会吃掉正在进行的点按)
   document.querySelectorAll('#lbList .lbPing').forEach((el) => {
-    const on = el.dataset.on === '1', ms = LB.ping[el.dataset.tok];
+    const on = el.dataset.on === '1', ms = LB.ping[el.dataset.pid];
     let cls = 'off', txt = '—';
     if (on && typeof ms === 'number') { txt = ms + 'ms'; cls = ms < 60 ? 'good' : ms < 150 ? 'mid' : 'bad'; }
     else if (on) txt = '…';
@@ -357,10 +358,10 @@ function onLatency(m) { LB.ping = m || {}; paintPings(); }
 function renderRoom() {
   LB.view = 'room';
   const r = LB.room;
-  const myTok = LB.me.token;
-  const isHost = r.hostToken === myTok;
-  const me = r.players.find((p) => p.token === myTok) || {};
-  const guests = r.players.filter((p) => p.token !== r.hostToken);
+  const myPid = r.you; // 房间状态里只有公开的 pid；token 留在本机和房主，不出现在界面数据里
+  const isHost = r.hostPid === myPid;
+  const me = r.players.find((p) => p.pid === myPid) || {};
+  const guests = r.players.filter((p) => p.pid !== r.hostPid);
   const readyN = guests.filter((p) => p.ready).length;
   const canStart = r.players.length >= 2 && readyN === guests.length;
   const starting = r.phase === 'starting', playing = r.phase === 'playing', live = LB.status === 'ok';
@@ -372,13 +373,13 @@ function renderRoom() {
   for (let i = 0; i < MAX_PLAYERS; i++) {
     const p = r.players[i];
     if (!p) { rows += `<div class="lbRow empty"><i class="lbDot"></i><span class="lbName">${t('lbWaitSlot')}</span></div>`; continue; }
-    const isH = p.token === r.hostToken;
+    const isH = p.pid === r.hostPid;
     const tag = p.online === false ? `<span class="lbTag wait">${t('lbOffline')}</span>`
       : isH ? `<span class="lbTag host">${t('lbHost')}</span>`
       : p.ready ? `<span class="lbTag ready">${t('lbReady')}</span>` : `<span class="lbTag wait">${t('lbNotReady')}</span>`;
-    const ping = isH ? '' : `<span class="lbPing off" data-tok="${esc(p.token)}" data-on="${p.online === false ? 0 : 1}"></span>`; // 房主自己没有延迟
-    rows += `<div class="lbRow${p.token === myTok ? ' me' : ''}"><i class="lbDot" style="${skinDot(p.skin)}"></i>` +
-      `<span class="lbName">${esc(p.name)}${p.token === myTok ? `<em>(${t('lbMe')})</em>` : ''}</span>${ping}${tag}</div>`;
+    const ping = isH ? '' : `<span class="lbPing off" data-pid="${esc(p.pid)}" data-on="${p.online === false ? 0 : 1}"></span>`; // 房主自己没有延迟
+    rows += `<div class="lbRow${p.pid === myPid ? ' me' : ''}"><i class="lbDot" style="${skinDot(p.skin)}"></i>` +
+      `<span class="lbName">${esc(p.name)}${p.pid === myPid ? `<em>(${t('lbMe')})</em>` : ''}</span>${ping}${tag}</div>`;
   }
 
   let hint, action;
