@@ -190,6 +190,36 @@ function loadProfile() {
 function saveProfile(p) { try { localStorage.setItem(PROFILE_KEY, JSON.stringify({ token: p.token, name: p.name, last: p.last || '' })); } catch (e) {} } // last=最后一次成功加入的房间配对码
 function skinDot(skin) { const c = (typeof SKIN_COLORS !== 'undefined' && SKIN_COLORS[skin]) || ['#2ECC71', '#E74C3C']; return `--c1:${c[0]};--c2:${c[1]}`; }
 
+/* ---------- 倒计时音效：自带 WebAudio 合成，不依赖 sound.js；音量/静音跟随设置里的「音效」 ---------- */
+let actx = null;
+function audioCtx() { // 必须在用户点按(touchend)里创建/恢复，iOS 才允许后面由网络事件触发的声音出声；openLobby 和 tap() 里都会调一次
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    if (!actx) actx = new AC();
+    if (actx.state === 'suspended') actx.resume();
+    return actx;
+  } catch (e) { return null; }
+}
+function sfxLevel() { try { return (typeof settings !== 'undefined' && !settings.sfxMuted) ? Math.max(0, Math.min(100, +settings.sfxVol || 0)) / 100 : 0; } catch (e) { return 0; } }
+function beep(freq, dur, gain, type, delay) {
+  const lv = sfxLevel(); if (!lv) return;
+  const c = audioCtx(); if (!c) return;
+  try {
+    const t0 = c.currentTime + (delay || 0), o = c.createOscillator(), g = c.createGain();
+    o.type = type || 'sine'; o.frequency.value = freq;
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, gain * lv), t0 + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g); g.connect(c.destination); o.start(t0); o.stop(t0 + dur + 0.02);
+  } catch (e) {}
+}
+const cdSound = {
+  tick() { beep(880, 0.1, 0.4); },                                   // 3、2、1：短促的「滴」
+  go() { beep(1175, 0.12, 0.4); beep(1760, 0.34, 0.45, 'sine', 0.11); }, // 开始：两声上扬的「叮」
+  cancel() { beep(392, 0.14, 0.35, 'triangle'); beep(262, 0.22, 0.35, 'triangle', 0.12); }, // 取消：下行
+};
+
 /* ---------- 大厅 ---------- */
 const LB = { form: 'create', view: 'form', room: null, me: null, busy: false, status: 'ok', lastPhase: 'lobby', log: [], ping: {}, cd: 0 };
 function resetLive() { LB.log = []; LB.ping = {}; LB.cd = 0; LB.status = 'ok'; LB.lastPhase = 'lobby'; }
@@ -200,9 +230,9 @@ ov.id = 'lobbyOverlay';
 ov.innerHTML = '<div id="lobbyWrap"><div id="lobbySheet" class="artPanel"><div id="lbHead"><span id="lbTitle"></span><span id="lbSub"></span></div><div id="lbBody"></div></div></div>';
 document.body.appendChild(ov);
 
-function tap(id, fn) { // 带「灰掉就不响应」保护的 bindTap
+function tap(id, fn) { // 带「灰掉就不响应」保护的 bindTap；顺便在用户点按里恢复音频(iOS 解锁)
   const el = $(id);
-  if (el) bindTap(el, () => { if (!el.classList.contains('off')) fn(); });
+  if (el) bindTap(el, () => { audioCtx(); if (!el.classList.contains('off')) fn(); });
 }
 function showMsg(text, info) { const m = $('lbMsg'); if (m) { m.textContent = text || ''; m.classList.toggle('info', !!info); } }
 function showDiag(text) { const d = $('lbDiag'); if (d) d.textContent = text || ''; }
@@ -211,6 +241,7 @@ function getNet() { return window.LAN_NET || null; }
 
 function openLobby(form) {
   LB.me = loadProfile(); LB.form = form; LB.room = null; LB.busy = false; resetLive();
+  audioCtx();
   net = getNet();
   if (net) { net.onRoom = onRoom; net.onClosed = onClosed; net.onStatus = onStatus; net.onLatency = onLatency; net.onLog = onLog; }
   renderForm();
@@ -336,6 +367,7 @@ function paintLog() {
 }
 function onLog(e) { // 大厅日志：只收「加入之后」发生的事件；倒计时的每一格也在这里驱动提示文字
   if (!e || !e.k) return;
+  if (e.k === 'cd') cdSound.tick(); else if (e.k === 'go') cdSound.go(); else if (e.k === 'cdcancel') cdSound.cancel();
   if (e.k === 'cd') {
     LB.cd = e.s;
     const h = document.querySelector('#lobbySheet .lbHint');
