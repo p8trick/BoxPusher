@@ -10,23 +10,25 @@
    onRoom(room)            每次变化推「完整」房间状态(以房主为准，不合并)
    onClosed(reason)        'host'=房主解散 / 'lost'=彻底失联(放弃重连)
    onStatus(s)             'ok' | 'waiting'(等待房主/正在重连) | 'failed'(自动重连失败，等玩家点手动重连)
-   onLatency(map)          每秒一次：{ token: 毫秒 }，房主测得的各玩家往返延迟(只含在线的玩家)
+   onLatency(map)          每秒一次：{ pid: 毫秒 }，房主测得的各玩家往返延迟(只含在线的玩家)
    onLog(e)                大厅日志事件 e={k,...}：created/join/leave(主动离开)/timeout(掉线超时被移出)/offline/back(玩家)、cd{s}/cdcancel{why,n}/go，
                            以及只在本机产生的 hostoff/hostback(房主掉线/上线)；广播类只在发生那一刻发出，晚加入的人看不到之前的
    cancelStart()           房主：倒计时期间取消开始
    debugInfo()             一段给真机排查用的状态文字
-   me = { token, name }；room = { code, mode:'race', phase:'lobby'|'playing', hostToken, seq, players:[{token,name,skin,ready,online}] }
+   me = { token, name }：token 是设备本地生成的私密随机串，只在 hello 里发给房主，房主用它认人；昵称只是显示用，重名也不会混。
+   room = { code, mode:'race', phase:'lobby'|'starting'|'playing', hostPid, you, seq, players:[{pid,name,skin,ready,online}] }：
+   对外(包括房主自己的界面)只出现公开的 pid，token 永远不会离开房主那台设备；you=接收者自己的 pid。
 
    ── 消息(对象，t=类型；PeerJS 默认序列化)──
    玩家→房主：hello{v,token,name,resume} / ready{v} / ping / leave
-   房主→玩家：welcome{room} / reject{reason} / room{room}(完整状态) / hb{seq,ts,p}(每 1s，p=各玩家延迟) / log{e} / closed{reason}
+   房主→玩家：welcome{room,you} / reject{reason} / room{room}(完整状态) / hb{seq,ts,p}(每 1s，p=各玩家延迟) / log{e} / closed{reason}
    玩家→房主还有 pong{ts}：收到 hb 立刻原样回 ts，房主用「现在 − ts」算往返延迟，同时它也是玩家「还活着」的信号。
    玩家 8s 没收到 hb 就进入 WAIT_HOST 自动重连；房主 8s 没收到某玩家的消息就把他标记掉线。
    延迟走 hb 附带的 p，不触发房间重绘(大厅每秒重绘会吃掉按钮点击)；只有真正的状态变化才广播 room。 */
 (function () {
 'use strict';
 
-const PROTO = 1;
+const PROTO = 2; // 2：房间状态里不再带 token，改用公开的 pid；和旧版互相连会得到「版本不一致」
 const HOST_PREFIX = 'box-host-';
 const MAX_PLAYERS = 4;
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 去掉容易混的 0/O/1/I，和 lobby.js 一致
@@ -72,7 +74,7 @@ function createLAN(cfg) {
   let cdTimer = null, cdLeft = 0; // 开始倒计时
   let saveTick = 0;
   let lastTickAt = 0, hiddenAt = 0, resumedAt = 0, awayMs = 0, hostBackAt = 0; // 判断「是谁掉线/被挂起」用
-  const G = { me: null, code: '', peer: null, conn: null, tick: null, lastHb: 0, attempts: 0, retryTimer: null };
+  const G = { me: null, pid: '', code: '', peer: null, conn: null, tick: null, lastHb: 0, attempts: 0, retryTimer: null };
 
   /* ---------- 日志(真机没有控制台，debugInfo 里能看到最近几条) ---------- */
   const logs = [];
@@ -91,9 +93,19 @@ function createLAN(cfg) {
     return s;
   }
   function cleanName(s) { return [...String(s || '').replace(/[\u0000-\u001f<>]/g, '').trim()].slice(0, 8).join(''); }
-  const snap = () => JSON.parse(JSON.stringify(room));
-  function emitRoom() { if (room && L.onRoom) { try { L.onRoom(snap()); } catch (e) { console.error(e); } } }
-  function hostName() { const h = room && room.players.find((p) => p.token === room.hostToken); return h ? h.name : ''; }
+  // 对外的房间状态：去掉 token 和 hostToken，只留公开的 pid(房主内部仍用 token 认人)
+  const snap = () => { const r = JSON.parse(JSON.stringify(room)); delete r.hostToken; r.players.forEach((p) => { delete p.token; }); return r; };
+  const myPid = () => (role === 'host' ? (room && room.hostPid) : G.pid) || '';
+  function emitRoom() { if (room && L.onRoom) { try { L.onRoom(Object.assign(snap(), { you: myPid() })); } catch (e) { console.error(e); } } }
+  function hostName() { const h = room && room.players.find((p) => p.pid === room.hostPid); return h ? h.name : ''; }
+  function newPid(taken) { // 公开的玩家编号：随机 8 位十六进制，房间内不重复；和 token 无关，别人看到也冒充不了
+    for (;;) {
+      let id = '';
+      try { id = Array.from(crypto.getRandomValues(new Uint8Array(4)), (b) => b.toString(16).padStart(2, '0')).join(''); }
+      catch (e) { id = Math.random().toString(16).slice(2, 10).padEnd(8, '0'); }
+      if (!(room && room.players.some((p) => p.pid === id)) && !(taken && taken.includes(id))) return id;
+    }
+  }
   function logLocal(k, n) { if (L.onLog) { try { L.onLog({ k, n }); } catch (x) { console.error(x); } } } // 只在本机显示的日志(别人看不到)
   function hostBackLog() { const now = Date.now(); if (now - hostBackAt < 5000) return; hostBackAt = now; logLocal('hostback', hostName()); } // 房主这台设备「回来了」
   function selfAway() { const now = Date.now(); return (now - resumedAt < 5000 && awayMs > 3000) || now - (G.suspendedAt || 0) < 5000; } // 本机刚被挂起过：掉线的是自己，不是房主
@@ -187,8 +199,9 @@ function createLAN(cfg) {
       if (ep !== epoch) { safeDestroy(peer); throw { reason: 'cancelled' }; }
       if (!peer) throw { reason: 'network', detail: 'no-peer' };
       role = 'host'; hostPeer = peer;
-      room = { code, mode: 'race', phase: 'lobby', hostToken: me.token, seq: 0,
-        players: [{ token: me.token, name: cleanName(me.name) || 'Player', skin: skinKeys()[0], ready: true, online: true }] };
+      const hpid = newPid();
+      room = { code, mode: 'race', phase: 'lobby', hostToken: me.token, hostPid: hpid, seq: 0,
+        players: [{ pid: hpid, token: me.token, name: cleanName(me.name) || 'Player', skin: skinKeys()[0], ready: true, online: true }] };
       wireHostPeer(peer);
       startHostTick();
       persistHost();
@@ -231,12 +244,15 @@ function createLAN(cfg) {
       if (ep !== epoch) { safeDestroy(peer); throw { reason: 'cancelled' }; }
       role = 'host'; hostPeer = peer;
       const now = Date.now();
-      const players = ss.players.filter((p) => p && p.token && p.token !== me.token).slice(0, MAX_PLAYERS - 1).map((p) => ({ // 其余玩家先标记掉线，等他们重连；给足时间不被移出
-        token: String(p.token), name: cleanName(p.name) || 'Player', skin: p.skin || 'classic', ready: false, online: false }));
-      players.forEach((p) => offlineSince.set(p.token, now + 60000));
       const mine = ss.players.find((p) => p && p.token === me.token);
-      room = { code: ss.code, mode: 'race', phase: 'lobby', hostToken: me.token, seq: 0,
-        players: [{ token: me.token, name: cleanName(me.name) || (mine && mine.name) || 'Player', skin: (mine && mine.skin) || skinKeys()[0], ready: true, online: true }].concat(players) };
+      const used = [];
+      const keepPid = (p) => { const id = /^[0-9a-f]{8}$/.test(p && p.pid) && !used.includes(p.pid) ? p.pid : newPid(used); used.push(id); return id; }; // 恢复后 pid 不变，玩家重连后在别人界面里还是同一个人
+      const hpid = keepPid(mine);
+      const players = ss.players.filter((p) => p && p.token && p.token !== me.token).slice(0, MAX_PLAYERS - 1).map((p) => ({ // 其余玩家先标记掉线，等他们重连；给足时间不被移出
+        pid: keepPid(p), token: String(p.token), name: cleanName(p.name) || 'Player', skin: p.skin || 'classic', ready: false, online: false }));
+      players.forEach((p) => offlineSince.set(p.token, now + 60000));
+      room = { code: ss.code, mode: 'race', phase: 'lobby', hostToken: me.token, hostPid: hpid, seq: 0,
+        players: [{ pid: hpid, token: me.token, name: cleanName(me.name) || (mine && mine.name) || 'Player', skin: (mine && mine.skin) || skinKeys()[0], ready: true, online: true }].concat(players) };
       wireHostPeer(peer); startHostTick(); persistHost();
       state = 'HOST_ACTIVE';
       dlog('room restored', ss.code, 'players', room.players.length);
@@ -333,13 +349,13 @@ function createLAN(cfg) {
     } else {
       if (room.phase !== 'lobby') { rejectConn(conn, 'started'); return; }
       if (room.players.length >= MAX_PLAYERS) { rejectConn(conn, 'full'); return; }
-      p = { token: tok, name: cleanName(m.name) || 'Player', skin: freeSkin(), ready: false, online: true };
+      p = { pid: newPid(), token: tok, name: cleanName(m.name) || 'Player', skin: freeSkin(), ready: false, online: true };
       room.players.push(p);
       dlog('join', p.name);
     }
     conn._tok = tok; conns.set(tok, conn); lastSeen.set(tok, Date.now()); offlineSince.delete(tok);
     room.seq++;
-    sendTo(conn, { t: 'welcome', room: snap() });
+    sendTo(conn, { t: 'welcome', room: snap(), you: p.pid });
     bcast({ t: 'room', room: snap() }, tok);
     emitRoom(); persistHost();
     logEv(resumed ? 'back' : 'join', { n: p.name }); // 日志发给包括他自己在内的所有人：他看到的第一条就是自己加入
@@ -381,7 +397,7 @@ function createLAN(cfg) {
   function persistHost() { // 房间每变一次、以及每隔几秒存一份：房主 App 被杀后能用同一个配对码恢复，玩家身份(token)不变
     if (role !== 'host' || !room) return;
     saveSession({ role: 'host', code: room.code, token: room.hostToken, t: Date.now(),
-      players: room.players.map((p) => ({ token: p.token, name: p.name, skin: p.skin })) });
+      players: room.players.map((p) => ({ pid: p.pid, token: p.token, name: p.name, skin: p.skin })) });
   }
   function readHostSession(tok) {
     const s = L.session();
@@ -402,7 +418,7 @@ function createLAN(cfg) {
         dlog('host was suspended for', Math.round(gap / 1000) + 's, forgive players'); hostBackLog();
       }
       const pm = {};
-      room.players.forEach((pl) => { if (pl.token !== room.hostToken && pl.online && pings.has(pl.token)) pm[pl.token] = pings.get(pl.token); });
+      room.players.forEach((pl) => { if (pl.token !== room.hostToken && pl.online && pings.has(pl.token)) pm[pl.pid] = pings.get(pl.token); }); // 对外用 pid 做键
       bcast({ t: 'hb', seq: room.seq, ts: now, p: pm });
       if (L.onLatency) { try { L.onLatency(pm); } catch (x) { console.error(x); } }
       let dirty = false;
@@ -485,7 +501,7 @@ function createLAN(cfg) {
         conn.on('open', () => { if (!sendTo(conn, { t: 'hello', v: PROTO, token: me.token, name: me.name, resume: !!resume })) fail('timeout'); });
         conn.on('data', (m) => {
           if (done || !m) return;
-          if (m.t === 'welcome') { done = true; clearTimeout(to); clearTimeout(connTimer); resolve({ peer, conn, room: m.room }); }
+          if (m.t === 'welcome') { done = true; clearTimeout(to); clearTimeout(connTimer); resolve({ peer, conn, room: m.room, you: m.you }); }
           else if (m.t === 'reject') fail(m.reason || 'timeout');
         });
         conn.on('close', () => fail('timeout'));
@@ -507,7 +523,7 @@ function createLAN(cfg) {
       if (ep !== epoch) throw { reason: 'cancelled' };
       const r = await dial(code, G.me, false, C.JOIN_MS, ep);
       if (ep !== epoch) { safeDestroy(r.peer); throw { reason: 'cancelled' }; }
-      room = r.room; state = 'IN_ROOM';
+      room = r.room; G.pid = r.you || ''; state = 'IN_ROOM';
       attachGuest(r.peer, r.conn);
       saveSession({ role: 'guest', code, token: me.token, t: Date.now() });
       dlog('joined', code);
@@ -542,7 +558,7 @@ function createLAN(cfg) {
       sendTo(conn, { t: 'pong', ts: m.ts }); // 原样回 ts，房主据此算延迟
       if (m.p && L.onLatency) { try { L.onLatency(m.p); } catch (e) { console.error(e); } }
     } else if (m.t === 'log') { if (L.onLog) { try { L.onLog(m.e); } catch (e) { console.error(e); } } }
-    else if (m.t === 'room' || m.t === 'welcome') { G.lastHb = Date.now(); room = m.room; emitRoom(); }
+    else if (m.t === 'room' || m.t === 'welcome') { G.lastHb = Date.now(); room = m.room; if (m.you) G.pid = m.you; emitRoom(); }
     else if (m.t === 'closed') { dlog('host closed room'); teardown(); if (L.onClosed) L.onClosed('host'); }
   }
 
@@ -566,7 +582,7 @@ function createLAN(cfg) {
     dlog('reconnect try', G.attempts);
     dial(G.code, G.me, true, C.ATTEMPT_MS, ep).then((r) => {
       if (ep !== epoch || role !== 'guest') { safeDestroy(r.peer); return; }
-      room = r.room; state = 'IN_ROOM'; attachGuest(r.peer, r.conn);
+      room = r.room; G.pid = r.you || G.pid; state = 'IN_ROOM'; attachGuest(r.peer, r.conn);
       dlog('resume ok'); emitStatus('ok'); emitRoom();
       if (G.hostoffLogged) { G.hostoffLogged = false; logLocal('hostback', hostName()); }
     }).catch((e) => {
