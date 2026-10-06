@@ -519,11 +519,14 @@ const bCreate = addHomeBtn('homeMpCreate', 'mpCreate');
 const bJoin = addHomeBtn('homeMpJoin', 'mpJoin');
 const bBack = addHomeBtn('homeMpBack', 'mpBack');
 
-function resumeInfo() { // 本机有没有可恢复的会话：房主(创建的房间)或玩家(加入的房间)，30 分钟内、没主动解散/离开
+function resumeInfo() { // 「恢复游戏」只给「对局进行中被杀/掉线」的会话(房主或玩家，30 分钟内、没主动解散/离开)；大厅里被杀的不出现，走创建/加入面板里的「恢复上次房间/加入上次房间」
   const n = getNet(); if (!n || !n.hostSession) return null;
-  const tok = loadProfile().token, hs = n.hostSession(tok), gs = n.guestSession && n.guestSession(tok);
+  const tok = loadProfile().token;
+  let hs = n.hostSession(tok), gs = n.guestSession && n.guestSession(tok);
+  if (hs && !hs.playing) hs = null;
+  if (gs && !gs.playing) gs = null;
   if (hs && (!gs || hs.t >= gs.t)) return { role: 'host', code: hs.code };
-  return gs ? { role: 'guest', code: gs.code } : null; // 只认「被打断的会话」；主动离开房间会清掉会话，按钮就不再出现
+  return gs ? { role: 'guest', code: gs.code } : null;
 }
 function refreshResume() { bResume.style.display = (!(LB.room || LB.busy) && resumeInfo()) ? '' : 'none'; }
 function doResume() {
