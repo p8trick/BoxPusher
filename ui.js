@@ -523,7 +523,7 @@ function setPause(on) {
 
 function goHome() { setPause(false); cameFromGame = true; showHomeScreen(); }
 
-bindTap(document.getElementById('modeBtn'), () => setPause(!paused));
+bindTap(document.getElementById('modeBtn'), () => { if (window.EV && EV.locked()) return; setPause(!paused); }); // 联机随机事件期间地图/菜单键停用
 
 updateModeBtn();
 
