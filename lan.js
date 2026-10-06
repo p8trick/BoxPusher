@@ -288,7 +288,13 @@ function createLAN(cfg) {
     const s = L.session();
     if (!s || s.role !== 'guest' || !tok || s.token !== tok || !/^[A-Z2-9]{6}$/.test(s.code || '')) return null;
     if (Date.now() - (s.t || 0) > C.SESSION_TTL) return null;
-    return { code: s.code, t: s.t || 0 };
+    return { code: s.code, t: s.t || 0, playing: s.ph === 'playing' }; // playing=被杀前这个房间正在对局中(「恢复游戏」入口只认对局中；大厅里被杀走「加入上次房间」)
+  }
+  function saveGuestSession(now) { // 玩家会话：带上「是否对局中」，对局状态一变就立刻存，不等 5 个 tick
+    if (!G.me || !G.code) return;
+    const o = { role: 'guest', code: G.code, token: G.me.token, t: now || Date.now() };
+    if (room && room.phase === 'playing') o.ph = 'playing';
+    saveSession(o);
   }
 
   function wireHostPeer(peer) {
@@ -620,7 +626,7 @@ function createLAN(cfg) {
       if (ep !== epoch) { safeDestroy(r.peer); throw { reason: 'cancelled' }; }
       room = r.room; G.pid = r.you || ''; state = 'IN_ROOM';
       attachGuest(r.peer, r.conn);
-      saveSession({ role: 'guest', code, token: me.token, t: Date.now() });
+      saveGuestSession();
       dlog('joined', code);
       emitStatus('ok'); emitRoom();
     } catch (e) {
@@ -641,7 +647,7 @@ function createLAN(cfg) {
       const now = Date.now();
       const gap = G.tickAt ? now - G.tickAt : 0; G.tickAt = now;
       if (state !== 'IN_ROOM') return;
-      if (++G.saveN % 5 === 0 && G.me && G.code) saveSession({ role: 'guest', code: G.code, token: G.me.token, t: now }); // 刷新时间戳：在房间里待多久都不过期
+      if (++G.saveN % 5 === 0) saveGuestSession(now); // 刷新时间戳：在房间里待多久都不过期
       if (gap > C.DEAD_MS) { G.suspendedAt = now; G.lastHb = now; dlog('guest was suspended for', Math.round(gap / 1000) + 's'); return; } // 自己被挂起：先别怪房主，给他一秒发新心跳
       if (now - G.lastHb > C.DEAD_MS) enterWait('heartbeat timeout');
     }, C.HB_MS);
@@ -656,7 +662,7 @@ function createLAN(cfg) {
       if (m.p && L.onLatency) { try { L.onLatency(m.p); } catch (e) { console.error(e); } }
       if (m.r && L.onReports) { try { L.onReports(m.r); } catch (e) { console.error(e); } }
     } else if (m.t === 'log') { if (L.onLog) { try { L.onLog(m.e); } catch (e) { console.error(e); } } }
-    else if (m.t === 'room' || m.t === 'welcome') { G.lastHb = Date.now(); room = m.room; if (m.you) G.pid = m.you; emitRoom(); }
+    else if (m.t === 'room' || m.t === 'welcome') { const was = !!(room && room.phase === 'playing'); G.lastHb = Date.now(); room = m.room; if (m.you) G.pid = m.you; if (was !== (room.phase === 'playing')) saveGuestSession(); emitRoom(); }
     else if (m.t === 'g') { if (room && L.onGame) { try { L.onGame(m.d, room.hostPid); } catch (e) { console.error(e); } } }
     else if (m.t === 'closed') { dlog('host closed room'); teardown(); if (L.onClosed) L.onClosed('host'); }
   }
