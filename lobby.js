@@ -24,7 +24,7 @@ const $ = (id) => document.getElementById(id);
 
 /* ---------- 文案(并入 I18N，zh/en 两份) ---------- */
 Object.assign(I18N.zh, {
-  multi: '本地多人', mpCreate: '创建房间', mpJoin: '加入房间', mpBack: '返回', mpResume: '恢复游戏',
+  lbClear: '清空', multi: '本地多人', mpCreate: '创建房间', mpJoin: '加入房间', mpBack: '返回', mpResume: '恢复游戏',
   lbMdEasy: '竞速模式-简单', lbMdNormal: '竞速模式-正常', lbMdCoop: '双人合作模式(敬请期待)',
   lbDefName: '玩家', lbName: '玩家名字', lbCode: '配对码', lbCodePh: '6 位配对码',
   lbCreateTitle: '创建房间', lbJoinTitle: '加入房间', lbRoomTitle: '房间',
@@ -45,7 +45,7 @@ Object.assign(I18N.zh, {
   lbLogCdCancel: (why, n) => (why === 'host' ? '房主取消了开始' : why === 'unready' ? `${n} 取消了准备，已取消开始` : why === 'left' ? `${n} 离开了，已取消开始` : why === 'offline' ? `${n} 掉线了，已取消开始` : '已取消开始'),
 });
 Object.assign(I18N.en, {
-  multi: 'MULTIPLAYER', mpCreate: 'CREATE ROOM', mpJoin: 'JOIN ROOM', mpBack: 'BACK', mpResume: 'RESUME GAME',
+  lbClear: 'Clear', multi: 'MULTIPLAYER', mpCreate: 'CREATE ROOM', mpJoin: 'JOIN ROOM', mpBack: 'BACK', mpResume: 'RESUME GAME',
   lbMdEasy: 'Race - Easy', lbMdNormal: 'Race - Normal', lbMdCoop: 'Co-op (coming soon)',
   lbDefName: 'Player', lbName: 'Player name', lbCode: 'Room code', lbCodePh: '6-character code',
   lbCreateTitle: 'Create Room', lbJoinTitle: 'Join Room', lbRoomTitle: 'Room',
@@ -128,6 +128,11 @@ css.textContent = `
   background: rgba(20, 12, 6, 0.55); box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.4); color: #f6e8c4;
   font-size: 18px; font-weight: 700; outline: none; -webkit-appearance: none; appearance: none;
   -webkit-user-select: text; user-select: text; touch-action: manipulation; } /* 16px 以上 iOS 聚焦时不会自动放大页面；全局 user-select:none 要在这里改回 text 才能输入 */
+.lbInWrap { position: relative; }
+.lbClear { display: none; position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 36px; height: 36px; padding: 0; border: 0; border-radius: 50%;
+  background: rgba(243, 223, 178, 0.16); color: #f6e8c4; font: 400 24px/36px system-ui, sans-serif; text-align: center; -webkit-tap-highlight-color: transparent; }
+.lbClear:active { background: rgba(243, 223, 178, 0.32); }
+.lbInWrap.has .lbClear { display: block; }
 .lbInput:focus { border-color: #f2b45e; }
 .lbInput::placeholder { color: rgba(217, 192, 138, 0.45); font-weight: 600; letter-spacing: 0.05em; }
 .lbInput.code { text-align: center; font-size: 24px; font-weight: 900; letter-spacing: 0.35em; text-indent: 0.35em; text-transform: uppercase; }
@@ -173,6 +178,7 @@ html[data-lang="en"] .lbBtn { font-size: 16px; letter-spacing: 0.06em; text-inde
 .lbRow.empty .lbName { color: rgba(217, 192, 138, 0.45); font-weight: 600; }
 .lbDot { flex: none; width: 22px; height: 22px; border-radius: 50%; box-shadow: 0 0 0 2px rgba(255, 240, 210, 0.3);
   background: linear-gradient(90deg, var(--c1, transparent) 50%, var(--c2, transparent) 50%); }
+.lbHead { flex: none; width: 36px; height: 36px; margin: 0 -3px 0 -5px; pointer-events: none; -webkit-user-select: none; user-select: none; filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.4)); }
 .lbRow.empty .lbDot { background: none; box-shadow: none; border: 1px dashed rgba(217, 192, 138, 0.3); }
 .lbName { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 17px; font-weight: 800; color: #f6e8c4; }
 .lbName em { font-style: normal; font-size: 13px; font-weight: 700; color: #d9c08a; margin-left: 6px; }
@@ -191,7 +197,7 @@ html[data-lang="en"] .lbBtn { font-size: 16px; letter-spacing: 0.06em; text-inde
 .lbDDList b { display: block; padding: 11px 14px; text-align: center; border-radius: 9px; color: #d9c08a; box-shadow: none; -webkit-tap-highlight-color: transparent; }
 .lbDDList b.sel { background: rgba(242, 180, 94, 0.2); color: #f6e3ae; box-shadow: inset 0 0 0 1px rgba(242, 180, 94, 0.55); }
 .lbDDList b.dis { color: rgba(217, 192, 138, 0.4); }
-.lbRow.inRes .lbName, .lbRow.inRes .lbDot { opacity: 0.4; filter: grayscale(1); } /* 还在结算画面的玩家：名字变灰，回来后恢复 */
+.lbRow.inRes .lbName, .lbRow.inRes .lbDot, .lbRow.inRes .lbHead { opacity: 0.4; filter: grayscale(1); } /* 还在结算画面的玩家：名字变灰，回来后恢复 */
 .lbProg { flex: none; font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; color: #f6e3ae; }
 .lbHint { min-height: 20px; margin: -4px 0 12px; text-align: center; font-size: 14px; font-weight: 700; color: #d9c08a; }
 .lbPing { flex: none; min-width: 42px; text-align: right; font-size: 12px; font-weight: 800; font-variant-numeric: tabular-nums; }
@@ -219,7 +225,30 @@ function loadProfile() {
   saveProfile(p);
   return p;
 }
-function saveProfile(p) { try { localStorage.setItem(PROFILE_KEY, JSON.stringify({ token: p.token, name: p.name, last: p.last || '' })); } catch (e) {} } // last=最后一次成功加入的房间配对码
+function saveProfile(p) { try { localStorage.setItem(PROFILE_KEY, JSON.stringify({ token: p.token, name: p.name, last: p.last || '', tier: p.tier || '' })); } catch (e) {} } // last=最后一次成功加入的房间配对码；tier=房主最近选的模式(创建房间后自动套用)
+/* 玩家头像：assets/UI/icons/icon_head.svg(Kenney 人物头像，帽子是绿色两档)，按配色把帽子换色后做成 blob 图；没加载好/失败就退回原来的小圆点 */
+const HEAD_URL = 'assets/UI/icons/icon_head.svg', HEAD_HAT = ['#2ECC71', '#28B162']; // 帽子主色 / 暗部(暗部 = 主色 × 0.87)
+let headTpl = ''; const headCache = {};
+function shade(hex, k) { const n = parseInt(hex.slice(1), 16); return '#' + [16, 8, 0].map((sh) => Math.round(((n >> sh) & 255) * k).toString(16).padStart(2, '0')).join('').toUpperCase(); }
+function headSrc(skin) {
+  if (!headTpl) return '';
+  if (headCache[skin]) return headCache[skin].src;
+  const c = (typeof SKIN_COLORS !== 'undefined' && SKIN_COLORS[skin]) || [HEAD_HAT[0]];
+  if (!/^#[0-9a-fA-F]{6}$/.test(c[0])) return '';
+  const svg = headTpl.split(`"${HEAD_HAT[0]}"`).join(`"${c[0]}"`).split(`"${HEAD_HAT[1]}"`).join(`"${shade(c[0], 0.87)}"`); // 带引号匹配(B11)
+  const im = new Image(); im.decoding = 'async';
+  im.src = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+  headCache[skin] = im; // 留着引用，重绘大厅时不闪(B9)
+  return im.src;
+}
+function loadHeadTpl() {
+  if (headTpl || typeof fetch !== 'function') return;
+  fetch(HEAD_URL).then((r) => (r.ok ? r.text() : Promise.reject(r.status))).then((tx) => {
+    if (tx.indexOf(HEAD_HAT[0]) < 0) return; // 不是预期的头像文件：保持圆点
+    headTpl = tx;
+    if (ov.classList.contains('show') && LB.room && LB.view === 'room') renderRoom(); // 头像刚到：补刷一次
+  }).catch(() => {});
+}
 function skinDot(skin) { const c = (typeof SKIN_COLORS !== 'undefined' && SKIN_COLORS[skin]) || ['#2ECC71', '#E74C3C']; return `--c1:${c[0]};--c2:${c[1]}`; }
 
 /* ---------- 倒计时音效：自带 WebAudio 合成，不依赖 sound.js；音量/静音跟随设置里的「音效」 ---------- */
@@ -297,6 +326,28 @@ function closeLobby() { // 回到多人主页
 }
 function leaveRoom() { if (net) net.leave(); LB.room = null; resetLive(); renderForm(); }
 
+/* 输入框：iOS 用过输入框后，「摇一摇撤销键入」会在整个 App 里(游戏/设置/主页)弹出——它挂在最后编辑过的那个输入框上。
+   失焦后把输入框换成一个全新的(值不变)，旧的连同它的撤销记录一起丢掉。 */
+function renewInput(id, wire) {
+  setTimeout(() => {
+    const el = $(id); if (!el || el === document.activeElement) return;
+    const n = el.cloneNode(false); n.value = el.value;
+    el.replaceWith(n); wire();
+  }, 0);
+}
+function syncClear() { const c = $('lbCode'), w = $('lbCodeWrap'); if (w) w.classList.toggle('has', !!(c && c.value)); }
+function wireName() {
+  const el = $('lbName'); if (!el) return;
+  el.addEventListener('blur', () => { LB.me.name = cleanName(el.value) || LB.me.name; el.value = LB.me.name; saveProfile(LB.me); window.scrollTo(0, 0); renewInput('lbName', wireName); });
+  el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { el.blur(); doGo(); } });
+}
+function wireCode() {
+  const el = $('lbCode'); if (!el) return;
+  el.addEventListener('input', () => { el.value = el.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6); syncClear(); });
+  el.addEventListener('blur', () => { window.scrollTo(0, 0); renewInput('lbCode', () => { wireCode(); syncClear(); }); });
+  el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { el.blur(); doGo(); } });
+}
+
 function renderForm() {
   LB.view = 'form';
   const join = LB.form === 'join';
@@ -305,22 +356,17 @@ function renderForm() {
   $('lbSub').innerHTML = '';
   $('lbBody').innerHTML =
     `<div class="lbField"><label>${t('lbName')}</label><input id="lbName" class="lbInput" maxlength="${NAME_MAX}" autocomplete="off" autocorrect="off" spellcheck="false" value="${esc(LB.me.name)}"></div>` +
-    (join ? `<div class="lbField"><label>${t('lbCode')}</label><input id="lbCode" class="lbInput code" maxlength="6" inputmode="text" autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="${t('lbCodePh')}"></div>` : '') +
+    (join ? `<div class="lbField"><label>${t('lbCode')}</label><div id="lbCodeWrap" class="lbInWrap"><input id="lbCode" class="lbInput code" maxlength="6" inputmode="text" autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="${t('lbCodePh')}"><button id="lbClear" class="lbClear" type="button" tabindex="-1" aria-label="${t('lbClear')}">×</button></div></div>` : '') +
     `<div id="lbMsg" class="lbMsg"></div><div id="lbDiag" class="lbDiag"></div>` +
     `<div class="lbBtns"><button id="lbGo" class="lbBtn">${t(join ? 'lbJoinGo' : 'lbCreateGo')}</button>` +
     (join && LB.me.last ? `<button id="lbRejoin" class="lbBtn">${t('lbRejoin')}</button><div class="lbLast">${t('lbLastCode', `<b>${esc(LB.me.last)}</b>`)}</div>` : '') +
     (!join && hs ? `<button id="lbRestore" class="lbBtn">${t('lbRestore')}</button><div class="lbLast">${t('lbLastCode', `<b>${esc(hs.code)}</b>`)}</div>` : '') +
     `<button id="lbBack" class="lbBtn red">${t('lbBack')}</button></div>`;
-  const nameEl = $('lbName'), codeEl = $('lbCode');
-  nameEl.addEventListener('blur', () => { LB.me.name = cleanName(nameEl.value) || LB.me.name; nameEl.value = LB.me.name; saveProfile(LB.me); window.scrollTo(0, 0); });
-  if (codeEl) {
-    codeEl.addEventListener('input', () => { codeEl.value = codeEl.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6); });
-    codeEl.addEventListener('blur', () => window.scrollTo(0, 0));
-  }
-  [nameEl, codeEl].forEach((el) => { if (el) el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { el.blur(); doGo(); } }); });
+  wireName(); wireCode(); syncClear();
+  tap('lbClear', () => { const c = $('lbCode'); if (!c) return; c.value = ''; syncClear(); showMsg(''); try { c.focus(); } catch (e) {} }); // 一键清空配对码
   tap('lbGo', doGo);
   tap('lbRestore', doRestore);
-  tap('lbRejoin', () => { const c = $('lbCode'); if (c) c.value = LB.me.last; doGo(); }); // 杀后台/重开后不用再手输配对码
+  tap('lbRejoin', () => { const c = $('lbCode'); if (c) c.value = LB.me.last; syncClear(); doGo(); }); // 杀后台/重开后不用再手输配对码
   tap('lbBack', closeLobby);
 }
 
@@ -338,7 +384,7 @@ async function doGo() {
   if (!net) { showMsg(t('lbErrNoLan')); return; } // lan.js 没加载：这和「网络不通」是两回事，要分开提示
   setBusy(true); showMsg(join ? t('lbConnecting') : '', true); showDiag('');
   try {
-    if (join) { await net.join({ code, me: meInfo }); LB.me.last = code; saveProfile(LB.me); } else await net.create({ me: meInfo });
+    if (join) { await net.join({ code, me: meInfo }); LB.me.last = code; saveProfile(LB.me); } else { await net.create({ me: meInfo }); const tr = LB.me.tier; if (tr && TIER_KEYS.some(([k]) => k === tr) && net.setTier) { try { net.setTier(tr); } catch (e) {} } } // 新房间默认「简单」：套用房主上次选的模式
   } // 成功后房间状态走 onRoom 渲染
   catch (e) {
     showMsg(t(ERR_KEY[e && e.reason] || 'lbErrTimeout') + (e && e.detail ? ` [${e.detail}]` : '')); // 网络类错误附上原因代码，方便排查
@@ -460,7 +506,8 @@ function renderRoom() {
       : isH ? `<span class="lbTag host">${t('lbHost')}</span>`
       : p.ready ? `<span class="lbTag ready">${t('lbReady')}</span>` : `<span class="lbTag wait">${t('lbNotReady')}</span>`;
     const ping = isH ? '' : `<span class="lbPing off" data-pid="${esc(p.pid)}" data-on="${p.online === false ? 0 : 1}"></span>`; // 房主自己没有延迟
-    rows += `<div class="lbRow${p.pid === myPid ? ' me' : ''}${p.inResult ? ' inRes' : ''}"><i class="lbDot" style="${skinDot(p.skin)}"></i>` +
+    const hs = headSrc(p.skin);
+    rows += `<div class="lbRow${p.pid === myPid ? ' me' : ''}${p.inResult ? ' inRes' : ''}">` + (hs ? `<img class="lbHead" alt="" draggable="false" src="${hs}">` : `<i class="lbDot" style="${skinDot(p.skin)}"></i>`) +
       `<span class="lbName">${esc(p.name)}${p.pid === myPid ? `<em>(${t('lbMe')})</em>` : ''}</span>${ping}${tag}</div>`;
   }
 
@@ -493,7 +540,7 @@ function renderRoom() {
   });
   if (canTier) { // 点当前选项展开/收起；选了就立刻推送给所有人(房间状态广播)，同时收起
     tap('lbDDBtn', () => $('lbModeRow').classList.toggle('open'));
-    TIER_KEYS.forEach(([k]) => tap('lbTier_' + k, () => { $('lbModeRow').classList.remove('open'); if (r.tier !== k) net.setTier(k); }));
+    TIER_KEYS.forEach(([k]) => tap('lbTier_' + k, () => { $('lbModeRow').classList.remove('open'); if (r.tier !== k) { net.setTier(k); LB.me.tier = k; saveProfile(LB.me); } }));
   }
   tap('lbCancelStart', () => net.cancelStart());
   tap('lbEnd', () => net.endGame());
@@ -533,7 +580,7 @@ function doResume() {
   const ri = resumeInfo();
   if (!ri) { refreshResume(); return; }
   if (ri.role === 'host') { openLobby('create'); doRestore(); }
-  else { openLobby('join'); const c = $('lbCode'); if (c) c.value = ri.code; doGo(); }
+  else { openLobby('join'); const c = $('lbCode'); if (c) c.value = ri.code; syncClear(); doGo(); }
 }
 function enterMultiHome() { menu.classList.add('multi'); bgMulti.classList.add('on'); refreshResume(); }
 window.addEventListener('load', refreshResume); // lan.js 比本文件晚加载，等全部加载完再算一次；切回前台也算一次
@@ -545,8 +592,9 @@ bindTap(bCreate, () => openLobby('create'));
 bindTap(bJoin, () => openLobby('join'));
 bindTap(bBack, exitMultiHome);
 
-// 多人背景图：页面空闲时预加载当前方向那张，第一次点进去不闪
+// 多人背景图：页面空闲时预加载当前方向那张，第一次点进去不闪；顺手把头像模板取下来
 (window.requestIdleCallback || ((f) => setTimeout(f, 1500)))(() => {
+  loadHeadTpl();
   const im = new Image();
   im.src = 'assets/UI/' + (window.matchMedia('(orientation: landscape)').matches ? 'home_bg_landscape_Multiplayer.webp' : 'home_bg_portrait_Multiplayer.webp');
 });
