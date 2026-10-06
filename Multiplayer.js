@@ -411,7 +411,7 @@ function showResult(d) {
     const done = !!x.d, me = x.pid === myPid;
     const res = done ? `<b class="mrT">${fmtTime(x.t)}</b><small>${t('mpSteps', x.s | 0)}</small>`
       : `<b class="mrT dim">${t(x.o ? 'mpOffline' : 'mpUnfinished')}</b><small>${t('mpSteps', x.s | 0)} · ${x.p | 0}/${total}</small>`;
-    return `<div class="mrRow${i === 0 && done ? ' first' : ''}${me ? ' me' : ''}"><span class="mrRank">${i + 1}</span><i class="lbDot" style="${skinStyle(x.c)}"></i>` +
+    return `<div class="mrRow${i === 0 && done ? ' first' : ''}${me ? ' me' : ''}"><span class="mrRank">${i + 1}</span>${(window.Lobby && Lobby.headHTML) ? Lobby.headHTML(x.c, 32) : `<i class="lbDot" style="${skinStyle(x.c)}"></i>`}` + // 头像和大厅同一套(Lobby.headHTML)，没有 lobby.js 就退回小圆点
       `<span class="mrName">${esc(x.n || '?')}${me ? `<em>(${t('lbMe')})</em>` : ''}</span><span class="mrRes">${res}</span></div>`;
   }).join('');
   resultOpen = true;
