@@ -148,8 +148,8 @@ css.textContent = `
 .lbKey.fn { flex: 1.5 1 0; font-size: 15px; background: linear-gradient(180deg, #b98f5d, #9d7444); color: #fff4dc; box-shadow: 0 2px 0 #5d3b18, inset 0 1px 0 rgba(255, 255, 255, 0.25); }
 .lbKey.done { flex: 2 1 0; background: linear-gradient(180deg, #8fbf6a, #6b9a47); color: #fff; box-shadow: 0 2px 0 #3f6128, inset 0 1px 0 rgba(255, 255, 255, 0.3); }
 .lbKey.space { flex: 4 1 0; }
-.lbKey.num { background: linear-gradient(180deg, #f4e0b4, #e0bf88); }
-.lbKey.sp { visibility: hidden; }
+.lbKey.num { color: #3a1d08; background: linear-gradient(180deg, #dd9a55, #bd7733); box-shadow: 0 2px 0 #7a4616, inset 0 1px 0 rgba(255, 255, 255, 0.3); }
+.lbKey.locked { pointer-events: none; }
 .lbKey.caps { background: linear-gradient(180deg, #f6d99c, #e8b96b); color: #4a2a10; box-shadow: 0 2px 0 #8a5a2a, inset 0 0 0 2px #f2b45e; }
 .lbKey.on { background: linear-gradient(180deg, #f6d99c, #e8b96b); }
 .lbInWrap { position: relative; }
@@ -411,11 +411,11 @@ function renderKb() {
   kbEl.innerHTML = ''; kbLetters = []; kbShiftBtn = null;
   const isCode = LB.kb === 'code';
   const ch = (c) => { const b = kbKey(isCode ? c.toUpperCase() : c, /\d/.test(c) ? 'num' : '', () => typeCh(c)); b.dataset.c = c; if (/[a-z]/.test(c)) kbLetters.push(b); return b; };
-  const sp = () => { const d = document.createElement('div'); d.className = 'lbKey fn sp'; return d; }; // 占位：让字母行和名字键盘对齐
+  const lock = () => kbKey('⇪', 'fn caps locked', () => {}); // 配对码永远大写：锁定大写键常亮、点了没反应(和名字键盘的 ⇧ 位置对齐)
   const bs = () => kbKey('⌫', 'fn', backspace);
   ['1234567890', 'qwertyuiop', 'asdfghjkl'].forEach((row) => kbRow([...row].map(ch)));
   if (isCode) {
-    kbRow([sp(), ...[...'zxcvbnm'].map(ch), bs()]);
+    kbRow([lock(), ...[...'zxcvbnm'].map(ch), bs()]);
     kbRow([kbKey(t('lbClear'), 'fn', clearField), kbKey(t('lbKbDone'), 'done', closeKb)]);
   } else {
     kbShiftBtn = kbKey('⇧', 'fn', onShift);
