@@ -24,7 +24,7 @@ const $ = (id) => document.getElementById(id);
 
 /* ---------- 文案(并入 I18N，zh/en 两份) ---------- */
 Object.assign(I18N.zh, {
-  lbClear: '清空', multi: '本地多人', mpCreate: '创建房间', mpJoin: '加入房间', mpBack: '返回', mpResume: '恢复游戏',
+  lbClear: '清空', lbKbDone: '完成', lbKbSpace: '空格', lbNamePh: '输入名字', multi: '本地多人', mpCreate: '创建房间', mpJoin: '加入房间', mpBack: '返回', mpResume: '恢复游戏',
   lbMdEasy: '竞速模式-简单', lbMdNormal: '竞速模式-正常', lbMdCoop: '双人合作模式(敬请期待)',
   lbDefName: '玩家', lbName: '玩家名字', lbCode: '配对码', lbCodePh: '6 位配对码',
   lbCreateTitle: '创建房间', lbJoinTitle: '加入房间', lbRoomTitle: '房间',
@@ -45,7 +45,7 @@ Object.assign(I18N.zh, {
   lbLogCdCancel: (why, n) => (why === 'host' ? '房主取消了开始' : why === 'unready' ? `${n} 取消了准备，已取消开始` : why === 'left' ? `${n} 离开了，已取消开始` : why === 'offline' ? `${n} 掉线了，已取消开始` : '已取消开始'),
 });
 Object.assign(I18N.en, {
-  lbClear: 'Clear', multi: 'MULTIPLAYER', mpCreate: 'CREATE ROOM', mpJoin: 'JOIN ROOM', mpBack: 'BACK', mpResume: 'RESUME GAME',
+  lbClear: 'Clear', lbKbDone: 'Done', lbKbSpace: 'space', lbNamePh: 'Your name', multi: 'MULTIPLAYER', mpCreate: 'CREATE ROOM', mpJoin: 'JOIN ROOM', mpBack: 'BACK', mpResume: 'RESUME GAME',
   lbMdEasy: 'Race - Easy', lbMdNormal: 'Race - Normal', lbMdCoop: 'Co-op (coming soon)',
   lbDefName: 'Player', lbName: 'Player name', lbCode: 'Room code', lbCodePh: '6-character code',
   lbCreateTitle: 'Create Room', lbJoinTitle: 'Join Room', lbRoomTitle: 'Room',
@@ -94,8 +94,8 @@ css.textContent = `
 /* 大厅浮层：结构/毛玻璃同选关面板(§20.1)。浮层自己不能带 backdrop-filter/opacity(B22)，模糊全在 #lobbyWrap::before */
 #lobbyOverlay { position: fixed; inset: 0; background: rgba(0,0,0,0); display: flex; align-items: center; justify-content: center;
   padding: max(5vh, env(safe-area-inset-top)) 14px 5vh; z-index: 250; visibility: hidden; pointer-events: none;
-  transition: background-color 0.2s ease, visibility 0s linear 0.2s; }
-#lobbyOverlay.show { background: rgba(0,0,0,0.32); visibility: visible; pointer-events: auto; transition: background-color 0.2s ease, visibility 0s; }
+  transition: background-color 0.2s ease, padding 0.2s ease, visibility 0s linear 0.2s; }
+#lobbyOverlay.show { background: rgba(0,0,0,0.32); visibility: visible; pointer-events: auto; transition: background-color 0.2s ease, padding 0.2s ease, visibility 0s; }
 #lobbyWrap { --lp-blur: 10px; --lp-sat: 0.55; --lp-tint-a: 0.62; --lp-tint-b: 0.72; --lp-gi: 15px 12px 14px 12px;
   position: relative; width: 100%; max-width: 460px; max-height: 100%; display: flex; flex-direction: column;
   transform: scale(0.96); transition: transform 0.2s ease; }
@@ -126,16 +126,37 @@ css.textContent = `
 .lbField label { display: block; margin: 0 2px 6px; font-size: 14px; font-weight: 800; letter-spacing: 0.1em; color: #d9c08a; }
 .lbInput { width: 100%; height: 48px; padding: 0 14px; border-radius: 10px; border: 1px solid rgba(243, 223, 178, 0.35);
   background: rgba(20, 12, 6, 0.55); box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.4); color: #f6e8c4;
-  font-size: 18px; font-weight: 700; outline: none; -webkit-appearance: none; appearance: none;
-  -webkit-user-select: text; user-select: text; touch-action: manipulation; } /* 16px 以上 iOS 聚焦时不会自动放大页面；全局 user-select:none 要在这里改回 text 才能输入 */
+  font-size: 18px; font-weight: 700; box-sizing: border-box; }
+/* 自带键盘的「输入框」：普通 div，不是 <input>，系统键盘和「摇一摇撤销」都不会出现 */
+.lbFake { display: flex; align-items: center; overflow: hidden; white-space: nowrap; cursor: text; -webkit-tap-highlight-color: transparent; }
+.lbFake.empty::before { content: attr(data-ph); color: rgba(217, 192, 138, 0.45); font-weight: 600; letter-spacing: 0.05em; }
+.lbFake.act { border-color: #f2b45e; }
+.lbFake.act:not(.empty)::after { content: ''; flex: none; width: 2px; height: 1.15em; margin-left: 2px; background: #f2b45e; animation: lbCaret 1s steps(1) infinite; }
+@keyframes lbCaret { 50% { opacity: 0; } }
+
+/* 自带虚拟键盘：贴屏幕底部；弹出时浮层留出键盘高度，面板整体上移 */
+#lobbyOverlay.kb { padding-bottom: calc(var(--kbh, 270px) + 8px); }
+#lbKb { position: fixed; left: 0; right: 0; bottom: 0; z-index: 3; box-sizing: border-box; max-width: 520px; margin: 0 auto; padding: 8px 6px calc(8px + env(safe-area-inset-bottom));
+  display: flex; flex-direction: column; gap: 6px; border-radius: 14px 14px 0 0; touch-action: manipulation;
+  background: linear-gradient(180deg, rgba(70, 47, 28, 0.97), rgba(40, 26, 15, 0.98)); box-shadow: 0 -4px 18px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 240, 210, 0.16);
+  transform: translateY(105%); transition: transform 0.2s ease; }
+#lobbyOverlay.kb #lbKb { transform: none; }
+.lbKbRow { display: flex; gap: 5px; justify-content: center; }
+.lbKey { flex: 1 1 0; min-width: 0; height: 42px; padding: 0; border: 0; border-radius: 8px; font: 800 19px/42px system-ui, -apple-system, sans-serif; color: #4a2a10;
+  background: linear-gradient(180deg, #e9c58a, #d2a263); box-shadow: 0 2px 0 #8a5a2a, inset 0 1px 0 rgba(255, 255, 255, 0.35); -webkit-tap-highlight-color: transparent; }
+.lbKey:active { filter: brightness(0.82); transform: translateY(1px); }
+.lbKey.fn { flex: 1.5 1 0; font-size: 15px; background: linear-gradient(180deg, #b98f5d, #9d7444); color: #fff4dc; box-shadow: 0 2px 0 #5d3b18, inset 0 1px 0 rgba(255, 255, 255, 0.25); }
+.lbKey.done { flex: 2 1 0; background: linear-gradient(180deg, #8fbf6a, #6b9a47); color: #fff; box-shadow: 0 2px 0 #3f6128, inset 0 1px 0 rgba(255, 255, 255, 0.3); }
+.lbKey.space { flex: 4 1 0; }
+.lbKey.on { background: linear-gradient(180deg, #f6d99c, #e8b96b); }
 .lbInWrap { position: relative; }
 .lbClear { display: none; position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 36px; height: 36px; padding: 0; border: 0; border-radius: 50%;
   background: rgba(243, 223, 178, 0.16); color: #f6e8c4; font: 400 24px/36px system-ui, sans-serif; text-align: center; -webkit-tap-highlight-color: transparent; }
 .lbClear:active { background: rgba(243, 223, 178, 0.32); }
 .lbInWrap.has .lbClear { display: block; }
-.lbInput:focus { border-color: #f2b45e; }
-.lbInput::placeholder { color: rgba(217, 192, 138, 0.45); font-weight: 600; letter-spacing: 0.05em; }
-.lbInput.code { text-align: center; font-size: 24px; font-weight: 900; letter-spacing: 0.35em; text-indent: 0.35em; text-transform: uppercase; }
+.lbInput.code { justify-content: center; font-size: 24px; font-weight: 900; letter-spacing: 0.35em; text-indent: 0.35em; }
+.lbFake.code.empty::before { letter-spacing: 0.05em; text-indent: 0; }
+.lbFake.code.act:not(.empty)::after { margin-left: 0; }
 .lbMsg { min-height: 22px; margin: 0 0 10px; text-align: center; font-size: 14px; font-weight: 700; color: #ffb089; }
 .lbMsg.info { color: #d9c08a; }
 .lbLast { margin: -6px 0 2px; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: rgba(217, 192, 138, 0.75); }
@@ -178,7 +199,7 @@ html[data-lang="en"] .lbBtn { font-size: 16px; letter-spacing: 0.06em; text-inde
 .lbRow.empty .lbName { color: rgba(217, 192, 138, 0.45); font-weight: 600; }
 .lbDot { flex: none; width: 22px; height: 22px; border-radius: 50%; box-shadow: 0 0 0 2px rgba(255, 240, 210, 0.3);
   background: linear-gradient(90deg, var(--c1, transparent) 50%, var(--c2, transparent) 50%); }
-.lbHead { flex: none; width: 36px; height: 36px; margin: 0 -3px 0 -5px; pointer-events: none; -webkit-user-select: none; user-select: none; filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.4)); }
+.lbHead { flex: none; width: 28px; height: 28px; margin: 0 0 0 -2px; pointer-events: none; -webkit-user-select: none; user-select: none; filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.4)); }
 .lbRow.empty .lbDot { background: none; box-shadow: none; border: 1px dashed rgba(217, 192, 138, 0.3); }
 .lbName { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 17px; font-weight: 800; color: #f6e8c4; }
 .lbName em { font-style: normal; font-size: 13px; font-weight: 700; color: #d9c08a; margin-left: 6px; }
@@ -282,7 +303,7 @@ const cdSound = {
 };
 
 /* ---------- 大厅 ---------- */
-const LB = { form: 'create', view: 'form', room: null, me: null, busy: false, status: 'ok', lastPhase: 'lobby', log: [], ping: {}, cd: 0, lastLevel: '' };
+const LB = { f: { name: '', code: '' }, kb: null, shift: false, form: 'create', view: 'form', room: null, me: null, busy: false, status: 'ok', lastPhase: 'lobby', log: [], ping: {}, cd: 0, lastLevel: '' };
 function resetLive() { LB.log = []; LB.ping = {}; LB.cd = 0; LB.status = 'ok'; LB.lastPhase = 'lobby'; }
 function pickLevel(tier) { // 房主点开始时：从该难度档里随机抽一关(有多关时尽量不和上一关重复)；没有关卡返回 ''
   const pk = window.MP_LEVEL_PACK, tr = pk && Array.isArray(pk.tiers) && pk.tiers.find((x) => x.key === tier);
@@ -309,6 +330,7 @@ function getNet() { return window.LAN_NET || null; }
 
 function openLobby(form) {
   LB.me = loadProfile(); LB.form = form; LB.room = null; LB.busy = false; resetLive();
+  LB.f = { name: LB.me.name, code: '' }; closeKb();
   audioCtx();
   net = getNet();
   if (net) { net.onRoom = onRoom; net.onClosed = onClosed; net.onStatus = onStatus; net.onLatency = onLatency; net.onLog = onLog; net.onGame = onGame; net.onReports = onReports; } // 对局内的回调(onGame/onReports 等)转给 Multiplayer.js
@@ -317,6 +339,7 @@ function openLobby(form) {
   ov.classList.add('show');
 }
 function closeLobby() { // 回到多人主页
+  closeKb();
   if ((LB.room || LB.busy) && net) net.leave(); // 正在连接/恢复时点返回，也要取消掉
   LB.room = null;
   ov.classList.remove('show');
@@ -326,26 +349,82 @@ function closeLobby() { // 回到多人主页
 }
 function leaveRoom() { if (net) net.leave(); LB.room = null; resetLive(); renderForm(); }
 
-/* 输入框：iOS 用过输入框后，「摇一摇撤销键入」会在整个 App 里(游戏/设置/主页)弹出——它挂在最后编辑过的那个输入框上。
-   失焦后把输入框换成一个全新的(值不变)，旧的连同它的撤销记录一起丢掉。 */
-function renewInput(id, wire) {
-  setTimeout(() => {
-    const el = $(id); if (!el || el === document.activeElement) return;
-    const n = el.cloneNode(false); n.value = el.value;
-    el.replaceWith(n); wire();
-  }, 0);
+/* ---------- 自带虚拟键盘(配对码 / 名字) ----------
+   为什么不用系统输入框：iOS 的「摇一摇撤销键入」绑在最后编辑过的输入框上，会在整个 App 里弹出，网页没法关。
+   「输入框」是普通 div，状态存在 LB.f；键盘贴屏幕底，弹出时浮层留出键盘高度(--kbh)，面板整体上移。
+   配对码键盘只有 32 个字符(2-9、A-Z 去掉 I/O，和房主生成规则一致)；名字键盘 = 英文字母/数字/空格/-/_，名字最长 NAME_MAX。 */
+const KB_CODE = ['23456789', 'ABCDEFGH', 'JKLMNPQR', 'STUVWXYZ'];
+const KB_NAME = ['1234567890', 'qwertyuiop', 'asdfghjkl'];
+const kbEl = document.createElement('div');
+kbEl.id = 'lbKb';
+ov.appendChild(kbEl);
+['touchstart', 'touchmove', 'touchend'].forEach((ev) => kbEl.addEventListener(ev, (e) => e.stopPropagation(), { passive: true })); // 新浮层别被全局 touchstart 拦截吃掉(B1)
+let kbLetters = [], kbShiftBtn = null;
+
+function paintField(which) {
+  const el = $(which === 'name' ? 'lbName' : 'lbCode'); if (!el) return;
+  const v = LB.f[which];
+  el.textContent = v; el.classList.toggle('empty', !v);
+  if (which === 'code') syncClear();
 }
-function syncClear() { const c = $('lbCode'), w = $('lbCodeWrap'); if (w) w.classList.toggle('has', !!(c && c.value)); }
-function wireName() {
-  const el = $('lbName'); if (!el) return;
-  el.addEventListener('blur', () => { LB.me.name = cleanName(el.value) || LB.me.name; el.value = LB.me.name; saveProfile(LB.me); window.scrollTo(0, 0); renewInput('lbName', wireName); });
-  el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { el.blur(); doGo(); } });
+function syncClear() { const w = $('lbCodeWrap'); if (w) w.classList.toggle('has', !!LB.f.code); }
+function commitName() { // 名字清空了就保留原名；只在「完成/加入/换到别的框」时写入存档
+  const n = cleanName(LB.f.name); if (n) LB.me.name = n;
+  LB.f.name = LB.me.name; saveProfile(LB.me); paintField('name');
 }
-function wireCode() {
-  const el = $('lbCode'); if (!el) return;
-  el.addEventListener('input', () => { el.value = el.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6); syncClear(); });
-  el.addEventListener('blur', () => { window.scrollTo(0, 0); renewInput('lbCode', () => { wireCode(); syncClear(); }); });
-  el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { el.blur(); doGo(); } });
+function setShift(on) { LB.shift = !!on; kbLetters.forEach((b) => { b.textContent = LB.shift ? b.dataset.c.toUpperCase() : b.dataset.c; }); if (kbShiftBtn) kbShiftBtn.classList.toggle('on', LB.shift); }
+function typeCh(c) {
+  if (LB.kb === 'code') { if (LB.f.code.length < 6) { LB.f.code += c; showMsg(''); } }
+  else if (LB.kb === 'name') {
+    if ([...LB.f.name].length < NAME_MAX) LB.f.name += (/[a-z]/.test(c) && LB.shift) ? c.toUpperCase() : c;
+    if (LB.shift) setShift(false);
+  }
+  if (LB.kb) paintField(LB.kb);
+}
+function backspace() {
+  if (!LB.kb) return;
+  const k = LB.kb === 'code' ? 'code' : 'name';
+  LB.f[k] = [...LB.f[k]].slice(0, -1).join('');
+  if (k === 'name' && !LB.f.name) setShift(true); // 名字开头自动大写
+  paintField(k);
+}
+function clearField() { if (!LB.kb) return; LB.f[LB.kb] = ''; if (LB.kb === 'name') setShift(true); paintField(LB.kb); showMsg(''); }
+function kbKey(label, cls, fn) { const b = document.createElement('button'); b.type = 'button'; b.className = 'lbKey' + (cls ? ' ' + cls : ''); b.textContent = label; bindTap(b, fn); return b; }
+function kbRow(keys) { const r = document.createElement('div'); r.className = 'lbKbRow'; keys.forEach((k) => r.appendChild(k)); kbEl.appendChild(r); }
+function renderKb() {
+  kbEl.innerHTML = ''; kbLetters = []; kbShiftBtn = null;
+  const ch = (c) => { const b = kbKey(c, '', () => typeCh(c)); b.dataset.c = c; if (/[a-z]/.test(c)) kbLetters.push(b); return b; };
+  if (LB.kb === 'code') {
+    KB_CODE.forEach((row) => kbRow([...row].map(ch)));
+    kbRow([kbKey(t('lbClear'), 'fn', clearField), kbKey('⌫', 'fn', backspace), kbKey(t('lbKbDone'), 'done', closeKb)]);
+  } else {
+    KB_NAME.forEach((row) => kbRow([...row].map(ch)));
+    kbShiftBtn = kbKey('⇧', 'fn', () => setShift(!LB.shift));
+    kbRow([kbShiftBtn, ...[...'zxcvbnm'].map(ch), kbKey('⌫', 'fn', backspace)]);
+    kbRow([kbKey(t('lbClear'), 'fn', clearField), ch('-'), ch('_'), kbKey(t('lbKbSpace'), 'space', () => typeCh(' ')), kbKey(t('lbKbDone'), 'done', closeKb)]);
+    setShift(!LB.f.name);
+  }
+}
+function ensureVisible(el) { // 面板里可滚动：把正在输入的那一栏滚到可见区域
+  const sh = $('lobbySheet'); if (!sh || !el) return;
+  const a = el.getBoundingClientRect(), b = sh.getBoundingClientRect();
+  if (a.bottom > b.bottom - 8) sh.scrollTop += a.bottom - b.bottom + 12; else if (a.top < b.top + 8) sh.scrollTop -= b.top - a.top + 12;
+}
+function openKb(which) {
+  if (LB.busy || LB.view !== 'form') return;
+  if (LB.kb === 'name' && which !== 'name') commitName();
+  LB.kb = which; renderKb();
+  ov.style.setProperty('--kbh', kbEl.offsetHeight + 'px');
+  ov.classList.add('kb');
+  ['name', 'code'].forEach((k) => { const el = $(k === 'name' ? 'lbName' : 'lbCode'); if (el) el.classList.toggle('act', k === which); });
+  const f = $(which === 'name' ? 'lbName' : 'lbCode');
+  setTimeout(() => ensureVisible(f), 230); // 等面板上移的动画走完再量
+}
+function closeKb() {
+  if (!LB.kb) return;
+  if (LB.kb === 'name') commitName();
+  LB.kb = null; ov.classList.remove('kb');
+  ['lbName', 'lbCode'].forEach((id) => { const el = $(id); if (el) el.classList.remove('act'); });
 }
 
 function renderForm() {
@@ -355,30 +434,31 @@ function renderForm() {
   $('lbTitle').textContent = t(join ? 'lbJoinTitle' : 'lbCreateTitle');
   $('lbSub').innerHTML = '';
   $('lbBody').innerHTML =
-    `<div class="lbField"><label>${t('lbName')}</label><input id="lbName" class="lbInput" maxlength="${NAME_MAX}" autocomplete="off" autocorrect="off" spellcheck="false" value="${esc(LB.me.name)}"></div>` +
-    (join ? `<div class="lbField"><label>${t('lbCode')}</label><div id="lbCodeWrap" class="lbInWrap"><input id="lbCode" class="lbInput code" maxlength="6" inputmode="text" autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="${t('lbCodePh')}"><button id="lbClear" class="lbClear" type="button" tabindex="-1" aria-label="${t('lbClear')}">×</button></div></div>` : '') +
+    `<div class="lbField"><label>${t('lbName')}</label><div id="lbName" class="lbInput lbFake" data-ph="${t('lbNamePh')}"></div></div>` +
+    (join ? `<div class="lbField"><label>${t('lbCode')}</label><div id="lbCodeWrap" class="lbInWrap"><div id="lbCode" class="lbInput lbFake code" data-ph="${t('lbCodePh')}"></div><button id="lbClear" class="lbClear" type="button" tabindex="-1" aria-label="${t('lbClear')}">×</button></div></div>` : '') +
     `<div id="lbMsg" class="lbMsg"></div><div id="lbDiag" class="lbDiag"></div>` +
     `<div class="lbBtns"><button id="lbGo" class="lbBtn">${t(join ? 'lbJoinGo' : 'lbCreateGo')}</button>` +
     (join && LB.me.last ? `<button id="lbRejoin" class="lbBtn">${t('lbRejoin')}</button><div class="lbLast">${t('lbLastCode', `<b>${esc(LB.me.last)}</b>`)}</div>` : '') +
     (!join && hs ? `<button id="lbRestore" class="lbBtn">${t('lbRestore')}</button><div class="lbLast">${t('lbLastCode', `<b>${esc(hs.code)}</b>`)}</div>` : '') +
     `<button id="lbBack" class="lbBtn red">${t('lbBack')}</button></div>`;
-  wireName(); wireCode(); syncClear();
-  tap('lbClear', () => { const c = $('lbCode'); if (!c) return; c.value = ''; syncClear(); showMsg(''); try { c.focus(); } catch (e) {} }); // 一键清空配对码
+  closeKb(); paintField('name'); if (join) paintField('code');
+  tap('lbName', () => openKb('name'));
+  tap('lbCode', () => openKb('code'));
+  tap('lbClear', () => { LB.f.code = ''; paintField('code'); showMsg(''); }); // 一键清空配对码(键盘关着也能用)
   tap('lbGo', doGo);
   tap('lbRestore', doRestore);
-  tap('lbRejoin', () => { const c = $('lbCode'); if (c) c.value = LB.me.last; syncClear(); doGo(); }); // 杀后台/重开后不用再手输配对码
+  tap('lbRejoin', () => { LB.f.code = LB.me.last; paintField('code'); doGo(); }); // 杀后台/重开后不用再手输配对码
   tap('lbBack', closeLobby);
 }
 
 async function doGo() {
   if (LB.busy) return;
-  const nameEl = $('lbName');
-  LB.me.name = cleanName(nameEl.value) || LB.me.name; nameEl.value = LB.me.name; saveProfile(LB.me);
+  closeKb(); LB.kb = null; commitName();
   const meInfo = { token: LB.me.token, name: LB.me.name };
   const join = LB.form === 'join';
   let code = '';
   if (join) {
-    code = $('lbCode').value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    code = LB.f.code.toUpperCase().replace(/[^A-Z0-9]/g, '');
     if (code.length !== 6) { showMsg(t('lbErrCode')); return; }
   }
   if (!net) { showMsg(t('lbErrNoLan')); return; } // lan.js 没加载：这和「网络不通」是两回事，要分开提示
@@ -395,8 +475,7 @@ async function doGo() {
 
 async function doRestore() {
   if (LB.busy || !net) return;
-  const nameEl = $('lbName');
-  LB.me.name = cleanName(nameEl.value) || LB.me.name; nameEl.value = LB.me.name; saveProfile(LB.me);
+  closeKb(); LB.kb = null; commitName();
   setBusy(true); showMsg(t('lbRestoring'), true); showDiag('');
   try { await net.restore({ me: { token: LB.me.token, name: LB.me.name } }); } // 成功后房间状态走 onRoom 渲染
   catch (e) {
@@ -480,6 +559,7 @@ function onReports(m) { if (window.MP) MP.onReports(m || {}); } // 每秒一次(
 function onGame(d, fromPid) { if (window.MP) MP.onGame(d, fromPid); } // 对局内的即时消息(通关/暂停/结算)
 
 function renderRoom() {
+  closeKb();
   LB.view = 'room';
   const r = LB.room;
   const myPid = r.you; // 房间状态里只有公开的 pid；token 留在本机和房主，不出现在界面数据里
@@ -580,7 +660,7 @@ function doResume() {
   const ri = resumeInfo();
   if (!ri) { refreshResume(); return; }
   if (ri.role === 'host') { openLobby('create'); doRestore(); }
-  else { openLobby('join'); const c = $('lbCode'); if (c) c.value = ri.code; syncClear(); doGo(); }
+  else { openLobby('join'); LB.f.code = ri.code; paintField('code'); doGo(); }
 }
 function enterMultiHome() { menu.classList.add('multi'); bgMulti.classList.add('on'); refreshResume(); }
 window.addEventListener('load', refreshResume); // lan.js 比本文件晚加载，等全部加载完再算一次；切回前台也算一次
@@ -606,6 +686,6 @@ function showLobby() { // 对局结束回到大厅：房间还在就直接显示
   ov.classList.add('show');
   if (LB.room) renderRoom(); else renderForm();
 }
-function hideLobby() { ov.classList.remove('show'); } // 对局开始：收起大厅(房间/网络状态不动)
+function hideLobby() { closeKb(); ov.classList.remove('show'); } // 对局开始：收起大厅(房间/网络状态不动)
 window.Lobby = { open: openLobby, close: closeLobby, show: showLobby, hide: hideLobby, enterMultiHome, exitMultiHome, pickLevel }; // 给 Multiplayer.js 用
 })();
