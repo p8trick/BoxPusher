@@ -148,6 +148,9 @@ css.textContent = `
 .lbKey.fn { flex: 1.5 1 0; font-size: 15px; background: linear-gradient(180deg, #b98f5d, #9d7444); color: #fff4dc; box-shadow: 0 2px 0 #5d3b18, inset 0 1px 0 rgba(255, 255, 255, 0.25); }
 .lbKey.done { flex: 2 1 0; background: linear-gradient(180deg, #8fbf6a, #6b9a47); color: #fff; box-shadow: 0 2px 0 #3f6128, inset 0 1px 0 rgba(255, 255, 255, 0.3); }
 .lbKey.space { flex: 4 1 0; }
+.lbKey.num { background: linear-gradient(180deg, #f4e0b4, #e0bf88); }
+.lbKey.sp { visibility: hidden; }
+.lbKey.caps { background: linear-gradient(180deg, #f6d99c, #e8b96b); color: #4a2a10; box-shadow: 0 2px 0 #8a5a2a, inset 0 0 0 2px #f2b45e; }
 .lbKey.on { background: linear-gradient(180deg, #f6d99c, #e8b96b); }
 .lbInWrap { position: relative; }
 .lbClear { display: none; position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 36px; height: 36px; padding: 0; border: 0; border-radius: 50%;
@@ -270,6 +273,10 @@ function loadHeadTpl() {
     if (ov.classList.contains('show') && LB.room && LB.view === 'room') renderRoom(); // 头像刚到：补刷一次
   }).catch(() => {});
 }
+function headHTML(skin, px) { // 给 Multiplayer.js 的结算画面等用：和大厅同一套头像，没加载好退回小圆点；px=边长(默认 28)
+  const n = px || 28, hs = headSrc(skin);
+  return hs ? `<img class="lbHead" alt="" draggable="false" src="${hs}" style="width:${n}px;height:${n}px">` : `<i class="lbDot" style="${skinDot(skin)};width:${Math.round(n * 0.78)}px;height:${Math.round(n * 0.78)}px"></i>`;
+}
 function skinDot(skin) { const c = (typeof SKIN_COLORS !== 'undefined' && SKIN_COLORS[skin]) || ['#2ECC71', '#E74C3C']; return `--c1:${c[0]};--c2:${c[1]}`; }
 
 /* ---------- 倒计时音效：自带 WebAudio 合成，不依赖 sound.js；音量/静音跟随设置里的「音效」 ---------- */
@@ -303,7 +310,7 @@ const cdSound = {
 };
 
 /* ---------- 大厅 ---------- */
-const LB = { f: { name: '', code: '' }, kb: null, shift: false, form: 'create', view: 'form', room: null, me: null, busy: false, status: 'ok', lastPhase: 'lobby', log: [], ping: {}, cd: 0, lastLevel: '' };
+const LB = { f: { name: '', code: '' }, kb: null, shift: false, caps: false, form: 'create', view: 'form', room: null, me: null, busy: false, status: 'ok', lastPhase: 'lobby', log: [], ping: {}, cd: 0, lastLevel: '' };
 function resetLive() { LB.log = []; LB.ping = {}; LB.cd = 0; LB.status = 'ok'; LB.lastPhase = 'lobby'; }
 function pickLevel(tier) { // 房主点开始时：从该难度档里随机抽一关(有多关时尽量不和上一关重复)；没有关卡返回 ''
   const pk = window.MP_LEVEL_PACK, tr = pk && Array.isArray(pk.tiers) && pk.tiers.find((x) => x.key === tier);
@@ -352,14 +359,13 @@ function leaveRoom() { if (net) net.leave(); LB.room = null; resetLive(); render
 /* ---------- 自带虚拟键盘(配对码 / 名字) ----------
    为什么不用系统输入框：iOS 的「摇一摇撤销键入」绑在最后编辑过的输入框上，会在整个 App 里弹出，网页没法关。
    「输入框」是普通 div，状态存在 LB.f；键盘贴屏幕底，弹出时浮层留出键盘高度(--kbh)，面板整体上移。
-   配对码键盘只有 32 个字符(2-9、A-Z 去掉 I/O，和房主生成规则一致)；名字键盘 = 英文字母/数字/空格/-/_，名字最长 NAME_MAX。 */
-const KB_CODE = ['23456789', 'ABCDEFGH', 'JKLMNPQR', 'STUVWXYZ'];
-const KB_NAME = ['1234567890', 'qwertyuiop', 'asdfghjkl'];
+   两个框共用同一套 QWERTY 键盘：配对码=只有数字+字母、永远大写；名字=可大小写，另有 -/_/空格，最长 NAME_MAX。
+   名字键盘的 ⇧：点一下=下个字母大写，快速点两下=锁定大写(⇪)，再点一下解除(仿 iOS)。 */
 const kbEl = document.createElement('div');
 kbEl.id = 'lbKb';
 ov.appendChild(kbEl);
 ['touchstart', 'touchmove', 'touchend'].forEach((ev) => kbEl.addEventListener(ev, (e) => e.stopPropagation(), { passive: true })); // 新浮层别被全局 touchstart 拦截吃掉(B1)
-let kbLetters = [], kbShiftBtn = null;
+let kbLetters = [], kbShiftBtn = null, lastShiftTap = 0;
 
 function paintField(which) {
   const el = $(which === 'name' ? 'lbName' : 'lbCode'); if (!el) return;
@@ -372,12 +378,22 @@ function commitName() { // 名字清空了就保留原名；只在「完成/加�
   const n = cleanName(LB.f.name); if (n) LB.me.name = n;
   LB.f.name = LB.me.name; saveProfile(LB.me); paintField('name');
 }
-function setShift(on) { LB.shift = !!on; kbLetters.forEach((b) => { b.textContent = LB.shift ? b.dataset.c.toUpperCase() : b.dataset.c; }); if (kbShiftBtn) kbShiftBtn.classList.toggle('on', LB.shift); }
+function setShift(on) { // 名字键盘的大写状态：shift=下个字母大写，caps=锁定
+  LB.shift = !!on; if (!on) LB.caps = false;
+  kbLetters.forEach((b) => { b.textContent = LB.shift ? b.dataset.c.toUpperCase() : b.dataset.c; });
+  if (kbShiftBtn) { kbShiftBtn.classList.toggle('on', LB.shift && !LB.caps); kbShiftBtn.classList.toggle('caps', LB.caps); kbShiftBtn.textContent = LB.caps ? '⇪' : '⇧'; }
+}
+function onShift() {
+  const now = Date.now();
+  if (now - lastShiftTap < 350) { LB.caps = true; setShift(true); lastShiftTap = 0; return; } // 快速点两下：锁定大写
+  lastShiftTap = now;
+  if (LB.caps) setShift(false); else setShift(!LB.shift);
+}
 function typeCh(c) {
-  if (LB.kb === 'code') { if (LB.f.code.length < 6) { LB.f.code += c; showMsg(''); } }
+  if (LB.kb === 'code') { if (LB.f.code.length < 6) { LB.f.code += c.toUpperCase(); showMsg(''); } }
   else if (LB.kb === 'name') {
     if ([...LB.f.name].length < NAME_MAX) LB.f.name += (/[a-z]/.test(c) && LB.shift) ? c.toUpperCase() : c;
-    if (LB.shift) setShift(false);
+    if (LB.shift && !LB.caps) setShift(false);
   }
   if (LB.kb) paintField(LB.kb);
 }
@@ -385,24 +401,27 @@ function backspace() {
   if (!LB.kb) return;
   const k = LB.kb === 'code' ? 'code' : 'name';
   LB.f[k] = [...LB.f[k]].slice(0, -1).join('');
-  if (k === 'name' && !LB.f.name) setShift(true); // 名字开头自动大写
+  if (k === 'name' && !LB.f.name && !LB.caps) setShift(true); // 名字开头自动大写
   paintField(k);
 }
-function clearField() { if (!LB.kb) return; LB.f[LB.kb] = ''; if (LB.kb === 'name') setShift(true); paintField(LB.kb); showMsg(''); }
+function clearField() { if (!LB.kb) return; LB.f[LB.kb] = ''; if (LB.kb === 'name' && !LB.caps) setShift(true); paintField(LB.kb); showMsg(''); }
 function kbKey(label, cls, fn) { const b = document.createElement('button'); b.type = 'button'; b.className = 'lbKey' + (cls ? ' ' + cls : ''); b.textContent = label; bindTap(b, fn); return b; }
 function kbRow(keys) { const r = document.createElement('div'); r.className = 'lbKbRow'; keys.forEach((k) => r.appendChild(k)); kbEl.appendChild(r); }
 function renderKb() {
   kbEl.innerHTML = ''; kbLetters = []; kbShiftBtn = null;
-  const ch = (c) => { const b = kbKey(c, '', () => typeCh(c)); b.dataset.c = c; if (/[a-z]/.test(c)) kbLetters.push(b); return b; };
-  if (LB.kb === 'code') {
-    KB_CODE.forEach((row) => kbRow([...row].map(ch)));
-    kbRow([kbKey(t('lbClear'), 'fn', clearField), kbKey('⌫', 'fn', backspace), kbKey(t('lbKbDone'), 'done', closeKb)]);
+  const isCode = LB.kb === 'code';
+  const ch = (c) => { const b = kbKey(isCode ? c.toUpperCase() : c, /\d/.test(c) ? 'num' : '', () => typeCh(c)); b.dataset.c = c; if (/[a-z]/.test(c)) kbLetters.push(b); return b; };
+  const sp = () => { const d = document.createElement('div'); d.className = 'lbKey fn sp'; return d; }; // 占位：让字母行和名字键盘对齐
+  const bs = () => kbKey('⌫', 'fn', backspace);
+  ['1234567890', 'qwertyuiop', 'asdfghjkl'].forEach((row) => kbRow([...row].map(ch)));
+  if (isCode) {
+    kbRow([sp(), ...[...'zxcvbnm'].map(ch), bs()]);
+    kbRow([kbKey(t('lbClear'), 'fn', clearField), kbKey(t('lbKbDone'), 'done', closeKb)]);
   } else {
-    KB_NAME.forEach((row) => kbRow([...row].map(ch)));
-    kbShiftBtn = kbKey('⇧', 'fn', () => setShift(!LB.shift));
-    kbRow([kbShiftBtn, ...[...'zxcvbnm'].map(ch), kbKey('⌫', 'fn', backspace)]);
+    kbShiftBtn = kbKey('⇧', 'fn', onShift);
+    kbRow([kbShiftBtn, ...[...'zxcvbnm'].map(ch), bs()]);
     kbRow([kbKey(t('lbClear'), 'fn', clearField), ch('-'), ch('_'), kbKey(t('lbKbSpace'), 'space', () => typeCh(' ')), kbKey(t('lbKbDone'), 'done', closeKb)]);
-    setShift(!LB.f.name);
+    LB.caps = false; lastShiftTap = 0; setShift(!LB.f.name);
   }
 }
 function ensureVisible(el) { // 面板里可滚动：把正在输入的那一栏滚到可见区域
@@ -687,5 +706,5 @@ function showLobby() { // 对局结束回到大厅：房间还在就直接显示
   if (LB.room) renderRoom(); else renderForm();
 }
 function hideLobby() { closeKb(); ov.classList.remove('show'); } // 对局开始：收起大厅(房间/网络状态不动)
-window.Lobby = { open: openLobby, close: closeLobby, show: showLobby, hide: hideLobby, enterMultiHome, exitMultiHome, pickLevel }; // 给 Multiplayer.js 用
+window.Lobby = { headHTML, open: openLobby, close: closeLobby, show: showLobby, hide: hideLobby, enterMultiHome, exitMultiHome, pickLevel }; // 给 Multiplayer.js 用
 })();
