@@ -10,7 +10,8 @@
      style.css：.cell / .box / .box.done / .player / .sprite / .pillBtn / .settingsSection / .settingsLabel / .swatchRow
                 及主题变量 --panel --panel-border --ink --sub --accent --frame-bg --frame-border
      index.html：#langRow(入口按钮插在它所在的设置分区后面)
-   缺任何一项：只在控制台报错并且不显示入口，不影响游戏。
+   可选(没有也不报错)：base.js 的 skinLocked() / effectiveSkin()——联机对局中角色配色由房主分配，「角色」一栏灰掉、预览显示实际在用的配色。
+   缺任何一项必需依赖：只在控制台报错并且不显示入口，不影响游戏。
    以后新增地板/墙/箱子/皮肤：只改 base.js 里的 *_KEYS 和文案，这里按列表自动生成，不用动。 */
 (function () {
   'use strict';
@@ -29,12 +30,14 @@
   Object.assign(I18N.zh, {
     lookEntry: '游戏外观', lookOpen: '自定义', lookTitle: '游戏外观',
     lookBackMenu: '返回菜单', lookBackGame: '返回游戏',
-    lookRow_player: '角色', lookRow_floor: '地板', lookRow_halo: '目标点光圈', lookRow_wall: '墙壁', lookRow_crate: '箱子', lookRow_theme: '界面主题'
+    lookRow_player: '角色', lookRow_floor: '地板', lookRow_halo: '目标点光圈', lookRow_wall: '墙壁', lookRow_crate: '箱子', lookRow_theme: '界面主题',
+    lookSkinLocked: '联机对局中，角色配色由房间分配'
   });
   Object.assign(I18N.en, {
     lookEntry: 'Game look', lookOpen: 'Customize', lookTitle: 'Game look',
     lookBackMenu: 'Back to menu', lookBackGame: 'Back to game',
-    lookRow_player: 'Outfit', lookRow_floor: 'Floor', lookRow_halo: 'Target ring', lookRow_wall: 'Walls', lookRow_crate: 'Crates', lookRow_theme: 'Theme'
+    lookRow_player: 'Outfit', lookRow_floor: 'Floor', lookRow_halo: 'Target ring', lookRow_wall: 'Walls', lookRow_crate: 'Crates', lookRow_theme: 'Theme',
+    lookSkinLocked: 'Outfit is assigned by the room during a match'
   });
 
   /* ---------- 选项行：顺序 = 面板里从上到下；key 对应 settings 里的字段 ---------- */
@@ -73,6 +76,8 @@
 .lookRowLabel { font-size: 12px; color: var(--sub); margin-bottom: 4px; }
 .lookRowBtns { display: flex; flex-wrap: wrap; gap: 6px; }
 .lookRowBtns .pillBtn { padding: 6px 12px; font-size: 13px; }
+.lookRowNote { font-size: 11px; color: var(--sub); margin-bottom: 4px; }
+.lookRowBtns .pillBtn.lookOff { opacity: 0.45; pointer-events: none; }
 .lookBar { flex: none; display: flex; gap: 10px; margin-top: 12px; }
 .lookBtn { flex: 1; padding: 11px 8px; border-radius: 12px; border: 1px solid var(--panel-border);
   background: none; color: var(--ink); font-size: 15px; }
@@ -105,6 +110,13 @@
     bindTap(overlay.querySelector('[data-act="game"]'), () => { closeLook(); closeSettings(); });
   }
 
+  /* ---------- 联机对局中的角色配色锁(base.js 提供；没有就当没锁) ---------- */
+  function skinIsLocked() { try { return typeof skinLocked === 'function' && !!skinLocked(); } catch (e) { return false; } }
+  function shownSkin() {   // 锁住时显示实际在用的配色(房主分配)，不动 settings.player
+    try { if (skinIsLocked() && typeof effectiveSkin === 'function') return effectiveSkin() || settings.player; } catch (e) {}
+    return settings.player;
+  }
+
   /* ---------- 渲染 ---------- */
   function renderTexts() {
     overlay.querySelector('.lookTitle').textContent = t('lookTitle');
@@ -114,7 +126,7 @@
 
   function renderPreview() {
     boardEl.innerHTML = '';
-    const playerImg = spriteURL(skinKey(`assets/Player/Down2.${SPRITE_EXT}`, settings.player)); // Down2 = 站立正面帧，每套皮肤启动时都已备好
+    const playerImg = spriteURL(skinKey(`assets/Player/Down2.${SPRITE_EXT}`, shownSkin())); // Down2 = 站立正面帧，每套皮肤启动时都已备好
     MAP.forEach(line => [...line].forEach(ch => {
       const cell = document.createElement('div');
       cell.className = 'cell ' + (ch === '#' ? 'wall' : (ch === 'T' || ch === 'D') ? 'target' : 'floor');
@@ -140,13 +152,17 @@
     ROWS.forEach(row => {
       const wrap = document.createElement('div');
       wrap.className = 'lookRow';
-      wrap.innerHTML = `<div class="lookRowLabel">${t('lookRow_' + row.key)}</div><div class="lookRowBtns"></div>`;
+      const locked = row.key === 'player' && skinIsLocked();
+      const cur = locked ? shownSkin() : settings[row.key];
+      wrap.innerHTML = `<div class="lookRowLabel">${t('lookRow_' + row.key)}</div>` +
+        (locked ? `<div class="lookRowNote">${t('lookSkinLocked')}</div>` : '') + `<div class="lookRowBtns"></div>`;
       const btns = wrap.querySelector('.lookRowBtns');
       row.keys().forEach(k => {
         const b = document.createElement('button');
-        b.className = 'pillBtn' + (settings[row.key] === k ? ' active' : '');
+        b.className = 'pillBtn' + (cur === k ? ' active' : '') + (locked ? ' lookOff' : '');
         b.textContent = row.label(k);
         bindTap(b, () => {
+          if (row.key === 'player' && skinIsLocked()) return;   // 灰=不响应(对局中途锁上也拦得住)
           settings[row.key] = k;
           saveSettings();
           applySettings();   // 换 --img-* 变量；人物 12 帧在后台备货，备好才切
@@ -168,6 +184,11 @@
   }
   function closeLook() { if (overlay) overlay.classList.remove('show'); }
   function isOpen() { return !!overlay && overlay.classList.contains('show'); }
+
+  // 开着面板时切后台再回来，联机状态可能变了(开局/回大厅)：只刷新选项和预览
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && isOpen()) { const st = optionsEl.scrollTop; renderOptions(); renderPreview(); optionsEl.scrollTop = st; }
+  });
 
   // 桌面 Esc：先退二级面板(回菜单)，再按一次才关设置；抢在主文件的 Esc 处理之前
   document.addEventListener('keydown', e => {
