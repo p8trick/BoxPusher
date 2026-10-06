@@ -5,7 +5,7 @@
 <script>
 /* ===== 版本号：发版只改这一行 =====
    主页版本号和所有子文件(css / js)的 ?v= 缓存参数都从这里生成(避坑 B8)。 */
-var APP_VERSION = '1.27.8';
+var APP_VERSION = '1.28.0';
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -314,7 +314,7 @@ function replayMoves(seq) {
     const bkey = (nr + dr) + ',' + (nc + dc);
     if (pushing && (state.walls.has(bkey) || state.boxes.has(bkey))) break;
     pushHistory();
-    if (pushing) { state.boxes.delete(nkey); state.boxes.add(bkey); }
+    if (pushing) { state.boxes.delete(nkey); state.boxes.add(bkey); if (state.boxId) { state.boxId[bkey] = state.boxId[nkey]; delete state.boxId[nkey]; } }
     state.player = { r: nr, c: nc };
     state.dir = dir;
     state.side = state.side === 'A' ? 'B' : 'A';
@@ -373,7 +373,7 @@ function advanceGait(dir) {
 }
 
 function setMoveDur(pushing) { // 每次真正移动前调用(要在 advanceGait/lockMovement 之前)
-  MOVE_DUR = pushing ? settings.pushMs : settings.walkMs;
+  MOVE_DUR = Math.max(50, Math.round((pushing ? settings.pushMs : settings.walkMs) * (window.EV ? EV.durMul() : 1))); // 联机随机事件：中毒×2 / 加速×0.5
   IDLE_DELAY = MOVE_DUR + IDLE_GRACE;
   document.documentElement.style.setProperty('--move-dur', MOVE_DUR + 'ms');
 }
@@ -447,6 +447,7 @@ function snapshot() {
   return {
     player: { ...state.player },
     boxes: new Set(state.boxes),
+    bid: state.boxId ? { ...state.boxId } : null, // 联机箱子身份(随撤销还原)
     moves: state.moves
   };
 }
@@ -487,6 +488,7 @@ function loadMpLevel(xsb, id, seg) { // seg：只给 sound.js 的 levelLoad 用�
   state = parseLevel(xsb);
   state.levelIndex = -1;
   state.mp = { id };
+  state.boxId = {}; state.boxes.forEach((k) => { state.boxId[k] = k; }); // 每个箱子以开局位置当身份(联机「同一箱子只触发一次」)
   history = [];
   resetPauseUI();
   renderBoardStructure();
@@ -765,6 +767,7 @@ const MAX_QUEUE = 2; // 输入缓冲上限
 function requestMove(dr, dc, dir) {
   if (camera.mode === 'preview') { panPreview(dr, dc); return; }
   if (mpBlocked()) return;
+  if (window.EV && EV.input(dr, dc, dir)) return; // 溜冰：接管输入
   if (state.moveLock) {
     if (state.inputQueue.length < MAX_QUEUE) state.inputQueue.push({ dr, dc, dir });
     return;
@@ -781,6 +784,7 @@ function processQueue() {
 
 function tryMove(dr, dc, dir) {
   if (mpBlocked()) return;
+  if (window.EV) [dr, dc, dir] = EV.remap(dr, dc, dir); // 混乱：在写走法日志之前换方向
   state.dir = dir;
   const nr = state.player.r + dr;
   const nc = state.player.c + dc;
@@ -797,6 +801,7 @@ function tryMove(dr, dc, dir) {
     pushHistory();
     state.boxes.delete(nkey);
     state.boxes.add(bkey);
+    if (state.boxId) { state.boxId[bkey] = state.boxId[nkey]; delete state.boxId[nkey]; }
     state.player = { r: nr, c: nc };
     state.moves++;
     state.moveLog.push(DIR_CH[dir]);
@@ -809,7 +814,7 @@ function tryMove(dr, dc, dir) {
     }
     renderDynamic();
     playBoxFx(el, dr, dc);
-    Bus.emit('push', { onTarget: state.targets.has(bkey) });
+    Bus.emit('push', { onTarget: state.targets.has(bkey), from: nkey, to: bkey });
     scheduleIdle();
     updateCamera(dir);
     checkWin();
@@ -858,7 +863,7 @@ function releaseHold(id) { if (hold && hold.id === id) clearHold(); } // 只认�
 
 function holdBlocked() {
   const hidden = (id) => !document.getElementById(id).classList.contains('show');
-  return !state || state.won || paused || camera.mode !== 'play' || mpBlocked()
+  return !state || state.won || paused || camera.mode !== 'play' || mpBlocked() || (window.EV && EV.noHold())
     || document.getElementById('app').classList.contains('winShown')
     || !document.getElementById('homeScreen').classList.contains('hide')
     || !hidden('settingsOverlay') || !hidden('levelPickOverlay');
@@ -916,6 +921,7 @@ function lockMovement() {
   state.moveLockTimer = setTimeout(() => {
     state.moveLock = false;
     state.moveLockTimer = null;
+    if (window.EV && EV.slideStep()) return; // 溜冰：这一步走完接着滑
     processQueue();
     holdStep(); // 手指还按着方向键就接着走下一步(见「按住方向键连续行走」)
   }, MOVE_DUR);
@@ -950,7 +956,7 @@ function checkWin() {
 
 function undo() {
   clearHold();
-  if (history.length === 0 || mpBlocked()) return;
+  if (history.length === 0 || mpBlocked() || (window.EV && EV.locked())) return; // 联机随机事件期间不能撤销
   if (state.moveLockTimer) clearTimeout(state.moveLockTimer);
   state.moveLock = false;
   state.moveLockTimer = null;
@@ -958,6 +964,7 @@ function undo() {
   const snap = history.pop();
   state.player = snap.player;
   state.boxes = snap.boxes;
+  if (snap.bid) state.boxId = snap.bid;
   state.moves = snap.moves;
   state.moveLog.pop();
   markAutosaveDirty();
@@ -1117,6 +1124,8 @@ loadInitialLevel();
 <script>document.write('<scr' + 'ipt src="lan.js?v=' + APP_VERSION + '"></scr' + 'ipt>');</script>
 <!-- 多人竞速关卡包(v1.27)：没有它开始游戏会提示没有多人关卡 -->
 <script>document.write('<scr' + 'ipt src="levels_mp.js?v=' + APP_VERSION + '"></scr' + 'ipt>');</script>
+<!-- 联机随机事件(v1.28)：效果引擎 + 摇奖动画；图标放 assets/events/；运行时才被 Multiplayer.js 调用，加载顺序无所谓 -->
+<script>document.write('<scr' + 'ipt src="events.js?v=' + APP_VERSION + '"></scr' + 'ipt>');</script>
 <!-- 联机对局(v1.27)：对局内同步/竞速规则/结算画面，只经 LAN_NET 收发；必须在 lobby.js、lan.js、levels_mp.js 之后 -->
 <script>document.write('<scr' + 'ipt src="Multiplayer.js?v=' + APP_VERSION + '"></scr' + 'ipt>');</script>
 </body>
