@@ -228,7 +228,7 @@ function buildBar() {
   let bar = $('mpBar');
   if (!bar) { bar = document.createElement('div'); bar.id = 'mpBar'; $('levelInfo').after(bar); }
   bar.dataset.n = String(M.order.length);
-  bar.innerHTML = M.order.map((pid) => `<span class="mpP${pid === M.myPid ? ' me' : ''}" data-pid="${esc(pid)}"><i class="mpDot"></i><b>${esc(M.names[pid])}</b> <span class="mpS"></span></span>`).join('');
+  bar.innerHTML = M.order.map((pid) => `<span class="mpP${pid === M.myPid ? ' me' : ''}" data-pid="${esc(pid)}"><i class="mpDot"></i><b>${esc(M.names[pid])}</b><span class="mpE"></span> <span class="mpS"></span></span>`).join('');
 }
 function dotClass(pid) {
   if (pid === M.myPid) return M.netBad ? 'bad' : 'good';
@@ -307,6 +307,11 @@ function startMatch(room) {
   buildBar();
   loadMpLevel(lv.xsb, lv.id, M.seg); // 单机进度先存好、联机不碰单机存档(见 index.html)
   M.total = state.targets.size;
+  if (window.EV) EV.attach({ myPid: M.myPid, hostPid: M.hostPid, isHost: M.isHost, order: M.order, total: M.total,
+    send: (d) => { const n = net(); if (n) n.sendGame(d); }, bcast: (d) => { const n = net(); if (n) n.bcastGame(d); },
+    online: (pid) => { const p = M.room.players.find((x) => x.pid === pid); return !!p && p.online !== false; },
+    finished: (pid) => pid === M.myPid ? M.finished : !!(M.rep[pid] && M.rep[pid].f),
+    placedOf: (pid) => pid === M.myPid ? placed() : (M.rep[pid] ? M.rep[pid].p | 0 : 0) }); // v1.28 随机事件
   const sn = readSnap(room, lv.id); // 杀后台/重连回来：按上次的走法重放，回到原来的步数和箱子位置
   if (sn) {
     if (M.isHost) { M.fins = (Array.isArray(sn.fins) ? sn.fins : []).filter((f) => f && M.order.includes(f.pid)).slice(0, 4); M.pausedMs = +sn.pm || 0; }
@@ -317,7 +322,7 @@ function startMatch(room) {
   if (M.isHost) hostRoomChanged(); // 房主恢复对局时玩家都还没回来：立刻进入暂停等待
 }
 function tick() { if (!M || M.done) return; pushReport(); paintBar(); snapNow(); }
-function stopMatchTimers() { if (M && M.timer) { clearInterval(M.timer); M.timer = null; } if (M && M.progTimer) { clearTimeout(M.progTimer); M.progTimer = null; } }
+function stopMatchTimers() { if (window.EV) EV.detach(); if (M && M.timer) { clearInterval(M.timer); M.timer = null; } if (M && M.progTimer) { clearTimeout(M.progTimer); M.progTimer = null; } }
 function hideResultUI() { resultOpen = false; const r = $('mpResOv'); if (r) r.classList.remove('show'); }
 function endMatchUI() { // 收起对局画面，把主页放回来，单机恢复到进入前的关卡
   stopMatchTimers(); clearSnap();
@@ -455,6 +460,7 @@ function onGame(d, fromPid) {
     M.pauseNames = Array.isArray(d.n) ? d.n.map(String).slice(0, 3) : [];
     paintModal();
   } else if (d.k === 'fin') hostOnFin(fromPid, d);
+  else if (/^(et|eb|ed|rl|es)$/.test(d.k) && window.EV) EV.onMsg(d, fromPid); // v1.28 随机事件
 }
 function onReports(m) {
   if (!M || M.done || !m) return;
@@ -483,7 +489,7 @@ function onClosed() { // 房间解散/彻底失联/被移出：收掉对局画�
 function onLeave() { setSkinOverride(null); clearSnap(); } // 玩家主动离开房间(大厅返回键)：配色还原，续局快照作废
 
 /* ---------- 给核心(index.html / ui.js)用 ---------- */
-function blocked() { return !!M && (M.finished || M.paused || M.netBad || M.done); } // 完成后等待 / 别人掉线暂停 / 本机断线 / 已结算：锁住走步和撤销
+function blocked() { return !!M && (M.finished || M.paused || M.netBad || M.done || (window.EV && EV.moveLock())); } // 完成后等待 / 别人掉线暂停 / 本机断线 / 已结算：锁住走步和撤销
 function barH() { return M ? (M.order.length > 2 ? 2 : 1) * BAR_ROW_H + 6 : 22; }
 function requestEnd(btn) { // 暂停菜单里的「离开」键(房主)：强制结算本局。第一下只是待确认(按钮红色描边 + 提示)，3 秒内再点才生效，免得误触——它会结束所有人的比赛
   if (!M || !M.isHost || M.done) return;
@@ -500,13 +506,14 @@ function requestEnd(btn) { // 暂停菜单里的「离开」键(房主)：强制
   settle();
 }
 function restart() { // 暂停菜单「重来」：步数清零，用时照走(房主计时不受影响)
-  if (!M || M.done || M.finished || blocked()) return;
+  if (!M || M.done || M.finished || blocked() || (window.EV && EV.locked())) return;
   loadMpLevel(M.xsb, M.levelId, M.seg);
   pushReport(); paintBar();
 }
 
 Bus.on('mpSolved', (d) => { // 本机推完最后一个箱子
   if (!M || M.done || M.finished) return;
+  if (window.EV) EV.stop(true); // 通关了：收掉效果并通知房主
   M.finished = true;
   const n = net();
   const msg = { k: 'fin', s: d.moves };
