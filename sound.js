@@ -51,6 +51,7 @@
   var recent = [];       // 最近用过的两首（下次随机排除）
   var inGame = false;    // 主页盖着 = false
   var curLevel = -1;     // 最近一次 levelLoad 的关卡序号
+  var mp = false, mpSeq = 0; // 联机对局中：BGM 由 Multiplayer.js 显式开关(SFX.bgmMatch)，不再靠主页类名/关卡序号推断
 
   // ── 初始化 ───────────────────────────────────────
   function init() {
@@ -307,6 +308,10 @@
   }
 
   function syncToLevel() {
+    if (mp) { // 联机：对局内换关/重来都不换曲，只在被暂停(如自己通关淡出)后接着放
+      if (ctx && bgm.state === 'paused' && bgm.buf && bgm.pendingSeg < 0) playFrom(bgm.pos || 0, BGM_FADE);
+      return;
+    }
     if (!ctx || !inGame || curLevel < 0) return;
     var seg = Math.floor(curLevel / BGM_SEG);
     if (bgm.pendingSeg === seg) return;                       // 这一段已经在加载了
@@ -321,11 +326,25 @@
     var hidden = function () { return home.classList.contains('hide'); };
     inGame = hidden();
     new MutationObserver(function () {
+      if (mp) return;   // 联机对局由 bgmMatch 管
       var g = hidden();
       if (g === inGame) return;
       inGame = g;
       if (g) { readLevel(); syncToLevel(); } else pauseBgm(0.6);
     }).observe(home, { attributes: true, attributeFilter: ['class'] });
+  }
+
+  // 联机对局的 BGM：开局 on=true 随机选一首(排除最近两首)从头放；结算/回大厅 on=false 淡出并停，回单机后重新按关卡选曲
+  function bgmMatch(on) {
+    if (!ctx) return;
+    if (on) {
+      mp = true; inGame = true; unlock();
+      startTrack(pickTrack(), 9000 + (++mpSeq));
+    } else if (mp) {
+      mp = false; inGame = false;
+      pauseBgm(0.8);
+      bgm.idx = -1; bgm.seg = -1; // 单机下次进游戏一定重新选曲
+    }
   }
 
   // ── 订阅 Bus ─────────────────────────────────────
@@ -402,7 +421,12 @@
     applySettings: applyAudioSettings,
     setGain: function (name, v) { if (nodes[name]) nodes[name].gain.value = Math.max(0, v); },
     getGain: function (name) { return nodes[name] ? nodes[name].gain.value : null; },
-    unlock: unlock
+    unlock: unlock,
+    bgmMatch: bgmMatch,
+    // 给联机模块(events.js 等)自己合成音效用：接到 SFX 总输出，音效音量/静音自动生效
+    ready: function () { return !!ctx && activated; },
+    ctx: function () { return ctx; },
+    out: function () { return master; }
   };
 
   init();
