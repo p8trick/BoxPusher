@@ -460,7 +460,7 @@ function onGame(d, fromPid) {
     M.pauseNames = Array.isArray(d.n) ? d.n.map(String).slice(0, 3) : [];
     paintModal();
   } else if (d.k === 'fin') hostOnFin(fromPid, d);
-  else if (/^(et|eb|ed|rl|es)$/.test(d.k) && window.EV) EV.onMsg(d, fromPid); // v1.28 随机事件
+  else if (/^(et|st|rl|es)$/.test(d.k) && window.EV) EV.onMsg(d, fromPid); // v1.29 随机事件(et触发/rl抽签/st状态上报/es转发)
 }
 function onReports(m) {
   if (!M || M.done || !m) return;
