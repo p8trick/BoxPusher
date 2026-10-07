@@ -301,6 +301,7 @@ function startMatch(room) {
   if (typeof closeLevelPick === 'function') closeLevelPick();
   if (window.Lobby) Lobby.hide();
   hideHomeScreen();
+  if (window.SFX && SFX.bgmMatch) SFX.bgmMatch(true); // 联机对局 BGM：开局显式开(之前靠主页类名推断，联机路径下不触发)
   ensureDom();
   setSkinOverride(skins[room.you]); // 角色配色用房主分配的(房主永远经典、玩家随机不重色)；对局内「游戏外观」里这一栏灰掉
   $('app').classList.add('mp');
@@ -325,6 +326,7 @@ function tick() { if (!M || M.done) return; pushReport(); paintBar(); snapNow();
 function stopMatchTimers() { if (window.EV) EV.detach(); if (M && M.timer) { clearInterval(M.timer); M.timer = null; } if (M && M.progTimer) { clearTimeout(M.progTimer); M.progTimer = null; } }
 function hideResultUI() { resultOpen = false; const r = $('mpResOv'); if (r) r.classList.remove('show'); }
 function endMatchUI() { // 收起对局画面，把主页放回来，单机恢复到进入前的关卡
+  if (window.SFX && SFX.bgmMatch) SFX.bgmMatch(false);
   stopMatchTimers(); clearSnap();
   const n = net(); if (n) n.setReport(null);
   M = null; modalKey = '';
@@ -405,6 +407,7 @@ function showResult(d) {
   if (resultOpen) return;
   const rank = (Array.isArray(d.rank) ? d.rank : []).slice(0, 4);
   stopMatchTimers(); clearSnap();
+  if (window.SFX && SFX.bgmMatch) SFX.bgmMatch(false); // 结算：BGM 淡出
   if (M) { M.done = true; paintTop(); paintModal(); }
   skipPlaying = true;
   if (window.Lobby) Lobby.hide(); // 没进到对局画面的人(缺关卡)大厅还开着：收起来，统一看结算
