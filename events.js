@@ -7,10 +7,12 @@
      EV.remap()     混乱：tryMove 开头换方向(在写走法日志之前，续局重放才不会乱)
      EV.input()     溜冰：requestMove 里接管输入
      EV.slideStep() 溜冰：每一步走完的锁到期时继续滑
-   ── 规则(详见《组合规则方案》) ──
-   主效果：混乱/关灯/溜冰/迷雾/隐身，同一时刻一个；速度类：加速/中毒，可附在主效果上。
-   R1 同类再命中=加时(原始时长×extra)，每个节点只能延长 extMax 次，之后免疫；R2 速度类并入当前(时长取后来者)；R3 加速×中毒互相清零；
-   R4 不同主效果排队；R5 队列上限 queueMax，满了顶掉当前、队列前进；R6 抽签降权(不排除)；R7 判定在转盘落定那一刻、由被罚者本机做；R8 迷雾组合按迷雾时长；R9 节点间隔 gapMs。
+   ── 规则(以《随机事件系统 V2 修改说明》为准) ──
+   主效果：溜冰/混乱/隐身/迷雾/关灯，同一时刻一个，不同主效果只能串行；速度类：加速/中毒，不排队、直接附着在当前主效果上。
+   速度类附着=丢弃旧计时器，按主效果完整基础时长重新计时(迷雾也一样，但雾的画面/擦除状态不重置，剩余的雾按新计时器走)；
+   同类再命中(只看当前节点，含速度部分)：第一次=续命 完整周期×50%，之后=免疫；组合共用一根倒计时；
+   加速×中毒互相清零(不补偿、不刷新，主效果按剩余时间继续)；队列只等待：最多2个、纯主效果、不合并不续命不计时；
+   队列满=强制结束当前、等待1上位、新的入队尾；正常结束=解除→约1秒喘息→等待1上位从完整时长开始；抽签降权×0.7。
    ── 消息(都很短) ──
      et 玩家→房主  {b:箱子ID}                          我把一个箱子推进了目标点
      rl 房主→全体  {t:被罚者, e:事件, n:序号, b:播盲盒} 抽签结果(全体据此在数据条显示 ❓)
@@ -26,19 +28,22 @@ const CFG = {
   files: { chaos: 'confusion', blackout: 'lights_out', invisible: 'invisible', poison: 'poison', fog: 'fog', speed: 'speed', ice: 'ice' },
   layer2: true,   // 第二层总开关：速度类能附在主效果上、加速×中毒抵消、迷雾组合。关掉=加速/中毒当普通主效果排队
   layer3: true,   // 第三层总开关：盲盒只在完全空闲时播、排队图标、预警闪烁、节点间隔。关掉=盲盒每次都播、无排队图标/预警/间隔
-  w:   { speed: 10, chaos: 18, blackout: 16, poison: 16, ice: 14, fog: 14, invisible: 12 }, // 抽中权重(加速是奖励，最低)
-  dur: { speed: 5000, chaos: 6000, blackout: 6000, poison: 6000, ice: 4000, fog: 7000, invisible: 7000 }, // 毫秒；迷雾=最长擦拭时间(组合时也按它算)
-  extra: 0.5,     // 同类再命中：追加 原始时长×extra
+  w:   { speed: 10, poison: 15, ice: 10, chaos: 13, invisible: 17, fog: 17, blackout: 18 }, // V2 基础权重(合计100)
+  dur: { speed: 5000, poison: 5000, ice: 6000, chaos: 7000, invisible: 8000, fog: 8000, blackout: 10000 }, // V2 基础时长(毫秒)；迷雾=最长擦拭时间
+  extra: 0.5,     // 同类再命中：追加 当前节点完整周期×extra
   extMax: 1,      // 每个节点最多被延长几次，超出=免疫
   queueMax: 2,    // 当前节点之外最多排几个(只排纯主效果)
+  fogBlock: true, // 当前节点带迷雾时，新抽签直接屏蔽迷雾(没有迷雾了才恢复原概率)
   downW: 0.7,     // 抽签降权：身上已有(当前/排队)的类型，权重×这个数(1=关闭)
-  gapMs: 2000,    // 当前节点结束到下一个排队节点开始之间的间隔(0=无缝)
+  gapMs: 1000,    // 当前节点正常结束到下一个排队节点开始之间的喘息间隔(0=无缝)
   warn: { def: 2000, ice: 2000 }, // 预警：剩余多少毫秒开始慢闪(溜冰只有4秒，可单独调)
+  pulseMe: 1.5, pulseOther: 1.25, pulseMs: 400, // 等待节点转为当前时，数据条图标放大再回弹一次(自己/别人的倍数、总时长)
   poisonMul: 2, speedMul: 0.5,    // 步时长倍率：中毒慢一倍，加速快一倍
   fogNeed: 0.8, fogFadeMs: 1800,  // 迷雾：擦到这个比例后可操作，剩下的雾这么久淡完
   boxW: 240, boxVw: 0.64, boxAsp: 841 / 803, // 开机盲盒：最大宽度(px)、不超过屏宽的比例、素材宽高比(803×841)
   long:  { drop: 380, shake: 450, fly: 380, roll: 1600, popIn: 220, popHold: 350, popOut: 280 }, // 带盲盒：落下→晃动→缩小飞向转盘位→滚动→亮相(ms)
-  short: { drop: 0,   shake: 0,   fly: 200, roll: 1200, popIn: 200, popHold: 260, popOut: 260 }  // 不带盲盒(身上已有效果/连续抽中)：缩短版
+  short: { drop: 0,   shake: 0,   fly: 200, roll: 1200, popIn: 200, popHold: 260, popOut: 260 }, // 不带盲盒(身上已有效果/连续抽中)：缩短版
+  sfx: true, sfxGain: 1.5 // 事件音效总开关 / 总增益(在 sound.js 的音效音量之上再乘；整体觉得吵或轻就调这个)
 };
 const IDS = Object.keys(CFG.files);
 const SPEED_IDS = ['speed', 'poison'];
@@ -56,6 +61,49 @@ const opp = (e) => (e === 'speed' ? 'poison' : 'speed');
 const D = (e) => CFG.dur[e];
 const gapMs = () => (CFG.layer3 ? CFG.gapMs : 0);
 const warnMs = (e) => (CFG.warn[e] != null ? CFG.warn[e] : CFG.warn.def);
+
+
+/* ---------- 音效(WebAudio 合成，接到 sound.js 的 SFX 总输出：音效音量/静音自动生效；没解锁/没有 sound.js 就静默) ---------- */
+const SX = (function () {
+  let c = null, o = null, nb = null;
+  function ok() {
+    if (!CFG.sfx || !window.SFX || !SFX.ready || !SFX.ready()) return false;
+    const x = SFX.ctx(); if (!x || !SFX.out()) return false;
+    if (x !== c) { c = x; o = c.createGain(); o.gain.value = CFG.sfxGain; o.connect(SFX.out()); nb = null; }
+    if (!nb) { nb = c.createBuffer(1, c.sampleRate, c.sampleRate); const d = nb.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
+    return true;
+  }
+  function env(g, t, dur, vol, atk) { atk = atk || 0.004; g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + atk); g.gain.exponentialRampToValueAtTime(0.0001, t + dur); }
+  function nz(at, dur, f0, f1, vol, type) { // 噪声(滤波扫频)
+    const t = c.currentTime + at, s = c.createBufferSource(); s.buffer = nb;
+    const f = c.createBiquadFilter(); f.type = type || 'lowpass'; f.frequency.setValueAtTime(f0, t); if (f1 !== f0) f.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    const g = c.createGain(); env(g, t, dur, vol, 0.006);
+    s.connect(f); f.connect(g); g.connect(o); s.start(t, Math.random() * 0.5); s.stop(t + dur + 0.03);
+  }
+  function tn(at, type, f0, f1, dur, vol, atk) { // 音调(可滑音)
+    const t = c.currentTime + at, os = c.createOscillator(); os.type = type;
+    os.frequency.setValueAtTime(f0, t); if (f1 !== f0) os.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    const g = c.createGain(); env(g, t, dur, vol, atk); os.connect(g); g.connect(o); os.start(t); os.stop(t + dur + 0.03);
+  }
+  return {
+    drop() { if (!ok()) return; nz(0, 0.32, 2200, 500, 0.10, 'bandpass'); tn(0, 'sine', 520, 190, 0.28, 0.05); },        // 盲盒从上面落下：嗖
+    thud(v) { if (!ok()) return; tn(0, 'sine', 135, 52, 0.24, 0.55 * v); nz(0, 0.09, 600, 200, 0.28 * v); tn(0.008, 'triangle', 250, 120, 0.09, 0.12 * v); }, // 落地/弹跳：咚
+    knock(v) { if (!ok()) return; tn(0, 'triangle', 540, 360, 0.055, 0.17 * v); nz(0, 0.03, 2600, 1800, 0.10 * v, 'bandpass'); }, // 晃动：木盒咯咯
+    fly(dur) { if (!ok()) return; tn(0, 'sine', 300, 1150, dur, 0.09); nz(0, dur, 900, 3800, 0.07, 'bandpass'); tn(dur, 'sine', 950, 520, 0.07, 0.13); }, // 缩小飞向转盘：嗖 + 啵
+    tick(v) { if (!ok()) return; const f = 600 + 950 * v; tn(0, 'triangle', f, f * 0.78, 0.04, 0.21, 0.002); nz(0, 0.014, 4200, 3000, 0.07); }, // 经过一个图标：哒(越快越尖)
+    stop() { if (!ok()) return; tn(0, 'sine', 230, 120, 0.13, 0.30); tn(0, 'triangle', 880, 600, 0.06, 0.14, 0.002); },  // 转盘停下：咔
+    result(res, e) { // 判定结果的反馈
+      if (!ok()) return;
+      if (res === 'imm') { tn(0.04, 'sine', 240, 130, 0.09, 0.18); nz(0.04, 0.08, 700, 300, 0.08); return; } // 免疫：噗
+      if (res === 'can') { tn(0.04, 'sine', 400, 760, 0.16, 0.10); tn(0.04, 'sine', 760, 400, 0.16, 0.10); nz(0.18, 0.06, 900, 400, 0.06); return; } // 抵消：两边交错
+      if (res === 'que') { tn(0.04, 'sine', 330, 330, 0.16, 0.13, 0.01); return; }                          // 排队：嘟
+      if (res === 'ext') { tn(0.04, 'sine', 880, 880, 0.30, 0.13); tn(0.04, 'sine', 1760, 1760, 0.18, 0.04); tn(0.12, 'sine', 1175, 1175, 0.26, 0.10); return; } // 加时：叮↗
+      if (e === 'speed') { [660, 880, 1320].forEach((f, i) => tn(0.04 + i * 0.075, 'triangle', f, f, 0.22, 0.13)); return; } // 加速(奖励)：上行三连音
+      if (e === 'poison') { tn(0.04, 'sine', 240, 150, 0.40, 0.17); tn(0.04, 'sawtooth', 120, 80, 0.30, 0.04); nz(0.04, 0.25, 500, 200, 0.07); return; } // 中毒：下沉
+      tn(0.04, 'sine', 784, 784, 0.42, 0.15); tn(0.04, 'sine', 1568, 1568, 0.22, 0.05); tn(0.11, 'sine', 988, 988, 0.34, 0.11); // 其他效果：叮咚
+    }
+  };
+})();
 
 /* ---------- 素材：缺图就退回 emoji，不会空白 ---------- */
 const src = { big: (id) => CFG.dir + CFG.files[id] + '.png', small: (id) => CFG.dir + CFG.files[id] + '_s.png', mystery: CFG.dir + 'mystery.png' };
@@ -100,7 +148,7 @@ css.textContent = `
 #evFogHint { position: fixed; z-index: 31; pointer-events: none; text-align: center; font-size: 20px; font-weight: 900; letter-spacing: 0.15em; color: rgba(80, 90, 100, 0.85); text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6); transition: opacity 0.4s; }
 .mpE { display: inline-block; vertical-align: middle; } .mpE img { width: 16px; height: 16px; margin-left: 3px; vertical-align: -3px; } .mpE small { font-size: 11px; margin-left: 1px; }
 .mpE .evC, .mpE .evQ { display: inline-block; }
-.mpE .evQ img { width: 12px; height: 12px; margin-left: 2px; vertical-align: -1px; opacity: 0.5; }
+.mpE .evQ img { width: 14px; height: 14px; margin-left: 2px; vertical-align: -2px; opacity: 0.55; filter: saturate(0.35); }
 .mpE .evC.evWarn { animation: evBreath 1s ease-in-out infinite; }
 @keyframes evBreath { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 `;
@@ -114,9 +162,9 @@ let stat = {};                // 别人的状态：{c:[当前主,速度], q:[排
 let N = fresh();              // 本机的效果模型
 const trigSent = new Set();   // 本机已经发过触发的箱子
 let cmap = null, ice = null, hid = null, fog = null, dk = null, fogOK = false, fogOKAt = 0;
-/* 本机模型：cur={m:主效果|null, s:速度类|null, until:到期(performance.now), x:已延长次数} ；q=[{m,dur,x}]；rq=等着演出的抽签；rolling=正在演出 */
-function fresh() { return { cur: null, q: [], gapAt: 0, rq: [], rolling: false, seen: new Set(), raf: 0, anim: null }; }
-function ps(pid) { return stat[pid] || (stat[pid] = { c: [], q: [], rs: new Map(), warnAt: 0 }); }
+/* 本机模型：cur={m:主效果|null, s:速度类|null, until:到期(performance.now), full:完整周期, x:已续命次数} ；q=[{m}]；rq=等着演出的抽签；rolling=正在演出 */
+function fresh() { return { cur: null, q: [], gapAt: 0, pulse: false, rq: [], rolling: false, seen: new Set(), raf: 0, anim: null }; }
+function ps(pid) { return stat[pid] || (stat[pid] = { c: [], q: [], rs: new Map(), warnAt: 0, pulse: false }); }
 
 /* ---------- 数据条上的小图标(所有人都看得到) ---------- */
 function slot(pid) { const ps_ = document.querySelectorAll('#mpBar .mpP'); for (const p of ps_) if (p.dataset.pid === pid) return p.querySelector('.mpE'); return null; }
@@ -125,11 +173,11 @@ function view(pid) {
   if (pid === C.myPid) {
     const cur = N.cur, c = []; if (cur) { if (cur.m) c.push(cur.m); if (cur.s) c.push(cur.s); }
     const left = cur ? cur.until - now : 0, timed = !!cur && cur.m !== 'fog' && left > 0;
-    return { c, q: N.q.map((x) => x.m), rolling: N.rq.length + (N.rolling ? 1 : 0), secs: timed ? Math.ceil(left / 1000) : 0, warn: timed && left <= warnMs(cur.m || cur.s) };
+    return { c, q: N.q.map((x) => x.m), rolling: N.rq.length + (N.rolling ? 1 : 0), secs: timed ? Math.ceil(left / 1000) : 0, warn: timed && left <= warnMs(cur.m || cur.s), pulse: N.pulse };
   }
   const s = ps(pid);
   s.rs.forEach((ts, k) => { if (Date.now() - ts > 20000) s.rs.delete(k); }); // 摇奖中的标记最多保留 20 秒，防止消息丢了一直显示问号
-  return { c: s.c, q: s.q, rolling: s.rs.size, secs: 0, warn: s.warnAt > 0 && now >= s.warnAt };
+  return { c: s.c, q: s.q, rolling: s.rs.size, secs: 0, warn: s.warnAt > 0 && now >= s.warnAt, pulse: s.pulse };
 }
 function paintStatus(pid) {
   const el = slot(pid); if (!el || !C) return;
@@ -140,7 +188,12 @@ function paintStatus(pid) {
     if (v.c.length) { const w = document.createElement('span'); w.className = 'evC'; v.c.forEach((id) => w.appendChild(mkIcon(id, 16, 'small'))); el.appendChild(w); el._c = w; }
     if (v.secs > 0) { const s = document.createElement('small'); s.className = 'evS'; el.appendChild(s); el._s = s; }
     if (v.rolling) el.appendChild(mkIcon('?', 16, 'small'));
-    if (q.length) { const w = document.createElement('span'); w.className = 'evQ'; q.forEach((id) => w.appendChild(mkIcon(id, 12, 'small'))); el.appendChild(w); }
+    if (q.length) { const w = document.createElement('span'); w.className = 'evQ'; q.forEach((id) => w.appendChild(mkIcon(id, 14, 'small'))); el.appendChild(w); }
+  }
+  if (v.pulse) { // 等待→当前：当前图标放大再回弹一次(不抖动、不闪)
+    if (pid === C.myPid) N.pulse = false; else ps(pid).pulse = false;
+    const im = el._c && el._c.firstChild, k = pid === C.myPid ? CFG.pulseMe : CFG.pulseOther;
+    if (im && im.animate) im.animate([{ transform: 'scale(1)' }, { transform: 'scale(' + k + ')', offset: 0.5 }, { transform: 'scale(1)' }], { duration: CFG.pulseMs, easing: 'ease-in-out' });
   }
   if (el._s && String(v.secs) !== el._s.textContent) el._s.textContent = v.secs;
   if (el._c) el._c.classList.toggle('evWarn', !!warn);
@@ -188,7 +241,7 @@ function onTrigger(pid, b) {
 }
 function drawFor(v) { // 每个被罚者独立抽一次；抽奖永远即时，不因效果中/队列满而暂停
   const s = H.st[v] || { c: [], q: [] }, ws = []; let tot = 0;
-  IDS.forEach((id) => { let w = CFG.w[id]; if (s.c.includes(id) || s.q.includes(id)) w *= CFG.downW; ws.push([id, w]); tot += w; }); // R6：降权不排除
+  IDS.forEach((id) => { let w = CFG.w[id]; if (CFG.fogBlock && id === 'fog' && s.c.includes('fog')) w = 0; else if (s.c.includes(id) || s.q.includes(id)) w *= CFG.downW; ws.push([id, w]); tot += w; }); // 降权×0.7(不排除)；唯一例外：当前正带着迷雾时不再抽迷雾(雾基本擦完了，重置计时对残留的雾没意义)；排队里的迷雾不算，照常降权
   let r = Math.random() * tot, e = ws[ws.length - 1][0];
   for (const [id, w] of ws) { if ((r -= w) < 0) { e = id; break; } }
   const idle = !s.c.length && !s.q.length && livePend(v) === 0; // 盲盒只在完全空闲时播：没效果、没转盘在转、没排队
@@ -227,7 +280,8 @@ function apply(d) { // 所有人(含房主自己)都跑：更新数据条；轮�
   } else if (d.k === 'es') {
     const i = String(d.i);
     if (!C.order.includes(i) || i === C.myPid) return; // 自己的图标自己管
-    const s = ps(i), c = okIds(d.c);
+    const s = ps(i), c = okIds(d.c), pc = s.c[0], pq = s.q;
+    if (c[0] && c[0] !== pc && pq.includes(c[0])) s.pulse = true; // 等待节点上位
     s.c = c; s.q = okIds(d.q);
     s.warnAt = (typeof d.r === 'number' && d.r >= 0 && c.length) ? performance.now() + d.r - warnMs(c[0]) : 0;
     if (d.z) s.rs.clear(); else if (d.l) s.rs.delete(d.l | 0);
@@ -261,40 +315,36 @@ function endNode() { // 当前节点结束(含它的速度部分)
 function promote() { // 队列最前面的纯主效果上场；若当前只有速度类，就并进去(时长取后来者)
   const h = N.q.shift(); if (!h) return;
   const now = performance.now(); N.gapAt = 0;
-  if (N.cur) { N.cur.m = h.m; N.cur.until = now + h.dur; } else N.cur = { m: h.m, s: null, until: now + h.dur, x: h.x };
+  const full = D(h.m); // 从自己的完整基础时长开始计时(排队期间不消耗)
+  if (N.cur) { N.cur.m = h.m; N.cur.full = full; N.cur.until = now + full; } else N.cur = { m: h.m, s: null, until: now + full, full, x: 0 };
+  N.pulse = true; // 数据条图标放大回弹一次(等待→当前的入场提示)
   startMain(h.m); changed();
 }
 function enqueue(e) { // 不同类型的主效果：排队；满了顶掉当前，队列前进一格，新的入队尾
-  const item = { m: e, dur: D(e), x: 0 };
+  const item = { m: e };
   if (N.q.length >= CFG.queueMax) {
     if (N.cur && N.cur.m) { stopMain(); N.cur = null; promote(); N.q.push(item); return 'bump'; } // 被顶掉的当前节点连同速度部分一起结束
     N.q.shift(); N.q.push(item); return 'que'; // 当前没有主效果：牺牲最前面排队的那个
   }
   N.q.push(item); return 'que';
 }
-function resolve(e) { // 转盘落定那一刻的判定，返回结果码：new 新开 / mrg 并入当前 / que 排队 / bump 顶掉当前 / ext 加时 / imm 免疫 / can 抵消
+function resolve(e) { // 转盘落定那一刻的判定，返回结果码：new 新开 / mrg 并入当前 / que 排队 / bump 顶掉当前 / ext 续命 / imm 免疫 / can 抵消
   const now = performance.now(), cur = N.cur;
-  // R1 同类再命中：先看当前节点，再看队列里最靠前的
-  let node = (cur && (cur.m === e || cur.s === e)) ? cur : null, inQ = false;
-  if (!node) { node = N.q.find((x) => x.m === e) || null; inQ = !!node; }
-  if (node) {
-    if (!inQ && cur.m === 'fog' && e === 'fog' && fogOK && !cur.s) return 'imm'; // 雾已经擦开在淡去：没得延长
-    if (node.x >= CFG.extMax) return 'imm';
-    node.x++;
-    const add = D(e) * CFG.extra;
-    if (inQ) node.dur += add; else cur.until += add;
+  if (cur && (cur.m === e || cur.s === e)) { // 同类再命中：只看当前节点；队列里的节点不参与(不合并、不续命)
+    if (cur.x >= CFG.extMax) return 'imm';
+    cur.x++; cur.until += cur.full * CFG.extra; // 增加量=节点完整周期的50%(不是剩余时间的)
     return 'ext';
   }
   if (isSpd(e)) {
-    if (cur && cur.s === opp(e)) { cur.s = null; if (!cur.m) endNode(); return 'can'; } // R3：互相清零，不补偿，新事件被消耗
-    if (!cur) { N.cur = { m: null, s: e, until: now + D(e), x: 0 }; return 'new'; }
+    if (cur && cur.s === opp(e)) { cur.s = null; if (!cur.m) endNode(); return 'can'; } // 互相清零，不补偿不刷新，新事件被消耗
+    if (!cur) { N.cur = { m: null, s: e, until: now + D(e), full: D(e), x: 0 }; return 'new'; }
     cur.s = e;
-    if (cur.m !== 'fog') cur.until = now + D(e); // R2：组合时长取后来者；R8：迷雾组合永远按迷雾算
+    if (cur.m) cur.until = now + cur.full; // 组合：丢弃旧计时器，按主效果完整基础时长重新计时(迷雾的画面状态不动，雾继续按新计时器走)
     return 'mrg';
   }
   if (!(cur && cur.m) && N.q.length === 0) { // 空闲或只有速度类，且没人排队：直接上场
-    if (cur) { cur.m = e; cur.until = now + D(e); startMain(e); return 'mrg'; }
-    N.cur = { m: e, s: null, until: now + D(e), x: 0 }; startMain(e); return 'new';
+    if (cur) { cur.m = e; cur.full = D(e); cur.until = now + cur.full; startMain(e); return 'mrg'; }
+    N.cur = { m: e, s: null, until: now + D(e), full: D(e), x: 0 }; startMain(e); return 'new';
   }
   return enqueue(e);
 }
@@ -368,6 +418,7 @@ function playRoll(r, onLand, done) {
   const T1 = K.drop, T2 = T1 + K.shake, T3 = T2 + K.fly, T4 = T3 + K.roll;
   const dist = (laps * IDS.length + idx) * S;
   const t0 = performance.now();
+  const fl = {}; let lastK = 0, lastTk = 0; // 音效：一次性触发标记 / 转盘经过的图标计数 / 上一声哒的时刻
   const layout = (x) => R.items.forEach((w, i) => {
     let d = (((i * S - x) % P) + P) % P; if (d > P / 2) d -= P;
     const a = Math.min(1, Math.abs(d) / (2.6 * S)), o = Math.min(1, Math.abs(d) / (3.2 * S));
@@ -378,19 +429,32 @@ function playRoll(r, onLand, done) {
   const frame = () => {
     if (!N.rolling || !C) return;
     const t = performance.now() - t0;
-    if (t < T1) { const p = t / T1; R.box.style.opacity = 1; R.box.style.transform = `translateY(${-(cy0 + bh) * (1 - bounce(p))}px)`; }
-    else if (t < T2) { const p = (t - T1) / K.shake; R.box.style.opacity = 1; R.box.style.transform = `rotate(${Math.sin(p * 20) * 9 * (1 - p)}deg) scale(${1 + 0.04 * Math.sin(p * Math.PI)})`; }
+    if (t < T1) {
+      const p = t / T1;
+      if (!fl.d) { fl.d = 1; SX.drop(); }
+      if (!fl.h1 && p >= 0.364) { fl.h1 = 1; SX.thud(1); } if (!fl.h2 && p >= 0.727) { fl.h2 = 1; SX.thud(0.5); } if (!fl.h3 && p >= 0.909) { fl.h3 = 1; SX.thud(0.28); } // 三次落地/弹跳(对应 bounce 曲线)
+      R.box.style.opacity = 1; R.box.style.transform = `translateY(${-(cy0 + bh) * (1 - bounce(p))}px)`; }
+    else if (t < T2) {
+      const p = (t - T1) / K.shake;
+      const k = Math.floor((p * 20 - Math.PI / 2) / Math.PI) + 1; // 每摆到一边一声
+      while ((fl.k || 0) < k && (fl.k || 0) < 6) { fl.k = (fl.k || 0) + 1; SX.knock(Math.max(0.35, 1 - p)); }
+      R.box.style.opacity = 1; R.box.style.transform = `rotate(${Math.sin(p * 20) * 9 * (1 - p)}deg) scale(${1 + 0.04 * Math.sin(p * Math.PI)})`; }
     else if (t < T3) {
       const p = (t - T2) / K.fly;
+      if (r.box && !fl.f) { fl.f = 1; SX.fly(K.fly / 1000); }
       let so = p;
       if (r.box) { const k = easeInOut(p); R.box.style.opacity = p < 0.6 ? 1 : Math.max(0, 1 - (p - 0.6) / 0.4); R.box.style.transform = `translateY(${dy * k}px) scale(${1 - (1 - sEnd) * k})`; so = Math.max(0, (p - 0.35) / 0.65); }
       R.strip.style.opacity = so; R.strip.style.transform = `scaleX(${0.3 + 0.7 * so})`;
     } else if (t < T4) {
       R.box.style.display = 'none'; R.strip.style.opacity = 1; R.strip.style.transform = 'scaleX(1)';
-      layout(dist * easeOutCubic((t - T3) / K.roll));
+      const q = (t - T3) / K.roll, x = dist * easeOutCubic(q), k = Math.floor(x / S + 0.5); // 经过一个图标响一声哒；速度越快音越尖、越密，快到一帧过好几个就合并
+      layout(x);
+      if (k > lastK) { lastK = k; if (t - lastTk >= 28) { lastTk = t; SX.tick(Math.pow(1 - q, 2)); } }
     } else {
       layout(dist); N.raf = 0;
-      popBig(e, onLand(), K, done); return; // 转盘落定：判定就在这一刻做
+      SX.stop();
+      const res = onLand(); SX.result(res, e);
+      popBig(e, res, K, done); return; // 转盘落定：判定就在这一刻做
     }
     N.raf = requestAnimationFrame(frame);
   };
