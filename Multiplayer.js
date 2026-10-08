@@ -312,7 +312,7 @@ function startMatch(room) {
     send: (d) => { const n = net(); if (n) n.sendGame(d); }, bcast: (d) => { const n = net(); if (n) n.bcastGame(d); },
     online: (pid) => { const p = M.room.players.find((x) => x.pid === pid); return !!p && p.online !== false; },
     finished: (pid) => pid === M.myPid ? M.finished : !!(M.rep[pid] && M.rep[pid].f),
-    placedOf: (pid) => pid === M.myPid ? placed() : (M.rep[pid] ? M.rep[pid].p | 0 : 0) }); // v1.28 随机事件
+    placedOf: (pid) => pid === M.myPid ? placed() : (M.rep[pid] ? M.rep[pid].p | 0 : 0) }); // 随机事件
   const sn = readSnap(room, lv.id); // 杀后台/重连回来：按上次的走法重放，回到原来的步数和箱子位置
   if (sn) {
     if (M.isHost) { M.fins = (Array.isArray(sn.fins) ? sn.fins : []).filter((f) => f && M.order.includes(f.pid)).slice(0, 4); M.pausedMs = +sn.pm || 0; }
@@ -463,7 +463,7 @@ function onGame(d, fromPid) {
     M.pauseNames = Array.isArray(d.n) ? d.n.map(String).slice(0, 3) : [];
     paintModal();
   } else if (d.k === 'fin') hostOnFin(fromPid, d);
-  else if (/^(et|st|rl|es)$/.test(d.k) && window.EV) EV.onMsg(d, fromPid); // v1.29 随机事件(et触发/rl抽签/st状态上报/es转发)
+  else if (/^(et|st|rl|es)$/.test(d.k) && window.EV) EV.onMsg(d, fromPid); // 随机事件(et触发/rl抽签/st状态上报/es转发)
 }
 function onReports(m) {
   if (!M || M.done || !m) return;
