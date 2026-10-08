@@ -208,6 +208,7 @@ function attach(c) {
   C = c; N = fresh(); stat = {}; trigSent.clear();
   H = C.isHost ? { st: {}, pend: {}, trig: {}, seq: 0 } : null;
   preloadAll();
+  poisonOn = false; if (typeof preloadPoisonSkin === 'function') preloadPoisonSkin();
   tickT = setInterval(tick, 120);
   paintAll();
 }
@@ -299,7 +300,12 @@ function report(l, z) { // 把本机状态告诉房主(房主转发全体)
   if (l) m.l = l; if (z) m.z = 1;
   C.send(m);
 }
-function changed(l) { report(l); if (C) paintStatus(C.myPid); }
+let poisonOn = false;
+function syncPoisonSkin() { // 带着中毒就把人物肤色换成黄绿(base.js 的 setPoisonSkin)，解除就还原
+  const on = !!(C && N.cur && spdOf(N.cur) === 'poison');
+  if (on !== poisonOn) { poisonOn = on; if (typeof setPoisonSkin === 'function') setPoisonSkin(on); }
+}
+function changed(l) { report(l); syncPoisonSkin(); if (C) paintStatus(C.myPid); }
 function startMain(m) {
   if (m === 'chaos') mkChaos();
   else if (m === 'ice') ice = { sliding: false, d: null, n: 0 };
@@ -360,6 +366,7 @@ function pump() { // 演出排队：同一时刻只有一个转盘在转，后�
 function stop(sendEnd) { // 对局结束/通关/重来：收掉所有东西(R7：当事人已通关=当前节点和整条队列全部清空)
   cancelRoll(); stopMain();
   N.cur = null; N.q = []; N.rq = []; N.rolling = false; N.gapAt = 0;
+  syncPoisonSkin();
   if (C) { paintStatus(C.myPid); if (sendEnd) C.send({ k: 'st', c: [], q: [], r: -1, z: 1 }); }
 }
 function tick() {
