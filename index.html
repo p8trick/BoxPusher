@@ -5,7 +5,7 @@
 <script>
 /* ===== 版本号：发版只改这一行 =====
    主页版本号和所有子文件(css / js)的 ?v= 缓存参数都从这里生成(避坑 B8)。 */
-var APP_VERSION = '1.29.1';
+var APP_VERSION = '1.29.0';
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -362,8 +362,10 @@ function currentFrameKey() {
 
 // 左右方向额外插收脚帧，上下方向两帧交替即可
 function advanceGait(dir) {
-  state.side = state.side === 'A' ? 'B' : 'A';
+  const fz = (window.EV && EV.gaitFreeze) ? EV.gaitFreeze() : 0; // 溜冰：1=迈出第一脚(照常换脚，不插收脚帧)，2=滑行中(定格，不换脚)
+  if (fz !== 2) state.side = state.side === 'A' ? 'B' : 'A';
   state.atNeutral = false;
+  if (fz) { if (state.stepAnimTimer) { clearTimeout(state.stepAnimTimer); state.stepAnimTimer = null; } return; }
   if (FOOTFALL_DIRS.has(dir)) {
     scheduleFootfall();
   } else if (state.stepAnimTimer) {
@@ -627,8 +629,9 @@ function updateCamera(dir) {
   const tile = tileSize();
   const DIR_VEC = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
   const [ldx, ldy] = DIR_VEC[dir] || [0, 0];
-  const px = state.player.c * tile + tile / 2 + ldx * tile * CAMERA_CFG.lead;
-  const py = state.player.r * tile + tile / 2 + ldy * tile * CAMERA_CFG.lead;
+  const lead = (window.EV && EV.camLead) ? EV.camLead(CAMERA_CFG.lead) : CAMERA_CFG.lead; // 溜冰滑行时镜头多往前看
+  const px = state.player.c * tile + tile / 2 + ldx * tile * lead;
+  const py = state.player.r * tile + tile / 2 + ldy * tile * lead;
 
   const marginX = camera.viewW * CAMERA_CFG.safeZone;
   const marginY = camera.viewH * CAMERA_CFG.safeZone;
