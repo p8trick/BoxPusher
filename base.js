@@ -38,9 +38,13 @@ function shadeHex(hex, k) {
   const n = [1, 3, 5].map(i => Math.round(parseInt(hex.slice(i, i + 2), 16) * k));
   return '#' + n.map(v => v.toString(16).padStart(2, '0')).join('').toUpperCase();
 }
+/* 中毒肤色：只换肤色亮/暗两档 → 病态黄绿(灰度偏黄的毒绿，不是荧光绿)；帽子/衣服/背带裤/鞋/描边不动，联机时还能靠衣帽认人。变体的皮肤名 = 原皮肤名 + '+poison' */
+const POISON_SKIN = { '#FFE0B1': '#C5DC8A', '#D7BD93': '#9FB869' };
 function skinMap(skin) {
-  const [top, pants] = SKIN_COLORS[skin];
-  return { '#2ECC71': top, '#28B162': shadeHex(top, 0.88), '#24A65B': shadeHex(top, 0.8), '#E74C3C': pants, '#CD4335': shadeHex(pants, 0.89) };
+  const poison = skin.endsWith('+poison'), base = poison ? skin.slice(0, -7) : skin;
+  let m = {};
+  if (SKIN_COLORS[base]) { const [top, pants] = SKIN_COLORS[base]; m = { '#2ECC71': top, '#28B162': shadeHex(top, 0.88), '#24A65B': shadeHex(top, 0.8), '#E74C3C': pants, '#CD4335': shadeHex(pants, 0.89) }; }
+  return poison ? { ...m, ...POISON_SKIN } : m;
 }
 function skinKey(path, skin) { return skin === 'classic' ? path : `${path}#${skin}`; }
 function loadSkin(skin) { // 该皮肤 12 帧的栅格化+解码，每个皮肤只做一次
@@ -71,7 +75,22 @@ function targetPath(floor, halo) {
 /* ---------- 素材帧表：行走与推箱共用同一套12帧，不再区分动作 ---------- */
 const PLAYER_FRAMES = {};
 ['Down', 'Up', 'Left', 'Right'].forEach(d => [1, 2, 3].forEach(i => { PLAYER_FRAMES[d + i] = `assets/Player/${d}${i}.${SPRITE_EXT}`; }));
-function frameURL(key) { return spriteURL(SPRITE_EXT === 'svg' ? skinKey(PLAYER_FRAMES[key], _activeSkin || settings.player) : PLAYER_FRAMES[key]); }
+/* 联机随机事件·中毒：人物肤色变黄绿。变体 12 帧备好后才切(没备好就保持原样，不闪不退回旧 png)；events.js 在中毒开始/结束时调 setPoisonSkin。 */
+let _poisoned = false, _poisonWant = false;
+function setPoisonSkin(on) {
+  _poisonWant = !!on;
+  if (SPRITE_EXT !== 'svg') return;
+  if (!_poisonWant) { if (_poisoned) { _poisoned = false; refreshPlayerSprite(); } return; }
+  const skin = effectiveSkin();
+  loadSkin(skin + '+poison').then(() => { if (_poisonWant && effectiveSkin() === skin) { _poisoned = true; refreshPlayerSprite(); } });
+}
+function preloadPoisonSkin() { if (SPRITE_EXT === 'svg') loadSkin(effectiveSkin() + '+poison'); } // 进对局时先备好，第一次中毒就不用等
+function frameURL(key) {
+  if (SPRITE_EXT !== 'svg') return spriteURL(PLAYER_FRAMES[key]);
+  const sk = _activeSkin || settings.player;
+  if (_poisoned) { const pk = skinKey(PLAYER_FRAMES[key], sk + '+poison'); if (_spriteCache[pk]) return _spriteCache[pk]; } // 变体没备好(比如中毒中途换了皮肤)：用原皮肤
+  return spriteURL(skinKey(PLAYER_FRAMES[key], sk));
+}
 function refreshPlayerSprite() { // 换皮肤/栅格化完成后刷新人物当前帧；核心还没起来(state 不存在)就跳过
   try {
     const s = document.getElementById('playerSprite');
