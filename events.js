@@ -99,6 +99,7 @@ const SX = (function () {
     tell() { if (!ok()) return; [0, 0.16, 0.30, 0.41].forEach((t, i) => tn(t, 'sine', 1500 + i * 220, 1900 + i * 220, 0.14, 0.07 + i * 0.015)); nz(0, 0.5, 2500, 6000, 0.03, 'highpass'); }, // 隐身前摇：越来越急的闪烁嘀声
     vanish() { if (!ok()) return; nz(0, 0.12, 3000, 800, 0.12, 'bandpass'); tn(0, 'sine', 700, 220, 0.14, 0.12); },       // 瞬间消失：噗
     unlock() { if (!ok()) return; nz(0, 0.02, 3500, 3000, 0.16, 'bandpass'); tn(0.02, 'triangle', 600, 600, 0.05, 0.12); tn(0.1, 'sine', 988, 988, 0.3, 0.12); tn(0.1, 'sine', 1480, 1480, 0.2, 0.05); }, // 迷雾擦开：咔嗒 + 叮
+    denied() { if (!ok()) return; tn(0, 'triangle', 230, 170, 0.07, 0.14, 0.002); nz(0, 0.03, 900, 400, 0.06); }, // 按了停用的按钮：嗒
     stop() { if (!ok()) return; tn(0, 'sine', 230, 120, 0.13, 0.30); tn(0, 'triangle', 880, 600, 0.06, 0.14, 0.002); },  // 转盘停下：咔
     result(res, e) { // 判定结果的反馈
       if (!ok()) return;
@@ -154,6 +155,7 @@ css.textContent = `
 #evPopTxt { display: block; width: 280px; margin: 2px 0 0 -65px; white-space: nowrap; font-size: 22px; font-weight: 900; letter-spacing: 0.12em; color: #fff0c8; text-shadow: 0 2px 6px rgba(0, 0, 0, 0.75); }
 .evCv { position: fixed; pointer-events: none; z-index: 30; }
 #evFogHint { position: fixed; z-index: 31; pointer-events: none; text-align: center; font-size: 20px; font-weight: 900; letter-spacing: 0.15em; color: rgba(80, 90, 100, 0.85); text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6); transition: opacity 0.4s; }
+.evOff { opacity: 0.3 !important; filter: grayscale(0.7) !important; transition: opacity 0.25s, filter 0.25s; } /* 效果期间被停用的按钮(撤销/地图菜单键)：压暗变灰 */
 .mpE { display: inline-block; vertical-align: middle; } .mpE img { width: 16px; height: 16px; margin-left: 3px; vertical-align: -3px; } .mpE small { font-size: 11px; margin-left: 1px; }
 .mpE .evC, .mpE .evQ { display: inline-block; }
 .mpE .evQ img { width: 14px; height: 14px; margin-left: 2px; vertical-align: -2px; opacity: 0.55; filter: saturate(0.35); }
@@ -215,11 +217,12 @@ function attach(c) {
   H = C.isHost ? { st: {}, pend: {}, trig: {}, seq: 0 } : null;
   preloadAll();
   poisonOn = false; if (typeof preloadPoisonSkin === 'function') preloadPoisonSkin();
+  bindLockBtns(true);
   tickT = setInterval(tick, 120);
   paintAll();
 }
 function detach() {
-  stop(false);
+  stop(false); bindLockBtns(false);
   if (tickT) { clearInterval(tickT); tickT = null; }
   C = null; H = null; stat = {};
 }
@@ -284,7 +287,7 @@ function apply(d) { // 所有人(含房主自己)都跑：更新数据条；轮�
       if (typeof paused !== 'undefined' && paused && typeof setPause === 'function') setPause(false); // 菜单开着就先收起
       if (typeof clearHold === 'function') clearHold();
       if (typeof clearUndoHold === 'function') clearUndoHold();
-      pump(); paintStatus(t);
+      pump(); syncLockUI(); paintStatus(t);
     } else { ps(t).rs.set(n, Date.now()); paintStatus(t); }
   } else if (d.k === 'es') {
     const i = String(d.i);
@@ -311,7 +314,23 @@ function syncPoisonSkin() { // 带着中毒就把人物肤色换成黄绿(base.j
   const on = !!(C && N.cur && spdOf(N.cur) === 'poison');
   if (on !== poisonOn) { poisonOn = on; if (typeof setPoisonSkin === 'function') setPoisonSkin(on); }
 }
-function changed(l) { report(l); syncPoisonSkin(); if (C) paintStatus(C.myPid); }
+const isLocked = () => !!C && (N.rolling || N.rq.length > 0 || !!N.cur || N.q.length > 0); // 演出中、效果中、排队中都算
+/* 效果期间撤销/地图菜单键被停用：压暗变灰(.evOff)，猛按时按钮抖一下 + 一声"嗒"，别让玩家以为没反应是 bug */
+const LOCK_BTNS = ['undo', 'modeBtn'];
+let lockUI = false, lastDenied = 0;
+function syncLockUI() {
+  const on = isLocked(); if (on === lockUI) return; lockUI = on;
+  LOCK_BTNS.forEach((id) => { const el = $(id); if (el) el.classList.toggle('evOff', on); });
+}
+function onDenied(e) {
+  if (!lockUI) return;
+  const now = performance.now(); if (now - lastDenied < 150) return; lastDenied = now;
+  const el = e.currentTarget;
+  if (el.animate) el.animate([{ translate: '0 0' }, { translate: '-5px 0' }, { translate: '5px 0' }, { translate: '-3px 0' }, { translate: '0 0' }], { duration: 240, easing: 'ease-out' });
+  SX.denied();
+}
+function bindLockBtns(on) { LOCK_BTNS.forEach((id) => { const el = $(id); if (el) el[on ? 'addEventListener' : 'removeEventListener']('pointerdown', onDenied, true); }); }
+function changed(l) { report(l); syncPoisonSkin(); syncLockUI(); if (C) paintStatus(C.myPid); }
 function startMain(m) {
   if (m === 'chaos') mkChaos();
   else if (m === 'ice') ice = { sliding: false, d: null, n: 0 };
@@ -372,7 +391,7 @@ function pump() { // 演出排队：同一时刻只有一个转盘在转，后�
 function stop(sendEnd) { // 对局结束/通关/重来：收掉所有东西(R7：当事人已通关=当前节点和整条队列全部清空)
   cancelRoll(); stopMain();
   N.cur = null; N.q = []; N.rq = []; N.rolling = false; N.gapAt = 0;
-  syncPoisonSkin();
+  syncPoisonSkin(); syncLockUI();
   if (C) { paintStatus(C.myPid); if (sendEnd) C.send({ k: 'st', c: [], q: [], r: -1, z: 1 }); }
 }
 function tick() {
@@ -392,7 +411,7 @@ function tick() {
     if (!N.gapAt) N.gapAt = now + gapMs();
     if (now >= N.gapAt) promote();
   }
-  paintAll();
+  syncLockUI(); paintAll();
 }
 
 /* ---------- 开机 + 摇奖动画(纯本机表现；判定在转盘落定那一刻) ---------- */
@@ -711,7 +730,7 @@ function stopFog() {
 const spdOf = (cur) => cur.s || ((cur.m === 'speed' || cur.m === 'poison') ? cur.m : null); // 第二层关掉时速度类是主效果
 window.EV = {
   attach, detach, stop, onMsg,
-  locked: () => !!C && (N.rolling || N.rq.length > 0 || !!N.cur || N.q.length > 0), // 演出中、效果中、排队中都锁
+  locked: isLocked, // 演出中、效果中、排队中都锁
   moveLock: () => !!C && !!N.cur && N.cur.m === 'fog' && !fogOK,
   noHold: () => !!C && !!N.cur && (N.cur.m === 'chaos' || N.cur.m === 'ice'),
   durMul: () => { if (!C || !N.cur) return 1; const s = spdOf(N.cur); let m = s === 'poison' ? CFG.poisonMul : s === 'speed' ? CFG.speedMul : 1; if (ice && ice.sliding) m *= iceMul(); return m; },
