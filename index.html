@@ -5,7 +5,7 @@
 <script>
 /* ===== 版本号：发版只改这一行 =====
    主页版本号和所有子文件(css / js)的 ?v= 缓存参数都从这里生成(避坑 B8)。 */
-var APP_VERSION = '1.29.2';
+var APP_VERSION = '1.29.0';
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -377,7 +377,7 @@ function advanceGait(dir) {
 function setMoveDur(pushing) { // 每次真正移动前调用(要在 advanceGait/lockMovement 之前)
   MOVE_DUR = Math.max(50, Math.round((pushing ? settings.pushMs : settings.walkMs) * (window.EV ? EV.durMul() : 1))); // 联机随机事件：中毒×2 / 加速×0.5
   IDLE_DELAY = MOVE_DUR + IDLE_GRACE;
-  document.documentElement.style.setProperty('--move-dur', MOVE_DUR + 'ms');
+  document.documentElement.style.setProperty('--move-dur', Math.round(MOVE_DUR * ((window.EV && EV.moveTransMul) ? EV.moveTransMul() : 1)) + 'ms'); // 溜冰滑行时动画比步节拍略长，格与格之间无停顿
 }
 
 function scheduleFootfall() {
