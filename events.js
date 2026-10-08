@@ -39,12 +39,15 @@ const CFG = {
   warn: { def: 2000, ice: 2000 }, // 预警：剩余多少毫秒开始慢闪(溜冰只有4秒，可单独调)
   pulseMe: 1.5, pulseOther: 1.25, pulseMs: 400, // 等待节点转为当前时，数据条图标放大再回弹一次(自己/别人的倍数、总时长)
   iceAccel: [1, 0.85, 0.72, 0.62, 0.55], // 溜冰起步加速：第1格(迈出第一脚)=1倍步时长，之后每格更快，到最后一项保持匀速(越小越快)
+  iceOverlap: 1.35, // 溜冰：每格动画时长=步时长×这个数(>1)，下一格在上一格还没走完时就接上，没有空档就不卡；1=关闭
   iceLead: 1.6,   // 溜冰滑行时镜头朝滑行方向的前瞻(格)，平时是 CAMERA_CFG.lead
   poisonMul: 2, speedMul: 0.5,    // 步时长倍率：中毒慢一倍，加速快一倍
   fogNeed: 0.8, fogFadeMs: 1800,  // 迷雾：擦到这个比例后可操作，剩下的雾这么久淡完
   boxW: 240, boxVw: 0.64, boxAsp: 841 / 803, // 开机盲盒：最大宽度(px)、不超过屏宽的比例、素材宽高比(803×841)
   long:  { drop: 380, shake: 450, fly: 380, roll: 1600, popIn: 220, popHold: 350, popOut: 280 }, // 带盲盒：落下→晃动→缩小飞向转盘位→滚动→亮相(ms)
   short: { drop: 0,   shake: 0,   fly: 200, roll: 1200, popIn: 200, popHold: 260, popOut: 260 }, // 不带盲盒(身上已有效果/连续抽中)：缩短版
+  hideTell: 900,  // 隐身前摇：被隐身的箱子先闪烁这么久(ms)，然后瞬间消失
+  light: { range: 3.6, half: 22, edge: 28, peak: 0.9, gamma: 1.45, ambR: 0.7, ambPeak: 0.5, scale: 0.25, flicker: 0.025 }, // 关灯手电筒：射程(格)、中心亮区半角/边缘渐隐角(度)、最亮处亮度、距离衰减指数、脚下微光半径(格)/亮度、光场分辨率、电压起伏
   sfx: true, sfxGain: 1.5 // 事件音效总开关 / 总增益(在 sound.js 的音效音量之上再乘；整体觉得吵或轻就调这个)
 };
 const IDS = Object.keys(CFG.files);
@@ -93,6 +96,9 @@ const SX = (function () {
     knock(v) { if (!ok()) return; tn(0, 'triangle', 540, 360, 0.055, 0.17 * v); nz(0, 0.03, 2600, 1800, 0.10 * v, 'bandpass'); }, // 晃动：木盒咯咯
     fly(dur) { if (!ok()) return; tn(0, 'sine', 300, 1150, dur, 0.09); nz(0, dur, 900, 3800, 0.07, 'bandpass'); tn(dur, 'sine', 950, 520, 0.07, 0.13); }, // 缩小飞向转盘：嗖 + 啵
     tick(v) { if (!ok()) return; const f = 600 + 950 * v; tn(0, 'triangle', f, f * 0.78, 0.04, 0.21, 0.002); nz(0, 0.014, 4200, 3000, 0.07); }, // 经过一个图标：哒(越快越尖)
+    tell() { if (!ok()) return; [0, 0.16, 0.30, 0.41].forEach((t, i) => tn(t, 'sine', 1500 + i * 220, 1900 + i * 220, 0.14, 0.07 + i * 0.015)); nz(0, 0.5, 2500, 6000, 0.03, 'highpass'); }, // 隐身前摇：越来越急的闪烁嘀声
+    vanish() { if (!ok()) return; nz(0, 0.12, 3000, 800, 0.12, 'bandpass'); tn(0, 'sine', 700, 220, 0.14, 0.12); },       // 瞬间消失：噗
+    unlock() { if (!ok()) return; nz(0, 0.02, 3500, 3000, 0.16, 'bandpass'); tn(0.02, 'triangle', 600, 600, 0.05, 0.12); tn(0.1, 'sine', 988, 988, 0.3, 0.12); tn(0.1, 'sine', 1480, 1480, 0.2, 0.05); }, // 迷雾擦开：咔嗒 + 叮
     stop() { if (!ok()) return; tn(0, 'sine', 230, 120, 0.13, 0.30); tn(0, 'triangle', 880, 600, 0.06, 0.14, 0.002); },  // 转盘停下：咔
     result(res, e) { // 判定结果的反馈
       if (!ok()) return;
@@ -542,20 +548,37 @@ function slideStep() {
 }
 const iceMul = () => { const t = CFG.iceAccel; return t[Math.min(ice.n, t.length - 1)]; };
 
-/* ---------- 效果：隐身(未落位的箱子里一半——向上取整——看不见，但还能推) ---------- */
+/* ---------- 效果：隐身(未落位的箱子里一半——向上取整——看不见，但还能推) ----------
+   前摇：被选中的箱子先闪烁 hideTell 毫秒(越闪越急)，然后瞬间消失；推进目标点就现身。 */
+let hidAt = 0, hidTimer = 0, hidAnims = [];
 function startInvisible() {
   const un = []; state.boxes.forEach((k) => { if (!state.targets.has(k)) un.push((state.boxId && state.boxId[k]) || k); });
   shuffle(un); hid = new Set(un.slice(0, Math.ceil(un.length / 2)));
+  hidAt = performance.now() + CFG.hideTell;
+  hidAnims = [];
+  if (hid.size && state.boxEls) {
+    SX.tell();
+    const kf = [[1, 0], [0.12, 0.2], [1, 0.38], [0.12, 0.52], [1, 0.64], [0.12, 0.74], [1, 0.82], [0.08, 0.92], [0.08, 1]].map(([o, t]) => ({ opacity: o, offset: t }));
+    for (const k in state.boxEls) {
+      const id = (state.boxId && state.boxId[k]) || k, el = state.boxEls[k];
+      if (hid.has(id) && !state.targets.has(k) && el.animate) hidAnims.push(el.animate(kf, { duration: CFG.hideTell, easing: 'linear' }));
+    }
+  }
+  clearTimeout(hidTimer); hidTimer = setTimeout(() => { if (hid) { SX.vanish(); applyHide(); } }, CFG.hideTell + 10);
   applyHide();
 }
 function applyHide() {
   if (typeof state === 'undefined' || !state || !state.boxEls) return;
+  const tell = hidAt && performance.now() < hidAt; // 前摇期间还看得见(在闪)
   for (const k in state.boxEls) {
     const el = state.boxEls[k], id = (state.boxId && state.boxId[k]) || k;
-    el.style.visibility = (hid && hid.has(id) && !state.targets.has(k)) ? 'hidden' : ''; // 推进目标点就现身
+    el.style.visibility = (!tell && hid && hid.has(id) && !state.targets.has(k)) ? 'hidden' : ''; // 推进目标点就现身
   }
 }
-function stopInvisible() { if (hid) { hid = null; applyHide(); } }
+function stopInvisible() {
+  clearTimeout(hidTimer); hidAnims.forEach((a) => { try { a.cancel(); } catch (e) {} }); hidAnims = []; hidAt = 0;
+  if (hid) { hid = null; applyHide(); }
+}
 
 /* ---------- 画布覆盖层的位置：盖在棋盘视窗上 ---------- */
 function mkCanvas(scale) {
@@ -567,36 +590,47 @@ function mkCanvas(scale) {
   return { cv, g: cv.getContext('2d'), w: r.width, h: r.height, scale };
 }
 
-/* ---------- 效果：关灯(手电筒扇形光区，跟着朝向，边缘淡出) ---------- */
+/* ---------- 效果：关灯(弱手电筒：只有朝向的一束光，没光的地方全黑) ----------
+   不用叠扇形：低分辨率逐像素算一张光场——距离按 (1-r/射程)^gamma 衰减，角度按中心亮区+边缘 smoothstep 渐隐，
+   脚下再加一小圈微光；算出的透明度画到小画布上，由浏览器放大时自然柔化。 */
 function startDark() {
-  dk = mkCanvas(0.5); dk.ang = null;
+  dk = mkCanvas(CFG.light.scale); dk.ang = null; dk.img = null;
   const loop = () => { if (!dk) return; drawDark(); dk.raf = requestAnimationFrame(loop); };
   loop();
 }
 function drawDark() {
   const r = $('board-wrap').getBoundingClientRect();
-  if (Math.abs(r.width - dk.w) > 2 || Math.abs(r.height - dk.h) > 2) { const old = dk; document.body.removeChild(old.cv); const n = mkCanvas(0.5); n.ang = old.ang; n.raf = old.raf; dk = n; }
-  const g = dk.g, pr = $('playerEl').getBoundingClientRect();
+  if (Math.abs(r.width - dk.w) > 2 || Math.abs(r.height - dk.h) > 2) { const old = dk; document.body.removeChild(old.cv); const n = mkCanvas(CFG.light.scale); n.ang = old.ang; n.raf = old.raf; n.img = null; dk = n; }
+  const L = CFG.light, pr = $('playerEl').getBoundingClientRect();
   const px = pr.left + pr.width / 2 - r.left, py = pr.top + pr.height / 2 - r.top, tile = Math.max(24, pr.width);
   const v = (typeof DIR_DELTA !== 'undefined' && DIR_DELTA[state.dir]) || [1, 0];
   const ta = Math.atan2(v[0], v[1]);
   if (dk.ang === null) dk.ang = ta;
   let df = ta - dk.ang; while (df > Math.PI) df -= 2 * Math.PI; while (df < -Math.PI) df += 2 * Math.PI;
-  dk.ang += df * 0.3;
-  g.setTransform(dk.scale, 0, 0, dk.scale, 0, 0);
-  g.globalCompositeOperation = 'source-over'; g.clearRect(0, 0, dk.w, dk.h);
-  g.fillStyle = 'rgba(0,0,0,0.94)'; g.fillRect(0, 0, dk.w, dk.h);
-  g.globalCompositeOperation = 'destination-out';
-  const R = tile * 4.6, rad = Math.PI / 180;
-  [44, 34, 24, 14].forEach((deg) => { // 四层叠出来：中间亮、两侧角度上渐暗
-    g.beginPath(); g.moveTo(px, py); g.arc(px, py, R, dk.ang - deg * rad, dk.ang + deg * rad); g.closePath();
-    const gr = g.createRadialGradient(px, py, tile * 0.3, px, py, R);
-    gr.addColorStop(0, 'rgba(0,0,0,0.5)'); gr.addColorStop(0.65, 'rgba(0,0,0,0.35)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
-    g.fillStyle = gr; g.fill();
-  });
-  const fr = g.createRadialGradient(px, py, 0, px, py, tile * 0.9); // 脚下一小圈，免得完全迷失
-  fr.addColorStop(0, 'rgba(0,0,0,0.9)'); fr.addColorStop(1, 'rgba(0,0,0,0)');
-  g.fillStyle = fr; g.beginPath(); g.arc(px, py, tile * 0.9, 0, 2 * Math.PI); g.fill();
+  dk.ang += df * 0.25; // 手电转向有一点惯性
+  const W = dk.cv.width, Hc = dk.cv.height, inv = 1 / dk.scale;
+  if (!dk.img || dk.img.width !== W || dk.img.height !== Hc) dk.img = dk.g.createImageData(W, Hc);
+  const data = dk.img.data, rad = Math.PI / 180, range = L.range * tile, half = L.half * rad, edge = Math.max(0.01, L.edge * rad), ambR = L.ambR * tile;
+  const range2 = range * range, amb2 = ambR * ambR, ang = dk.ang;
+  const t = performance.now(), fl = 1 + (Math.sin(t * 0.0031) + Math.sin(t * 0.0077 + 1.3)) * 0.5 * L.flicker; // 电压微弱起伏
+  let i = 0;
+  for (let y = 0; y < Hc; y++) {
+    const dy = (y + 0.5) * inv - py;
+    for (let x = 0; x < W; x++, i += 4) {
+      const dx = (x + 0.5) * inv - px, r2 = dx * dx + dy * dy;
+      let l = 0;
+      if (r2 < amb2) { const q = 1 - Math.sqrt(r2) / ambR; l = L.ambPeak * q * q * (3 - 2 * q); } // 脚下微光
+      if (r2 < range2) {
+        let da = Math.atan2(dy, dx) - ang; while (da > Math.PI) da -= 2 * Math.PI; while (da < -Math.PI) da += 2 * Math.PI;
+        da = Math.abs(da);
+        const a = da <= half ? 1 : Math.max(0, 1 - (da - half) / edge), aa = a * a * (3 - 2 * a); // 角度渐隐
+        const c = L.peak * aa * Math.pow(1 - Math.sqrt(r2) / range, L.gamma);                       // 距离衰减
+        if (c > l) l = c;
+      }
+      l *= fl; data[i] = 0; data[i + 1] = 0; data[i + 2] = 0; data[i + 3] = 255 * (1 - (l > 1 ? 1 : l));
+    }
+  }
+  dk.g.putImageData(dk.img, 0, 0);
 }
 function stopDark() { if (dk) { if (dk.raf) cancelAnimationFrame(dk.raf); if (dk.cv.parentNode) dk.cv.parentNode.removeChild(dk.cv); dk = null; } }
 
@@ -618,7 +652,7 @@ function startFog() {
   const hint = document.createElement('div'); hint.id = 'evFogHint'; hint.textContent = lang() === 'en' ? 'Wipe the fog!' : '用手擦开迷雾！';
   const rr = $('board-wrap').getBoundingClientRect(); hint.style.left = rr.left + 'px'; hint.style.width = rr.width + 'px'; hint.style.top = (rr.top + rr.height * 0.42) + 'px';
   document.body.appendChild(hint);
-  fog = { f, mk, mg, mw, mh, hint, last: null, id: null };
+  fog = { f, mk, mg, mw, mh, hint, last: null, id: null, lock: mkDpadLock() };
   const pos = (e) => { const b = f.cv.getBoundingClientRect(); return [e.clientX - b.left, e.clientY - b.top]; };
   const erase = (x, y, x0, y0) => {
     g.globalCompositeOperation = 'destination-out'; g.lineCap = 'round'; g.lineJoin = 'round'; g.strokeStyle = '#000'; g.lineWidth = 48;
@@ -644,9 +678,32 @@ function unlockFog() { // 擦够了(或到了最长时间)：可以操作，剩�
   fogOK = true; fogOKAt = performance.now();
   const cv = fog.f.cv; cv.style.pointerEvents = 'none'; cv.style.transition = `opacity ${CFG.fogFadeMs}ms ease`; cv.style.opacity = '0';
   fog.hint.style.opacity = 0;
+  releaseDpadLock(fog.lock, true); fog.lock = null; SX.unlock();
+}
+/* 迷雾没擦够前：方向键压暗成灰 + 正中一把大锁；擦够了锁打开、淡出，方向键恢复 */
+function mkDpadLock() {
+  const dp = $('dpad'); if (!dp) return null;
+  const r = dp.getBoundingClientRect(), S = Math.max(48, Math.min(r.width, r.height) * 0.42);
+  dp.style.transition = 'opacity .25s, filter .25s'; dp.style.opacity = '0.25'; dp.style.filter = 'grayscale(0.7)';
+  const el = document.createElement('div'); el.id = 'evLock';
+  el.style.cssText = `position:fixed;z-index:31;pointer-events:none;left:${r.left + r.width / 2 - S / 2}px;top:${r.top + r.height / 2 - S / 2}px;width:${S}px;height:${S}px;filter:drop-shadow(0 3px 6px rgba(0,0,0,.55))`;
+  el.innerHTML = '<svg viewBox="0 0 64 64" width="100%" height="100%"><path class="evSh" d="M20 29v-9a12 12 0 0 1 24 0v9" fill="none" stroke="#f3dfb2" stroke-width="6" stroke-linecap="round"/><rect x="11" y="28" width="42" height="31" rx="7" fill="#f3dfb2"/><circle cx="32" cy="42" r="4.6" fill="#5a3b1c"/><rect x="30" y="44" width="4" height="9" rx="2" fill="#5a3b1c"/></svg>';
+  document.body.appendChild(el);
+  return { dp, el };
+}
+function releaseDpadLock(k, animate) {
+  if (!k) return;
+  const done = () => { if (k.el.parentNode) k.el.parentNode.removeChild(k.el); };
+  k.dp.style.opacity = ''; k.dp.style.filter = ''; setTimeout(() => { k.dp.style.transition = ''; }, 300);
+  if (!animate || !k.el.animate) { done(); return; }
+  const sh = k.el.querySelector('.evSh');
+  if (sh && sh.animate) { sh.style.transformBox = 'view-box'; sh.style.transformOrigin = '44px 29px'; sh.animate([{ transform: 'translateY(0) rotate(0)' }, { transform: 'translateY(-7px) rotate(-28deg)' }], { duration: 160, fill: 'forwards', easing: 'ease-out' }); }
+  const an = k.el.animate([{ opacity: 1, transform: 'scale(1)', offset: 0 }, { opacity: 1, transform: 'scale(1.08)', offset: 0.35 }, { opacity: 0, transform: 'scale(1.3)', offset: 1 }], { duration: 480, fill: 'forwards', easing: 'ease-out' });
+  an.onfinish = done; setTimeout(done, 700);
 }
 function stopFog() {
-  if (fog) { if (fog.f.cv.parentNode) fog.f.cv.parentNode.removeChild(fog.f.cv); if (fog.hint.parentNode) fog.hint.parentNode.removeChild(fog.hint); fog = null; }
+  if (fog) {
+    releaseDpadLock(fog.lock, false); fog.lock = null; if (fog.f.cv.parentNode) fog.f.cv.parentNode.removeChild(fog.f.cv); if (fog.hint.parentNode) fog.hint.parentNode.removeChild(fog.hint); fog = null; }
   fogOK = false;
 }
 
@@ -659,6 +716,7 @@ window.EV = {
   noHold: () => !!C && !!N.cur && (N.cur.m === 'chaos' || N.cur.m === 'ice'),
   durMul: () => { if (!C || !N.cur) return 1; const s = spdOf(N.cur); let m = s === 'poison' ? CFG.poisonMul : s === 'speed' ? CFG.speedMul : 1; if (ice && ice.sliding) m *= iceMul(); return m; },
   gaitFreeze: () => (C && ice && ice.sliding) ? (ice.n === 0 ? 1 : 2) : 0, // 给 advanceGait：0 正常；1 迈出第一脚(照常换脚、不插收脚帧)；2 滑行中(定格，不换脚)
+  moveTransMul: () => (C && ice && ice.sliding) ? CFG.iceOverlap : 1, // 给 setMoveDur：滑行时 --move-dur 比步节拍长一点，让下一格在上一格还没走完时接上
   camLead: (base) => (C && ice && ice.sliding) ? CFG.iceLead : base,          // 给 updateCamera：滑行时镜头多往前看
   remap, input, slideStep,
   cfg: CFG
