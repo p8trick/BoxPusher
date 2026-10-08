@@ -204,6 +204,7 @@ html[data-lang="en"] .lbBtn { font-size: 16px; letter-spacing: 0.06em; text-inde
   background: linear-gradient(90deg, var(--c1, transparent) 50%, var(--c2, transparent) 50%); }
 .lbHead { flex: none; width: 28px; height: 28px; margin: 0 0 0 -2px; pointer-events: none; -webkit-user-select: none; user-select: none; filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.4)); }
 .lbRow.empty .lbDot { background: none; box-shadow: none; border: 1px dashed rgba(217, 192, 138, 0.3); }
+.lbHead.emptyHead { opacity: 0.4; filter: none; } /* 空位头像：线条色取空位主题色 #D9C08A，整体半透明，和空位名字同一档 */
 .lbName { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 17px; font-weight: 800; color: #f6e8c4; }
 .lbName em { font-style: normal; font-size: 13px; font-weight: 700; color: #d9c08a; margin-left: 6px; }
 .lbTag { flex: none; padding: 4px 11px; border-radius: 12px; font-size: 13px; font-weight: 800; letter-spacing: 0.06em; }
@@ -265,7 +266,27 @@ function headSrc(skin) {
   headCache[skin] = im; // 留着引用，重绘大厅时不闪(B9)
   return im.src;
 }
+const EMPTY_URL = 'assets/UI/icons/icon_head_empty.svg', EMPTY_LINE = '#FFFFFF', EMPTY_COLOR = '#D9C08A'; // 空位头像(线条版)：白线换成空位主题色
+let emptyTpl = '', emptySrcCache = null;
+function emptySrc() {
+  if (!emptyTpl) return '';
+  if (emptySrcCache) return emptySrcCache.src;
+  const svg = emptyTpl.split(`"${EMPTY_LINE}"`).join(`"${EMPTY_COLOR}"`); // 带引号匹配(B11)
+  const im = new Image(); im.decoding = 'async';
+  im.src = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+  emptySrcCache = im; // 留着引用，重绘大厅时不闪(B9)
+  return im.src;
+}
+function loadEmptyTpl() {
+  if (emptyTpl || typeof fetch !== 'function') return;
+  fetch(EMPTY_URL).then((r) => (r.ok ? r.text() : Promise.reject(r.status))).then((tx) => {
+    if (tx.indexOf(EMPTY_LINE) < 0) return; // 不是预期的文件：保持虚线圆圈
+    emptyTpl = tx;
+    if (ov.classList.contains('show') && LB.room && LB.view === 'room') renderRoom(); // 刚到：补刷一次
+  }).catch(() => {});
+}
 function loadHeadTpl() {
+  loadEmptyTpl();
   if (headTpl || typeof fetch !== 'function') return;
   fetch(HEAD_URL).then((r) => (r.ok ? r.text() : Promise.reject(r.status))).then((tx) => {
     if (tx.indexOf(HEAD_HAT[0]) < 0) return; // 不是预期的头像文件：保持圆点
@@ -598,7 +619,7 @@ function renderRoom() {
   let rows = '';
   for (let i = 0; i < MAX_PLAYERS; i++) {
     const p = r.players[i];
-    if (!p) { rows += `<div class="lbRow empty"><i class="lbDot"></i><span class="lbName">${t('lbWaitSlot')}</span></div>`; continue; }
+    if (!p) { const es = emptySrc(); rows += `<div class="lbRow empty">` + (es ? `<img class="lbHead emptyHead" alt="" draggable="false" src="${es}">` : `<i class="lbDot"></i>`) + `<span class="lbName">${t('lbWaitSlot')}</span></div>`; continue; }
     const isH = p.pid === r.hostPid;
     const tag = p.online === false ? `<span class="lbTag wait">${t('lbOffline')}</span>`
       : p.inResult ? `<span class="lbTag wait">${t('lbInResult')}</span>`
