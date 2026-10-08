@@ -29,7 +29,7 @@ const CFG = {
   layer2: true,   // 第二层总开关：速度类能附在主效果上、加速×中毒抵消、迷雾组合。关掉=加速/中毒当普通主效果排队
   layer3: true,   // 第三层总开关：盲盒只在完全空闲时播、排队图标、预警闪烁、节点间隔。关掉=盲盒每次都播、无排队图标/预警/间隔
   w:   { speed: 10, poison: 15, ice: 10, chaos: 13, invisible: 17, fog: 17, blackout: 18 }, // V2 基础权重(合计100)
-  dur: { speed: 5000, poison: 5000, ice: 6000, chaos: 7000, invisible: 8000, fog: 8000, blackout: 10000 }, // V2 基础时长(毫秒)；迷雾=最长擦拭时间
+  dur: { speed: 6000, poison: 7000, ice: 6000, chaos: 7000, invisible: 9000, fog: 9000, blackout: 11000 }, // V2 基础时长(毫秒)；迷雾=最长擦拭时间
   extra: 0.5,     // 同类再命中：追加 当前节点完整周期×extra
   extMax: 1,      // 每个节点最多被延长几次，超出=免疫
   queueMax: 2,    // 当前节点之外最多排几个(只排纯主效果)
@@ -47,7 +47,7 @@ const CFG = {
   long:  { drop: 380, shake: 450, fly: 380, roll: 1600, popIn: 220, popHold: 350, popOut: 280 }, // 带盲盒：落下→晃动→缩小飞向转盘位→滚动→亮相(ms)
   short: { drop: 0,   shake: 0,   fly: 200, roll: 1200, popIn: 200, popHold: 260, popOut: 260 }, // 不带盲盒(身上已有效果/连续抽中)：缩短版
   hideTell: 900,  // 隐身前摇：被隐身的箱子先闪烁这么久(ms)，然后瞬间消失
-  light: { range: 3.6, half: 22, edge: 28, peak: 0.9, gamma: 1.45, ambR: 0.7, ambPeak: 0.5, scale: 0.25, flicker: 0.025 }, // 关灯手电筒：射程(格)、中心亮区半角/边缘渐隐角(度)、最亮处亮度、距离衰减指数、脚下微光半径(格)/亮度、光场分辨率、电压起伏
+  light: { range: 4.2, half: 22, edge: 28, peak: 0.9, gamma: 1.45, ambR: 0.7, ambPeak: 0.5, scale: 0.25, flicker: 0.025 }, // 关灯手电筒：射程(格)、中心亮区半角/边缘渐隐角(度)、最亮处亮度、距离衰减指数、脚下微光半径(格)/亮度、光场分辨率、电压起伏
   sfx: true, sfxGain: 1.5 // 事件音效总开关 / 总增益(在 sound.js 的音效音量之上再乘；整体觉得吵或轻就调这个)
 };
 const IDS = Object.keys(CFG.files);
