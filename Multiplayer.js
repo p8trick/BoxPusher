@@ -50,7 +50,7 @@ css.textContent = `
   color: rgba(255, 255, 255, 0.92); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5); font-variant-numeric: tabular-nums; -webkit-user-select: none; user-select: none; }
 .mpP { box-sizing: border-box; flex: 0 1 auto; min-width: 0; max-width: 50%; padding: 0 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #mpBar[data-n="3"] .mpP, #mpBar[data-n="4"] .mpP { flex: 0 0 50%; text-align: center; }
-.mpP b { font-weight: 900; }
+.mpP b { font-weight: 900; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65), 0 0 1px rgba(0, 0, 0, 0.5); }
 .mpP.me b { color: #ffe9a8; }
 .mpDot { display: inline-block; width: 8px; height: 8px; margin-right: 4px; border-radius: 50%; vertical-align: 1px; background: #9fd66b; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35); }
 .mpDot.bad { background: #ff7a5c; } .mpDot.off { background: #8a8a8a; }
@@ -224,11 +224,20 @@ function ensureDom() {
   document.body.appendChild(res);
   bindTap($('mrBack'), backToLobby);
 }
+function abbr(name) { const a = Array.from(String(name || '')).slice(0, 2).join('').toUpperCase(); return a || '?'; } // 数据条上名字只显示前两位(字母转大写)，省地方
+function nameColor(skin) { // 玩家分配到的配色主色(和大厅头像的帽子同色)；没有就用默认色。三套背景(酷黑/森林绿/海蓝)都偏暗，太暗的颜色往白里提亮到够看
+  const c = (typeof SKIN_COLORS !== 'undefined' && SKIN_COLORS[skin]) || null;
+  if (!c || !/^#[0-9a-fA-F]{6}$/.test(c[0])) return '';
+  const n = parseInt(c[0].slice(1), 16), rgb = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  const Y = (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) / 255, MIN_Y = 0.5;
+  const k = Y >= MIN_Y ? 0 : (MIN_Y - Y) / (1 - Y);
+  return '#' + rgb.map((v) => Math.round(v + (255 - v) * k).toString(16).padStart(2, '0')).join('');
+}
 function buildBar() {
   let bar = $('mpBar');
   if (!bar) { bar = document.createElement('div'); bar.id = 'mpBar'; $('levelInfo').after(bar); }
   bar.dataset.n = String(M.order.length);
-  bar.innerHTML = M.order.map((pid) => `<span class="mpP${pid === M.myPid ? ' me' : ''}" data-pid="${esc(pid)}"><i class="mpDot"></i><b>${esc(M.names[pid])}</b><span class="mpE"></span> <span class="mpS"></span></span>`).join('');
+  bar.innerHTML = M.order.map((pid) => `<span class="mpP${pid === M.myPid ? ' me' : ''}" data-pid="${esc(pid)}"><i class="mpDot"></i><b${nameColor(M.skins[pid]) ? ` style="color:${nameColor(M.skins[pid])}"` : ''}>${esc(abbr(M.names[pid]))}</b><span class="mpE"></span> <span class="mpS"></span></span>`).join('');
 }
 function dotClass(pid) {
   if (pid === M.myPid) return M.netBad ? 'bad' : 'good';
