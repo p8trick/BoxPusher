@@ -7,6 +7,7 @@
      EV.remap()     混乱：tryMove 开头换方向(在写走法日志之前，续局重放才不会乱)
      EV.input()     溜冰：requestMove 里接管输入
      EV.slideStep() 溜冰：每一步走完的锁到期时继续滑
+     EV.gaitSkip()  加速：左右走时每 CFG.speedGaitEvery 步才插一次收脚帧(advanceGait 里问)
    ── 规则(以《随机事件系统 V2 修改说明》为准) ──
    主效果：溜冰/混乱/隐身/迷雾/关灯，同一时刻一个，不同主效果只能串行；速度类：加速/中毒，不排队、直接附着在当前主效果上。
    速度类附着=丢弃旧计时器，按主效果完整基础时长重新计时(迷雾也一样，但雾的画面/擦除状态不重置，剩余的雾按新计时器走)；
@@ -42,6 +43,7 @@ const CFG = {
   iceOverlap: 1.35, // 溜冰：每格动画时长=步时长×这个数(>1)，下一格在上一格还没走完时就接上，没有空档就不卡；1=关闭
   iceVol: 0.1, iceDur: 0.6,   // 溜冰打滑声：音量 / 时长(秒)；滑行开始放一声“咻”，滑行中不再放每格脚步声
   iceLead: 1.6,   // 溜冰滑行时镜头朝滑行方向的前瞻(格)，平时是 CAMERA_CFG.lead
+  speedGaitEvery: 2, speedGhost: 0.5, speedGhostMs: 260, // 加速视觉：左右走每N步插一次收脚帧；残影起始透明度/淡出毫秒(speedGhost=0 关残影)
   poisonMul: 2, speedMul: 0.5,    // 步时长倍率：中毒慢一倍，加速快一倍
   fogNeed: 0.6, fogFadeMs: 1800,  // 迷雾：擦到这个比例后可操作(剩下的雾仍可继续擦)；计时走完后，剩下的雾这么久淡完
   boxW: 240, boxVw: 0.64, boxAsp: 841 / 803, // 开机盲盒：最大宽度(px)、不超过屏宽的比例、素材宽高比(803×841)
@@ -354,7 +356,7 @@ function startMain(m) {
   if (typeof clearHold === 'function') clearHold();
 }
 function setSlide(on) { if (!ice) return; const was = ice.sliding; ice.sliding = on; if (was && !on) SX.slideEnd(); }
-function stopMain() { setSlide(false); cmap = null; ice = null; stopDizzy(); stopFog(); stopDark(); stopInvisible(); }
+function stopMain() { setSlide(false); cmap = null; ice = null; stopDizzy(); stopSpeedFx(); stopFog(); stopDark(); stopInvisible(); }
 function endNode() { // 当前节点结束(含它的速度部分)
   stopMain(); N.cur = null;
   N.gapAt = N.q.length ? performance.now() + gapMs() : 0;
@@ -412,6 +414,7 @@ function tick() {
   if (!C) return;
   const now = performance.now(), cur = N.cur;
   syncDizzy(cur && cur.m === 'chaos' ? cur.until - now : null);
+  syncSpeedFx(cur && spdOf(cur) === 'speed' ? cur.until - now : null);
   syncDevBtn();
   if (cur) {
     const left = cur.until - now;
@@ -610,6 +613,58 @@ function syncDizzy(left) { // left=混乱剩余毫秒；null=当前不是混乱
   }
   dz.box.style.opacity = left < warnMs('chaos') ? '0.3' : '1';
 }
+
+/* 加速的表现：头顶两个橙色 » 流动(站着不动也看得出)+ 每走一步在上一格留一个暖色残影淡出；只画在自己的角色上。
+   不碰 #playerSprite 的 rotate/translate，所以和混乱叠加不打架。残影靠 Bus 的 move/push 触发(溜冰滑行中不发 move，所以滑行时没有残影)。 */
+let sfx = null, spdGait = 0;
+function stopSpeedFx() {
+  if (!sfx) return;
+  if (sfx.box.parentNode) sfx.box.parentNode.removeChild(sfx.box);
+  sfx.gh.forEach((g) => { try { g.remove(); } catch (e) {} });
+  sfx = null;
+}
+function syncSpeedFx(left) { // left=剩余毫秒；null=当前没有加速
+  if (left === null) { stopSpeedFx(); spdGait = 0; return; }
+  const p = $('playerEl'); if (!p) return;
+  const ts = (typeof tileSize === 'function' && tileSize()) || 64;
+  if (!sfx || sfx.p !== p || sfx.ts !== ts) { // 第一次，或关卡重画/格子大小变了：重新挂
+    stopSpeedFx();
+    const box = document.createElement('div');
+    box.style.cssText = `position:absolute;left:50%;top:${-ts * 0.26}px;width:0;height:0;pointer-events:none;z-index:5;transition:opacity .5s ease;filter:drop-shadow(0 1px 1px rgba(0,0,0,.55))`;
+    const w = Math.round(ts * 0.15), h = Math.round(ts * 0.2);
+    for (let k = 0; k < 2; k++) {
+      const c = document.createElement('i');
+      c.style.cssText = `position:absolute;left:${Math.round((k - 1) * w * 0.95)}px;top:${-h / 2}px;width:${w}px;height:${h}px;background:#FFB02E;clip-path:polygon(0 0,50% 0,100% 50%,50% 100%,0 100%,50% 50%)`;
+      c.animate([{ opacity: 0.25, transform: 'translateX(-1px)' }, { opacity: 1, transform: 'translateX(1px)' }, { opacity: 0.25, transform: 'translateX(-1px)' }], { duration: 700, iterations: Infinity, delay: -k * 350, easing: 'ease-in-out' });
+      box.appendChild(c);
+    }
+    p.appendChild(box);
+    sfx = { p, ts, box, last: { r: state.player.r, c: state.player.c }, gh: new Set() };
+  }
+  sfx.box.style.opacity = left < warnMs('speed') ? '0.3' : '1';
+}
+function speedGhost() { // 每走一步：在上一格留个残影(从当前人物帧拷贝)，淡出后删掉
+  if (!sfx || !CFG.speedGhost || typeof state === 'undefined' || !state) return;
+  const cur = state.player, last = sfx.last;
+  sfx.last = { r: cur.r, c: cur.c };
+  if (last.r === cur.r && last.c === cur.c) return;
+  const pe = sfx.p, sp = $('playerSprite'), board = pe && pe.parentNode;
+  if (!board || !sp) return;
+  const ts = (typeof tileSize === 'function' && tileSize()) || 64;
+  const g = document.createElement('div');
+  g.className = 'player';
+  g.style.cssText = `pointer-events:none;transition:none;transform:translate(${last.c * ts}px,${last.r * ts}px);filter:sepia(.9) saturate(3) brightness(1.1)`;
+  const s = document.createElement('div');
+  s.className = 'sprite';
+  s.style.backgroundImage = sp.style.backgroundImage;
+  g.appendChild(s);
+  board.insertBefore(g, pe); // 放在人物下面
+  sfx.gh.add(g);
+  const done = () => { sfx && sfx.gh.delete(g); try { g.remove(); } catch (e) {} };
+  if (g.animate) { const an = g.animate([{ opacity: CFG.speedGhost }, { opacity: 0 }], { duration: CFG.speedGhostMs, easing: 'ease-out', fill: 'forwards' }); an.onfinish = done; setTimeout(done, CFG.speedGhostMs + 300); }
+  else done();
+}
+if (typeof Bus !== 'undefined') { Bus.on('move', speedGhost); Bus.on('push', speedGhost); }
 
 /* ---------- 效果：溜冰(走一步滑到底；撞墙停；撞箱子推一格后停，箱子“稳住”人) ----------
    动画：迈出第一脚后定格这个迈脚帧一路滑，撞停后由主文件自带的静止收拢切回站立(=收脚)；
@@ -814,6 +869,7 @@ window.EV = {
   noHold: () => !!C && !!N.cur && (N.cur.m === 'chaos' || N.cur.m === 'ice'),
   durMul: () => { if (!C || !N.cur) return 1; const s = spdOf(N.cur); let m = s === 'poison' ? CFG.poisonMul : s === 'speed' ? CFG.speedMul : 1; if (ice && ice.sliding) m *= iceMul(); return m; },
   gaitFreeze: () => (C && ice && ice.sliding) ? (ice.n === 0 ? 1 : 2) : 0, // 给 advanceGait：0 正常；1 迈出第一脚(照常换脚、不插收脚帧)；2 滑行中(定格，不换脚)
+  gaitSkip: () => { if (!C || !N.cur || spdOf(N.cur) !== 'speed') { spdGait = 0; return false; } return (spdGait++ % Math.max(1, CFG.speedGaitEvery)) !== 0; }, // 给 advanceGait：加速时左右走第 1、3、5… 步插收脚帧，其余步不插(换帧频率回到接近正常)
   moveTransMul: () => (C && ice && ice.sliding) ? CFG.iceOverlap : 1, // 给 setMoveDur：滑行时 --move-dur 比步节拍长一点，让下一格在上一格还没走完时接上
   camLead: (base) => (C && ice && ice.sliding) ? CFG.iceLead : base,          // 给 updateCamera：滑行时镜头多往前看
   sliding: () => !!(C && ice && ice.sliding), // 给主文件：溜冰滑行中不放每格的脚步声
