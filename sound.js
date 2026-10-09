@@ -54,9 +54,10 @@
   var mp = false, mpSeq = 0; // 联机对局中：BGM 由 Multiplayer.js 显式开关(SFX.bgmMatch)，不再靠主页类名/关卡序号推断
 
   // ── 初始化 ───────────────────────────────────────
-  function init() {
+  // 建 AudioContext 和整套节点(总线/各音效增益/噪声缓冲)；后台挂死后 rebuild() 会再调一次，所以只建图，不加载素材
+  function buildGraph() {
     var AC = window.AudioContext || window.webkitAudioContext;
-    if (!AC) return;
+    if (!AC) return false;
     ctx = new AC();
     master = ctx.createGain();
     master.connect(ctx.destination);
@@ -74,6 +75,18 @@
     var d = noiseBuf.getChannelData(0);
     for (var i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
 
+    // 系统打断(来电/Siri/切应用)结束后状态可能停在 suspended/interrupted：前台时顺手唤醒一次
+    try {
+      var me = ctx;
+      ctx.onstatechange = function () {
+        if (me === ctx && ctx.state !== 'running' && !document.hidden && activated) { try { ctx.resume().catch(function () {}); } catch (e) {} }
+      };
+    } catch (e) {}
+    return true;
+  }
+
+  function init() {
+    if (!buildGraph()) return;
     Object.keys(OGG_FILES).forEach(function (k) {
       fetch(AUDIO_BASE + OGG_FILES[k] + '?v=' + AUDIO_VER)
         .then(function (r) { return r.arrayBuffer(); })
@@ -108,11 +121,57 @@
   }
 
   // ── iOS 解锁 / 后台恢复 ──────────────────────────
-  var primed = false;
+  // 长时间切后台后 iOS 可能把 AudioContext 挂成 suspended/interrupted，甚至 resume() 永远不返回(音效和 BGM 一起哑)。
+  // 对策：回前台/点屏幕时先 resume；0.8 秒后还没恢复就整个重建 AudioContext(素材缓冲复用，BGM 从原位置接着放)；
+  // 切后台超过 REBUILD_HIDDEN_MS 回来，不管状态怎么写都直接重建(防「状态是 running 但没声音」)，设成 Infinity 可关掉。
+  var REBUILD_HIDDEN_MS = 180000;
+  var primed = false, reviveT = 0, lastRebuild = 0, hiddenAt = 0;
+
+  function rebuild() {
+    if (!ctx) return;
+    lastRebuild = Date.now();
+    var old = ctx;
+    var wasPlaying = bgm.state === 'playing' && !!bgm.buf;
+    var pos = bgm.pos || 0;
+    if (wasPlaying) { // 旧 ctx 挂起时 currentTime 是停住的，正好等于「停下的位置」
+      try {
+        var el = old.currentTime - bgm.t0;
+        if (isFinite(el) && el >= 0) pos = el % bgm.buf.duration;
+        var pl = old.currentTime - bgm.resumeAt;
+        if (isFinite(pl) && pl > 0) bgm.played += pl;
+      } catch (e) {}
+    }
+    clearTimeout(bgm.capTimer);
+    bgm.src = null; bgm.gain = null; // 旧节点跟着旧 ctx 一起扔
+    primed = false;
+    try { old.onstatechange = null; old.close(); } catch (e) {}
+    if (!buildGraph()) return;
+    applyAudioSettings(true);
+    if (wasPlaying) {
+      bgm.pos = pos; bgm.state = 'paused';
+      try { playFrom(pos, BGM_FADE); }
+      catch (e) { startTrack(bgm.idx >= 0 ? bgm.idx : pickTrack(), bgm.seg); } // 缓冲不能跨 ctx 用的话重新取
+    }
+    if (activated) { try { ctx.resume().catch(function () {}); } catch (e) {} }
+  }
+
+  function revive(longHidden) {
+    if (!ctx) return;
+    if (longHidden && Date.now() - lastRebuild > 3000) { rebuild(); return; }
+    if (ctx.state === 'running') return;
+    try { var p = ctx.resume(); if (p && p.catch) p.catch(function () {}); } catch (e) {}
+    if (reviveT) return; // 已经在等结果了，别每次点屏幕都重新计时
+    reviveT = setTimeout(function () {
+      reviveT = 0;
+      if (!ctx || ctx.state === 'running' || document.hidden || !activated) return;
+      if (Date.now() - lastRebuild > 3000) rebuild();
+    }, 800);
+  }
+
   function unlock() {
     if (!ctx) return;
     activated = true;
-    if (ctx.state !== 'running') { try { ctx.resume(); } catch (e) {} }
+    if (ctx.state !== 'running') revive(false);
     if (!primed) {
       primed = true;
       try {
@@ -127,8 +186,14 @@
     document.addEventListener(ev, unlock, { capture: true, passive: true });
   });
   document.addEventListener('visibilitychange', function () {
-    if (!document.hidden) unlock();
+    if (document.hidden) { hiddenAt = Date.now(); return; }
+    var longH = !!hiddenAt && (Date.now() - hiddenAt > REBUILD_HIDDEN_MS);
+    hiddenAt = 0;
+    revive(longH);
+    unlock();
   });
+  window.addEventListener('pageshow', function (e) { if (e && e.persisted) revive(true); });
+  window.addEventListener('focus', function () { revive(false); });
 
   // ── 合成积木 ─────────────────────────────────────
   function env(g, t, dur, vol, atk) {
@@ -204,7 +269,7 @@
   // ── SFX 统一播放入口 ─────────────────────────────
   function play(name, offset) {
     if (!ctx || !activated) return;
-    if (ctx.state !== 'running') { try { ctx.resume(); } catch (e) {} }
+    if (ctx.state !== 'running') revive(false);
     var dest = nodes[name];
     if (!dest) return;
     var o = offset || 0;
