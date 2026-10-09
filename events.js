@@ -48,7 +48,7 @@ const CFG = {
   long:  { drop: 380, shake: 450, fly: 380, roll: 1600, popIn: 220, popHold: 350, popOut: 280 }, // 带盲盒：落下→晃动→缩小飞向转盘位→滚动→亮相(ms)
   short: { drop: 0,   shake: 0,   fly: 200, roll: 1200, popIn: 200, popHold: 260, popOut: 260 }, // 不带盲盒(身上已有效果/连续抽中)：缩短版
   hideTell: 900,  // 隐身前摇：被隐身的箱子先闪烁这么久(ms)，然后瞬间消失
-  light: { range: 4.8, half: 22, edge: 28, peak: 1.0, gamma: 1.35, ambR: 0.7, ambPeak: 0.6, scale: 0.25, flicker: 0.025 }, // 关灯手电筒：射程(格)、中心亮区半角/边缘渐隐角(度)、最亮处亮度、距离衰减指数、脚下微光半径(格)/亮度、光场分辨率、电压起伏
+  light: { range: 4.8, half: 22, edge: 28, peak: 1.0, gamma: 1.35, boost: 0.15, boostAt: 0.5, ambR: 0.7, ambPeak: 0.6, scale: 0.25, flicker: 0.025 }, // 关灯手电筒：射程(格)、中心亮区半角/边缘渐隐角(度)、最亮处亮度、距离衰减指数、脚下微光半径(格)/亮度、光场分辨率、电压起伏
   sfx: true, sfxGain: 1.5 // 事件音效总开关 / 总增益(在 sound.js 的音效音量之上再乘；整体觉得吵或轻就调这个)
 };
 const IDS = Object.keys(CFG.files);
@@ -721,7 +721,7 @@ function drawDark() {
         let da = Math.atan2(dy, dx) - ang; while (da > Math.PI) da -= 2 * Math.PI; while (da < -Math.PI) da += 2 * Math.PI;
         da = Math.abs(da);
         const a = da <= half ? 1 : Math.max(0, 1 - (da - half) / edge), aa = a * a * (3 - 2 * a); // 角度渐隐
-        const c = L.peak * aa * Math.pow(1 - Math.sqrt(r2) / range, L.gamma);                       // 距离衰减
+        const d = Math.sqrt(r2) / range, bt = Math.min(1, d / L.boostAt), c = L.peak * aa * Math.pow(1 - d, L.gamma) * (1 + L.boost * bt * bt * (3 - 2 * bt)); // 距离衰减；boost=中段和远端一起提亮的比例(近处不变，从射程 boostAt 处起平滑达到满值)
         if (c > l) l = c;
       }
       l *= fl; data[i] = 0; data[i + 1] = 0; data[i + 2] = 0; data[i + 3] = 255 * (1 - (l > 1 ? 1 : l));
