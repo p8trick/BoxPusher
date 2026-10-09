@@ -835,7 +835,7 @@ function tryMove(dr, dc, dir) {
   renderDynamic();
   scheduleIdle();
   updateCamera(dir);
-  Bus.emit('move');
+  if (!(window.EV && EV.sliding && EV.sliding())) Bus.emit('move'); // 溜冰滑行中不放每格脚步声(events.js 放一个持续的打滑声)
 }
 
 /* 箱子回弹：推完一步，最后~30%时间里往推的方向多滑格子的6%再退回，用独立 translate 的 WAAPI 动画，不与 transform 位移过渡冲突；设置里可关 */
