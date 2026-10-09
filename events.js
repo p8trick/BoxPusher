@@ -239,7 +239,7 @@ function attach(c) {
   paintAll();
 }
 function detach() {
-  stop(false); bindLockBtns(false);
+  stop(false); bindLockBtns(false); removeDevBtn();
   if (tickT) { clearInterval(tickT); tickT = null; }
   C = null; H = null; stat = {};
 }
@@ -415,6 +415,7 @@ function tick() {
   if (!C) return;
   const now = performance.now(), cur = N.cur;
   syncDizzy(cur && cur.m === 'chaos' ? cur.until - now : null);
+  syncDevBtn();
   if (cur) {
     const left = cur.until - now;
     if (cur.m === 'invisible') applyHide();
@@ -552,6 +553,30 @@ function mkChaos() {
 function remap(dr, dc, dir) {
   if (C && N.cur && N.cur.m === 'chaos' && cmap && cmap[dir] && typeof DIR_DELTA !== 'undefined') { const nd = cmap[dir], v = DIR_DELTA[nd]; return [v[0], v[1], nd]; }
   return [dr, dc, dir];
+}
+
+/* ---------- 开发者测试按钮：只在开着开发者模式(progress.debugMode)的设备、联机对局中出现 ----------
+   点一下=假装我把一个箱子推进目标点：房主照常抽签，给除我以外的所有人发事件(走的就是真实流程)。
+   房主每人最多记 60 个触发(防刷)；我自己是房主时会先清掉这个计数，方便高密度测试；不是房主时超过 60 次后无效。 */
+let devBtn = null, devN = 0;
+function devFire() {
+  if (!C) return;
+  const b = 'dev' + (++devN) + Math.random().toString(36).slice(2, 5);
+  if (H) { if (H.trig[C.myPid]) H.trig[C.myPid].clear(); onTrigger(C.myPid, b); } else C.send({ k: 'et', b });
+  if (devBtn) { devBtn.style.opacity = '1'; setTimeout(() => { if (devBtn) devBtn.style.opacity = '0.55'; }, 120); }
+}
+function removeDevBtn() { if (devBtn) { devBtn.remove(); devBtn = null; } }
+function syncDevBtn() {
+  const on = !!(C && typeof progress !== 'undefined' && progress && progress.debugMode && typeof state !== 'undefined' && state && state.mp);
+  if (!on) { removeDevBtn(); return; }
+  if (devBtn && devBtn.isConnected) return;
+  const b = document.createElement('button');
+  b.textContent = '🎲';
+  b.setAttribute('aria-label', 'dev: trigger event for opponents');
+  b.style.cssText = 'position:fixed;left:6px;top:45%;width:44px;height:44px;border-radius:50%;border:2px solid #D9C08A;background:rgba(40,28,18,.7);font-size:22px;line-height:1;padding:0;z-index:60;opacity:.55;touch-action:manipulation;-webkit-tap-highlight-color:transparent';
+  ['pointerdown', 'touchstart'].forEach((ev) => b.addEventListener(ev, (e) => e.stopPropagation())); // 别让游戏的触控/滑动把它当成走路
+  b.addEventListener('click', (e) => { e.stopPropagation(); devFire(); });
+  document.body.appendChild(b); devBtn = b;
 }
 
 /* 混乱的表现：角色左右轻轻摇晃 + 头顶 3 颗小星星绕圈(只画在自己的角色上，对手靠数据条的图标看)；最后预警时间里星星变淡 */
