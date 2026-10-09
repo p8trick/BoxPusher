@@ -43,7 +43,7 @@ const CFG = {
   iceOverlap: 1.35, // 溜冰：每格动画时长=步时长×这个数(>1)，下一格在上一格还没走完时就接上，没有空档就不卡；1=关闭
   iceVol: 0.1, iceDur: 0.6,   // 溜冰打滑声：音量 / 时长(秒)；滑行开始放一声“咻”，滑行中不再放每格脚步声
   iceLead: 1.6,   // 溜冰滑行时镜头朝滑行方向的前瞻(格)，平时是 CAMERA_CFG.lead
-  speedGaitEvery: 2, speedGhost: 0.5, speedGhostMs: 260, // 加速视觉：左右走每N步插一次收脚帧；残影起始透明度/淡出毫秒(speedGhost=0 关残影)
+  speedGaitEvery: 2, speedGhost: 0, speedGhostMs: 260, // 加速视觉：左右走每N步插一次收脚帧；残影起始透明度/淡出毫秒(speedGhost=0 关残影，试过 0.5 眼睛更难受，默认关)
   poisonMul: 2, speedMul: 0.5,    // 步时长倍率：中毒慢一倍，加速快一倍
   fogNeed: 0.6, fogFadeMs: 1800,  // 迷雾：擦到这个比例后可操作(剩下的雾仍可继续擦)；计时走完后，剩下的雾这么久淡完
   boxW: 240, boxVw: 0.64, boxAsp: 841 / 803, // 开机盲盒：最大宽度(px)、不超过屏宽的比例、素材宽高比(803×841)
