@@ -1,7 +1,7 @@
 /* events.js — 联机随机事件(组合规则版)：落位触发 → 房主给其他人各抽一次 → 被罚者摇奖(落定那一刻判定) → 效果 → 状态上报 → 房主通知全员(数据条小图标)。
    只依赖 Multiplayer.js 的 EV.attach(ctx) / EV.onMsg / EV.stop / EV.detach，以及 index.html 里的钩子：
      EV.locked()    撤销/重来/地图菜单键：从收到抽签结果起到全部效果(含排队)结束都锁住
-     EV.moveLock()  迷雾没擦到 80% 前不能走
+     EV.moveLock()  迷雾没擦到 70% 前不能走
      EV.noHold()    混乱/溜冰时不允许按住连走
      EV.durMul()    步时长倍率(中毒×2、加速×0.5)，setMoveDur 里乘上
      EV.remap()     混乱：tryMove 开头换方向(在写走法日志之前，续局重放才不会乱)
@@ -40,9 +40,10 @@ const CFG = {
   pulseMe: 1.5, pulseOther: 1.25, pulseMs: 400, // 等待节点转为当前时，数据条图标放大再回弹一次(自己/别人的倍数、总时长)
   iceAccel: [1, 0.85, 0.72, 0.62, 0.55], // 溜冰起步加速：第1格(迈出第一脚)=1倍步时长，之后每格更快，到最后一项保持匀速(越小越快)
   iceOverlap: 1.35, // 溜冰：每格动画时长=步时长×这个数(>1)，下一格在上一格还没走完时就接上，没有空档就不卡；1=关闭
+  iceVol: 0.14,   // 溜冰打滑声音量(整段滑行放一个持续的噪声声，滑行中不再放每格脚步声)
   iceLead: 1.6,   // 溜冰滑行时镜头朝滑行方向的前瞻(格)，平时是 CAMERA_CFG.lead
   poisonMul: 2, speedMul: 0.5,    // 步时长倍率：中毒慢一倍，加速快一倍
-  fogNeed: 0.8, fogFadeMs: 1800,  // 迷雾：擦到这个比例后可操作，剩下的雾这么久淡完
+  fogNeed: 0.7, fogFadeMs: 1800,  // 迷雾：擦到这个比例后可操作，剩下的雾这么久淡完
   boxW: 240, boxVw: 0.64, boxAsp: 841 / 803, // 开机盲盒：最大宽度(px)、不超过屏宽的比例、素材宽高比(803×841)
   long:  { drop: 380, shake: 450, fly: 380, roll: 1600, popIn: 220, popHold: 350, popOut: 280 }, // 带盲盒：落下→晃动→缩小飞向转盘位→滚动→亮相(ms)
   short: { drop: 0,   shake: 0,   fly: 200, roll: 1200, popIn: 200, popHold: 260, popOut: 260 }, // 不带盲盒(身上已有效果/连续抽中)：缩短版
@@ -90,7 +91,23 @@ const SX = (function () {
     os.frequency.setValueAtTime(f0, t); if (f1 !== f0) os.frequency.exponentialRampToValueAtTime(f1, t + dur);
     const g = c.createGain(); env(g, t, dur, vol, atk); os.connect(g); g.connect(o); os.start(t); os.stop(t + dur + 0.03);
   }
+  let sl = null; // 打滑声：滑行开始起一条持续的噪声(带通滤波慢慢变低)，滑行结束淡出 + 一声短促的“吱”
+  function slideStart() {
+    if (!ok() || sl) return;
+    const t = c.currentTime, s = c.createBufferSource(); s.buffer = nb; s.loop = true;
+    const f = c.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 0.9;
+    f.frequency.setValueAtTime(2800, t); f.frequency.exponentialRampToValueAtTime(1500, t + 1.4);
+    const g = c.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(CFG.iceVol, t + 0.06);
+    s.connect(f); f.connect(g); g.connect(o); s.start(t, Math.random() * 0.5);
+    sl = { s, g, kill: setTimeout(slideEnd, 10000) }; // 兜底：万一没收到结束，10 秒后自己停
+  }
+  function slideEnd() {
+    if (!sl) return;
+    const x = sl; sl = null; clearTimeout(x.kill);
+    try { const t = c.currentTime; x.g.gain.setTargetAtTime(0.0001, t, 0.05); x.s.stop(t + 0.3); if (ok()) tn(0, 'sine', 1100, 600, 0.09, 0.05); } catch (e) {}
+  }
   return {
+    slideStart, slideEnd,
     drop() { if (!ok()) return; nz(0, 0.32, 2200, 500, 0.10, 'bandpass'); tn(0, 'sine', 520, 190, 0.28, 0.05); },        // 盲盒从上面落下：嗖
     thud(v) { if (!ok()) return; tn(0, 'sine', 135, 52, 0.24, 0.55 * v); nz(0, 0.09, 600, 200, 0.28 * v); tn(0.008, 'triangle', 250, 120, 0.09, 0.12 * v); }, // 落地/弹跳：咚
     knock(v) { if (!ok()) return; tn(0, 'triangle', 540, 360, 0.055, 0.17 * v); nz(0, 0.03, 2600, 1800, 0.10 * v, 'bandpass'); }, // 晃动：木盒咯咯
@@ -339,8 +356,8 @@ function startMain(m) {
   else if (m === 'invisible') startInvisible();
   if (typeof clearHold === 'function') clearHold();
 }
-function setSlide(on) { if (ice) ice.sliding = on; }
-function stopMain() { setSlide(false); cmap = null; ice = null; stopFog(); stopDark(); stopInvisible(); }
+function setSlide(on) { if (!ice) return; const was = ice.sliding; ice.sliding = on; if (was && !on) SX.slideEnd(); }
+function stopMain() { setSlide(false); cmap = null; ice = null; stopDizzy(); stopFog(); stopDark(); stopInvisible(); }
 function endNode() { // 当前节点结束(含它的速度部分)
   stopMain(); N.cur = null;
   N.gapAt = N.q.length ? performance.now() + gapMs() : 0;
@@ -397,6 +414,7 @@ function stop(sendEnd) { // 对局结束/通关/重来：收掉所有东西(R7�
 function tick() {
   if (!C) return;
   const now = performance.now(), cur = N.cur;
+  syncDizzy(cur && cur.m === 'chaos' ? cur.until - now : null);
   if (cur) {
     const left = cur.until - now;
     if (cur.m === 'invisible') applyHide();
@@ -536,6 +554,38 @@ function remap(dr, dc, dir) {
   return [dr, dc, dir];
 }
 
+/* 混乱的表现：角色左右轻轻摇晃 + 头顶 3 颗小星星绕圈(只画在自己的角色上，对手靠数据条的图标看)；最后预警时间里星星变淡 */
+let dz = null;
+function stopDizzy() {
+  if (!dz) return;
+  try { dz.wob.cancel(); } catch (e) {}
+  if (dz.box.parentNode) dz.box.parentNode.removeChild(dz.box);
+  dz = null;
+}
+function syncDizzy(left) { // left=混乱剩余毫秒；null=当前不是混乱
+  if (left === null) { stopDizzy(); return; }
+  const p = $('playerEl'), sp = $('playerSprite'); if (!p || !sp) return;
+  const ts = (typeof tileSize === 'function' && tileSize()) || 64;
+  if (!dz || dz.p !== p || dz.ts !== ts) { // 第一次，或关卡重画/格子大小变了：重新挂
+    stopDizzy();
+    const box = document.createElement('div');
+    box.style.cssText = 'position:absolute;left:50%;top:0;width:0;height:0;pointer-events:none;z-index:5;transition:opacity .5s ease';
+    const sz = Math.round(ts * 0.24), rx = ts * 0.30, ry = ts * 0.085;
+    for (let k = 0; k < 3; k++) {
+      const st = document.createElement('i');
+      st.style.cssText = `position:absolute;left:${-sz / 2}px;top:${-sz / 2}px;width:${sz}px;height:${sz}px;background:#FFD35A;clip-path:polygon(50% 0,62% 38%,100% 50%,62% 62%,50% 100%,38% 62%,0 50%,38% 38%);will-change:transform`;
+      const kf = [];
+      for (let j = 0; j <= 24; j++) { const a = (j / 24) * Math.PI * 2; kf.push({ transform: `translate(${(Math.cos(a) * rx).toFixed(1)}px,${(Math.sin(a) * ry).toFixed(1)}px) scale(${(0.85 + 0.2 * Math.sin(a)).toFixed(2)}) rotate(${j * 15}deg)` }); }
+      st.animate(kf, { duration: 1500, iterations: Infinity, delay: -k * 500, easing: 'linear' }); // 3 颗错开 1/3 圈；靠近镜头一侧略大
+      box.appendChild(st);
+    }
+    p.appendChild(box);
+    const wob = sp.animate([{ rotate: '-5deg' }, { rotate: '5deg' }], { duration: 620, iterations: Infinity, direction: 'alternate', easing: 'ease-in-out' });
+    dz = { p, ts, box, wob };
+  }
+  dz.box.style.opacity = left < warnMs('chaos') ? '0.3' : '1';
+}
+
 /* ---------- 效果：溜冰(走一步滑到底；撞墙停；撞箱子推一格后停，箱子“稳住”人) ----------
    动画：迈出第一脚后定格这个迈脚帧一路滑，撞停后由主文件自带的静止收拢切回站立(=收脚)；
    起步加速：第 n 格的步时长=基础×iceAccel[n]，之后匀速、撞停瞬间直接停；玩家和镜头本来就是线性过渡(style.css)，同步靠 --move-dur；镜头前瞻拉长。 */
@@ -546,7 +596,7 @@ function input(dr, dc, dir) {
   const before = state.moves;
   if (!pushing) { ice.d = [dr, dc, dir]; ice.n = 0; setSlide(true); } // 先标记再走：第一步的迈脚就是定格帧
   tryMove(dr, dc, dir);
-  if (state.moves > before && !pushing) ice.n = 1; else setSlide(false); // 撞墙/推箱子：不滑
+  if (state.moves > before && !pushing) { ice.n = 1; SX.slideStart(); } else setSlide(false); // 撞墙/推箱子：不滑
   return true;
 }
 function slideStep() {
@@ -653,7 +703,7 @@ function drawDark() {
 }
 function stopDark() { if (dk) { if (dk.raf) cancelAnimationFrame(dk.raf); if (dk.cv.parentNode) dk.cv.parentNode.removeChild(dk.cv); dk = null; } }
 
-/* ---------- 效果：迷雾(手指擦开，擦到 80% 才能走，剩下的慢慢淡去) ---------- */
+/* ---------- 效果：迷雾(手指擦开，擦到 70% 才能走，剩下的慢慢淡去) ---------- */
 function startFog() {
   fogOK = false;
   const f = mkCanvas(1), g = f.g, w = f.w, h = f.h;
@@ -737,6 +787,7 @@ window.EV = {
   gaitFreeze: () => (C && ice && ice.sliding) ? (ice.n === 0 ? 1 : 2) : 0, // 给 advanceGait：0 正常；1 迈出第一脚(照常换脚、不插收脚帧)；2 滑行中(定格，不换脚)
   moveTransMul: () => (C && ice && ice.sliding) ? CFG.iceOverlap : 1, // 给 setMoveDur：滑行时 --move-dur 比步节拍长一点，让下一格在上一格还没走完时接上
   camLead: (base) => (C && ice && ice.sliding) ? CFG.iceLead : base,          // 给 updateCamera：滑行时镜头多往前看
+  sliding: () => !!(C && ice && ice.sliding), // 给主文件：溜冰滑行中不放每格的脚步声
   remap, input, slideStep,
   cfg: CFG
 };
