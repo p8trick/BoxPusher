@@ -366,7 +366,7 @@ function advanceGait(dir) {
   if (fz !== 2) state.side = state.side === 'A' ? 'B' : 'A';
   state.atNeutral = false;
   if (fz) { if (state.stepAnimTimer) { clearTimeout(state.stepAnimTimer); state.stepAnimTimer = null; } return; }
-  if (FOOTFALL_DIRS.has(dir)) {
+  if (FOOTFALL_DIRS.has(dir) && !(window.EV && EV.gaitSkip && EV.gaitSkip())) { // 加速时部分步不插收脚帧(EV.gaitSkip)，避免换帧频率翻倍造成频闪
     scheduleFootfall();
   } else if (state.stepAnimTimer) {
     clearTimeout(state.stepAnimTimer);
