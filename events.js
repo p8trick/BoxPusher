@@ -40,7 +40,7 @@ const CFG = {
   pulseMe: 1.5, pulseOther: 1.25, pulseMs: 400, // 等待节点转为当前时，数据条图标放大再回弹一次(自己/别人的倍数、总时长)
   iceAccel: [1, 0.85, 0.72, 0.62, 0.55], // 溜冰起步加速：第1格(迈出第一脚)=1倍步时长，之后每格更快，到最后一项保持匀速(越小越快)
   iceOverlap: 1.35, // 溜冰：每格动画时长=步时长×这个数(>1)，下一格在上一格还没走完时就接上，没有空档就不卡；1=关闭
-  iceVol: 0.14,   // 溜冰打滑声音量(整段滑行放一个持续的噪声声，滑行中不再放每格脚步声)
+  iceVol: 0.1, iceDur: 0.6,   // 溜冰打滑声：音量 / 时长(秒)；滑行开始放一声“咻”，滑行中不再放每格脚步声
   iceLead: 1.6,   // 溜冰滑行时镜头朝滑行方向的前瞻(格)，平时是 CAMERA_CFG.lead
   poisonMul: 2, speedMul: 0.5,    // 步时长倍率：中毒慢一倍，加速快一倍
   fogNeed: 0.6, fogFadeMs: 1800,  // 迷雾：擦到这个比例后可操作(剩下的雾仍可继续擦)；计时走完后，剩下的雾这么久淡完
@@ -91,21 +91,18 @@ const SX = (function () {
     os.frequency.setValueAtTime(f0, t); if (f1 !== f0) os.frequency.exponentialRampToValueAtTime(f1, t + dur);
     const g = c.createGain(); env(g, t, dur, vol, atk); os.connect(g); g.connect(o); os.start(t); os.stop(t + dur + 0.03);
   }
-  let sl = null; // 打滑声：滑行开始起一条持续的噪声(带通滤波慢慢变低)，滑行结束淡出 + 一声短促的“吱”
+  // 打滑声：开始滑的那一刻放一声短促的“咻”(带通噪声从高往低扫 + 一个很轻的下滑音)，整段滑行只这一声；结束时不再放声(撞墙/推箱子有自己的反馈声)
   function slideStart() {
-    if (!ok() || sl) return;
-    const t = c.currentTime, s = c.createBufferSource(); s.buffer = nb; s.loop = true;
-    const f = c.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 0.9;
-    f.frequency.setValueAtTime(2800, t); f.frequency.exponentialRampToValueAtTime(1500, t + 1.4);
-    const g = c.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(CFG.iceVol, t + 0.06);
-    s.connect(f); f.connect(g); g.connect(o); s.start(t, Math.random() * 0.5);
-    sl = { s, g, kill: setTimeout(slideEnd, 10000) }; // 兜底：万一没收到结束，10 秒后自己停
+    if (!ok()) return;
+    const t = c.currentTime, d = CFG.iceDur;
+    const s = c.createBufferSource(); s.buffer = nb; s.loop = true;
+    const f = c.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 1.1;
+    f.frequency.setValueAtTime(3000, t); f.frequency.exponentialRampToValueAtTime(650, t + d);
+    const g = c.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(CFG.iceVol, t + 0.04); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+    s.connect(f); f.connect(g); g.connect(o); s.start(t, Math.random() * 0.4); s.stop(t + d + 0.05);
+    tn(0, 'sine', 780, 260, d * 0.8, CFG.iceVol * 0.5);
   }
-  function slideEnd() {
-    if (!sl) return;
-    const x = sl; sl = null; clearTimeout(x.kill);
-    try { const t = c.currentTime; x.g.gain.setTargetAtTime(0.0001, t, 0.05); x.s.stop(t + 0.3); if (ok()) tn(0, 'sine', 1100, 600, 0.09, 0.05); } catch (e) {}
-  }
+  function slideEnd() {} // 保留接口：现在只有开头一声，没有持续声要停
   return {
     slideStart, slideEnd,
     drop() { if (!ok()) return; nz(0, 0.32, 2200, 500, 0.10, 'bandpass'); tn(0, 'sine', 520, 190, 0.28, 0.05); },        // 盲盒从上面落下：嗖
