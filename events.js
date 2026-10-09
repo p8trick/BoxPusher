@@ -1,7 +1,7 @@
 /* events.js — 联机随机事件(组合规则版)：落位触发 → 房主给其他人各抽一次 → 被罚者摇奖(落定那一刻判定) → 效果 → 状态上报 → 房主通知全员(数据条小图标)。
    只依赖 Multiplayer.js 的 EV.attach(ctx) / EV.onMsg / EV.stop / EV.detach，以及 index.html 里的钩子：
      EV.locked()    撤销/重来/地图菜单键：从收到抽签结果起到全部效果(含排队)结束都锁住
-     EV.moveLock()  迷雾没擦到 70% 前不能走
+     EV.moveLock()  迷雾没擦到 60% 前不能走
      EV.noHold()    混乱/溜冰时不允许按住连走
      EV.durMul()    步时长倍率(中毒×2、加速×0.5)，setMoveDur 里乘上
      EV.remap()     混乱：tryMove 开头换方向(在写走法日志之前，续局重放才不会乱)
@@ -29,7 +29,7 @@ const CFG = {
   layer2: true,   // 第二层总开关：速度类能附在主效果上、加速×中毒抵消、迷雾组合。关掉=加速/中毒当普通主效果排队
   layer3: true,   // 第三层总开关：盲盒只在完全空闲时播、排队图标、预警闪烁、节点间隔。关掉=盲盒每次都播、无排队图标/预警/间隔
   w:   { speed: 10, poison: 15, ice: 10, chaos: 13, invisible: 17, fog: 17, blackout: 18 }, // V2 基础权重(合计100)
-  dur: { speed: 6000, poison: 7000, ice: 6000, chaos: 7000, invisible: 9000, fog: 9000, blackout: 11000 }, // V2 基础时长(毫秒)；迷雾=最长擦拭时间
+  dur: { speed: 8000, poison: 9000, ice: 8000, chaos: 9000, invisible: 11000, fog: 11000, blackout: 13000 }, // V2 基础时长(毫秒)；迷雾=整段迷雾时间(擦够就能走，剩下的雾留到时间走完)
   extra: 0.5,     // 同类再命中：追加 当前节点完整周期×extra
   extMax: 1,      // 每个节点最多被延长几次，超出=免疫
   queueMax: 2,    // 当前节点之外最多排几个(只排纯主效果)
@@ -43,12 +43,12 @@ const CFG = {
   iceVol: 0.14,   // 溜冰打滑声音量(整段滑行放一个持续的噪声声，滑行中不再放每格脚步声)
   iceLead: 1.6,   // 溜冰滑行时镜头朝滑行方向的前瞻(格)，平时是 CAMERA_CFG.lead
   poisonMul: 2, speedMul: 0.5,    // 步时长倍率：中毒慢一倍，加速快一倍
-  fogNeed: 0.7, fogFadeMs: 1800,  // 迷雾：擦到这个比例后可操作，剩下的雾这么久淡完
+  fogNeed: 0.6, fogFadeMs: 1800,  // 迷雾：擦到这个比例后可操作(剩下的雾仍可继续擦)；计时走完后，剩下的雾这么久淡完
   boxW: 240, boxVw: 0.64, boxAsp: 841 / 803, // 开机盲盒：最大宽度(px)、不超过屏宽的比例、素材宽高比(803×841)
   long:  { drop: 380, shake: 450, fly: 380, roll: 1600, popIn: 220, popHold: 350, popOut: 280 }, // 带盲盒：落下→晃动→缩小飞向转盘位→滚动→亮相(ms)
   short: { drop: 0,   shake: 0,   fly: 200, roll: 1200, popIn: 200, popHold: 260, popOut: 260 }, // 不带盲盒(身上已有效果/连续抽中)：缩短版
   hideTell: 900,  // 隐身前摇：被隐身的箱子先闪烁这么久(ms)，然后瞬间消失
-  light: { range: 4.2, half: 22, edge: 28, peak: 0.9, gamma: 1.45, ambR: 0.7, ambPeak: 0.5, scale: 0.25, flicker: 0.025 }, // 关灯手电筒：射程(格)、中心亮区半角/边缘渐隐角(度)、最亮处亮度、距离衰减指数、脚下微光半径(格)/亮度、光场分辨率、电压起伏
+  light: { range: 4.8, half: 22, edge: 28, peak: 1.0, gamma: 1.35, ambR: 0.7, ambPeak: 0.6, scale: 0.25, flicker: 0.025 }, // 关灯手电筒：射程(格)、中心亮区半角/边缘渐隐角(度)、最亮处亮度、距离衰减指数、脚下微光半径(格)/亮度、光场分辨率、电压起伏
   sfx: true, sfxGain: 1.5 // 事件音效总开关 / 总增益(在 sound.js 的音效音量之上再乘；整体觉得吵或轻就调这个)
 };
 const IDS = Object.keys(CFG.files);
@@ -199,7 +199,7 @@ function view(pid) {
   const now = performance.now();
   if (pid === C.myPid) {
     const cur = N.cur, c = []; if (cur) { if (cur.m) c.push(cur.m); if (cur.s) c.push(cur.s); }
-    const left = cur ? cur.until - now : 0, timed = !!cur && cur.m !== 'fog' && left > 0;
+    const left = cur ? cur.until - now : 0, timed = !!cur && left > 0; // 迷雾也显示倒计时(整段时间)
     return { c, q: N.q.map((x) => x.m), rolling: N.rq.length + (N.rolling ? 1 : 0), secs: timed ? Math.ceil(left / 1000) : 0, warn: timed && left <= warnMs(cur.m || cur.s), pulse: N.pulse };
   }
   const s = ps(pid);
@@ -420,8 +420,11 @@ function tick() {
     const left = cur.until - now;
     if (cur.m === 'invisible') applyHide();
     if (cur.m === 'fog') {
-      if (fog && !fogOK) { if (coverage() >= CFG.fogNeed || left <= 0) unlockFog(); }
-      else if (fogOK && now >= fogOKAt + CFG.fogFadeMs && (!cur.s || left <= 0)) endNode(); // 单独的迷雾：淡完就结束；带速度类：控制时间走完才结束
+      if (fog) {
+        if (!fogOK && (coverage() >= CFG.fogNeed || left <= 0)) unlockFog();         // 擦够了或时间到：放开操作(剩下的雾仍可继续擦)
+        if (fogOK && left <= 0 && !fog.fading) fadeFog();                              // 整段计时走完：剩下的雾才开始淡出
+        else if (fog.fading && now >= fog.fadeAt + CFG.fogFadeMs && (!cur.s || left <= 0)) endNode(); // 淡完结束；带速度类：控制时间走完才结束
+      } else if (left <= 0) endNode();
     } else if (left <= 0) {
       if (!(cur.m === 'ice' && ice && ice.sliding && left > -3000)) endNode(); // 溜冰滑到一半先滑完(最多多等 3 秒)
     }
@@ -728,7 +731,7 @@ function drawDark() {
 }
 function stopDark() { if (dk) { if (dk.raf) cancelAnimationFrame(dk.raf); if (dk.cv.parentNode) dk.cv.parentNode.removeChild(dk.cv); dk = null; } }
 
-/* ---------- 效果：迷雾(手指擦开，擦到 70% 才能走，剩下的慢慢淡去) ---------- */
+/* ---------- 效果：迷雾(手指擦开，擦到 60% 就能走，剩下的雾可继续擦，不擦就留到计时走完才淡去) ---------- */
 function startFog() {
   fogOK = false;
   const f = mkCanvas(1), g = f.g, w = f.w, h = f.h;
@@ -756,8 +759,8 @@ function startFog() {
     mg.beginPath(); mg.moveTo(x0 * kx, y0 * ky); mg.lineTo(x * kx, y * ky); mg.stroke();
     hint.style.opacity = 0;
   };
-  f.cv.addEventListener('pointerdown', (e) => { if (fogOK) return; fog.id = e.pointerId; try { f.cv.setPointerCapture(e.pointerId); } catch (x) {} const [x, y] = pos(e); fog.last = [x, y]; erase(x, y, x, y); e.preventDefault(); });
-  f.cv.addEventListener('pointermove', (e) => { if (fog && fog.id === e.pointerId && fog.last && !fogOK) { const [x, y] = pos(e); erase(x, y, fog.last[0], fog.last[1]); fog.last = [x, y]; } });
+  f.cv.addEventListener('pointerdown', (e) => { if (fog.fading) return; fog.id = e.pointerId; try { f.cv.setPointerCapture(e.pointerId); } catch (x) {} const [x, y] = pos(e); fog.last = [x, y]; erase(x, y, x, y); e.preventDefault(); });
+  f.cv.addEventListener('pointermove', (e) => { if (fog && fog.id === e.pointerId && fog.last && !fog.fading) { const [x, y] = pos(e); erase(x, y, fog.last[0], fog.last[1]); fog.last = [x, y]; } });
   const up = (e) => { if (fog && fog.id === e.pointerId) { fog.id = null; fog.last = null; } };
   f.cv.addEventListener('pointerup', up); f.cv.addEventListener('pointercancel', up);
 }
@@ -767,12 +770,16 @@ function coverage() {
   for (let i = 3; i < d.length; i += 4) if (d[i] < 128) n++;
   return n / (fog.mw * fog.mh);
 }
-function unlockFog() { // 擦够了(或到了最长时间)：可以操作，剩下的雾淡去；单独的迷雾淡完就结束(tick 里判断)
+function unlockFog() { // 擦够了(或到了时间)：可以操作；剩下的雾留着，想继续擦就继续擦(不擦就等整段计时走完，由 fadeFog 淡出)
   if (!fog || fogOK) return;
   fogOK = true; fogOKAt = performance.now();
-  const cv = fog.f.cv; cv.style.pointerEvents = 'none'; cv.style.transition = `opacity ${CFG.fogFadeMs}ms ease`; cv.style.opacity = '0';
   fog.hint.style.opacity = 0;
   releaseDpadLock(fog.lock, true); fog.lock = null; SX.unlock();
+}
+function fadeFog() { // 整段迷雾计时走完：剩下的雾淡出(淡完由 tick 结束节点)
+  if (!fog || fog.fading) return;
+  fog.fading = true; fog.fadeAt = performance.now();
+  const cv = fog.f.cv; cv.style.pointerEvents = 'none'; cv.style.transition = `opacity ${CFG.fogFadeMs}ms ease`; cv.style.opacity = '0'; // 淡出时不再接管触摸
 }
 /* 迷雾没擦够前：方向键压暗成灰 + 正中一把大锁；擦够了锁打开、淡出，方向键恢复 */
 function mkDpadLock() {
