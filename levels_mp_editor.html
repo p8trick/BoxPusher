@@ -57,7 +57,7 @@ h3{font-size:13px;margin:14px 0 6px;color:#9fb6d9}
 <header>
   <h1>MP 关卡编辑器</h1>
   <button id="btnOpen">打开 levels_mp.js</button>
-  <input id="fileIn" type="file" accept=".js" style="display:none">
+  <input id="fileIn" type="file" style="display:none">
   <button id="btnUndo">撤销 (Ctrl+Z)</button>
   <button id="btnView">切换到总览</button>
   <button id="btnExport" class="primary">改完了，导出 levels_mp.js</button>
@@ -72,6 +72,11 @@ h3{font-size:13px;margin:14px 0 6px;color:#9fb6d9}
     <button id="btnDel" class="danger">删除</button>
     <button id="btnUp">↑</button>
     <button id="btnDown">↓</button>
+  </div>
+  <div id="pastePanel" style="padding:8px;display:none;border-top:1px solid #333">
+    <div class="hint" style="margin:0 0 6px">手机上选不到文件？到 GitHub 打开 levels_mp.js，复制全部内容，粘贴到下面：</div>
+    <textarea id="pasteTxt" spellcheck="false" placeholder="在这里粘贴 levels_mp.js 的全部内容" style="min-height:120px"></textarea>
+    <div class="grp" style="margin-top:6px"><button id="btnPaste" class="primary">解析粘贴的内容</button></div>
   </div>
   <div id="tocWrap"></div>
 </aside>
@@ -450,7 +455,7 @@ function renderVal(){
 }
 function refresh(){
   clampSel();
-  renderToc(); renderMeta(); renderVal();
+  renderToc(); renderMeta(); renderVal(); updatePastePanel();
   if(S.view==='edit') draw(); else renderOverview();
   $('btnUndo').disabled=S.hist.length===0;
   ['btnNew','btnDup','btnDel','btnUp','btnDown','btnCopy','btnDownload','btnExport'].forEach(id=>$(id).disabled=!S.pack);
@@ -556,19 +561,29 @@ $('btnCopy').onclick=()=>{
 };
 
 // ===== 打开文件 =====
+function loadPack(text,source){
+  try{
+    S.pack=parsePack(text); S.ti=0; S.li=0; S.hist=[];
+    setView('overview'); refresh();
+    $('pastePanel').style.display='none';
+    setStatus('已打开'+source+'，共 '+allLevels().length+' 关。点左侧目录或总览里的卡片进入编辑','ok');
+  }catch(err){ setStatus('打开失败：'+err.message+'（请确认是完整的 levels_mp.js）','err'); }
+}
 $('btnOpen').onclick=()=>$('fileIn').click();
 $('fileIn').onchange=e=>{
   const f=e.target.files[0]; if(!f)return;
   const r=new FileReader();
-  r.onload=()=>{
-    try{
-      S.pack=parsePack(r.result); S.ti=0; S.li=0; S.hist=[];
-      setView('overview'); refresh();
-      const n=allLevels().length; setStatus('已打开，共 '+n+' 关。点左侧目录或总览里的卡片进入编辑','ok');
-    }catch(err){ setStatus('打开失败：'+err.message,'err'); }
-  };
+  r.onload=()=>loadPack(r.result,'文件');
+  r.onerror=()=>setStatus('读取文件失败','err');
   r.readAsText(f);
+  e.target.value='';
 };
+$('btnPaste').onclick=()=>{
+  const t=$('pasteTxt').value.trim();
+  if(!t){ setStatus('粘贴框是空的','err'); return; }
+  loadPack(t,'粘贴的内容');
+};
+function updatePastePanel(){ $('pastePanel').style.display=S.pack?'none':'block'; }
 
 window.addEventListener('resize',()=>{ if(S.view==='edit') draw(); });
 setView('edit');
