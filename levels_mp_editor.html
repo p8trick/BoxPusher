@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MP 关卡编辑器</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.4 -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;background:#1d2127;color:#e8e8e8;height:100vh;display:flex;flex-direction:column}
+header{padding:8px 12px;background:#14171c;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+header h1{font-size:15px;margin:0 8px 0 0}
+#status{color:#9aa;font-size:12px;margin-left:auto;max-width:520px}
+main{flex:1;display:flex;min-height:0}
+aside{width:270px;display:flex;flex-direction:column;border-right:1px solid #333;background:#181b20;min-height:0}
+#tocWrap{flex:1;overflow:auto;padding:0 8px 8px}
+#tocSum{font-size:12px;color:#9aa;padding:8px 2px}
+.tierHead{position:sticky;top:0;background:#181b20;padding:8px 2px 4px;font-weight:600;color:#9fb6d9;border-bottom:1px solid #2a2f37;z-index:1}
+.lv{padding:5px 8px;cursor:pointer;border-radius:4px;display:flex;justify-content:space-between;gap:6px}
+.lv:hover{background:#262b33}
+.lv.sel{background:#2f6fd6}
+.lv small{color:#9aa}
+.lv.sel small{color:#dde}
+#center{flex:1;display:flex;flex-direction:column;min-width:0}
+#toolbar{padding:8px;display:flex;flex-wrap:wrap;gap:6px;border-bottom:1px solid #333;background:#181b20}
+#stage{flex:1;min-height:220px;position:relative;overflow:auto;display:flex;align-items:center;justify-content:center;background:#0f1114}
+#overview{flex:1;overflow:auto;padding:12px;display:none;background:#0f1114;align-content:flex-start}
+#overview.show{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+#stage.hide{display:none}
+.card{background:#181b20;border:1px solid #2a2f37;border-radius:8px;padding:8px;cursor:pointer;display:flex;flex-direction:column;gap:6px}
+.card:hover{border-color:#2f6fd6}
+.card .thumb{display:flex;align-items:center;justify-content:center;min-height:90px;background:#0f1114;border-radius:4px}
+.card .t{font-weight:600}
+.card .s{font-size:12px;color:#9aa;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+canvas{display:block;touch-action:none;cursor:crosshair}
+#right{width:360px;overflow:auto;border-left:1px solid #333;padding:10px;background:#181b20}
+button{background:#2c323b;color:#e8e8e8;border:1px solid #444;border-radius:6px;padding:5px 9px;cursor:pointer;font:inherit}
+button:hover{background:#384049}
+button:disabled{opacity:.4;cursor:default}
+button.on{background:#2f6fd6;border-color:#2f6fd6}
+button.danger{color:#ff8a8a}
+button.primary{background:#2f6fd6;border-color:#2f6fd6;font-weight:600}
+input,select,textarea{background:#0f1114;color:#e8e8e8;border:1px solid #444;border-radius:5px;padding:4px 6px;font:inherit;width:100%}
+textarea{font-family:ui-monospace,Menlo,monospace;font-size:12px;min-height:110px;white-space:pre}
+.row{display:flex;gap:6px;align-items:center;margin:6px 0;flex-wrap:wrap}
+.row>*{flex:1 1 auto}
+label{font-size:12px;color:#aaa}
+h3{font-size:13px;margin:14px 0 6px;color:#9fb6d9}
+#msgs div{margin:3px 0}
+.hint{color:#888;font-size:12px;margin:4px 0}
+.grp{display:flex;gap:4px;flex-wrap:wrap}
+#stats{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:#cfd8e3}
+.ok{color:#7bd88f}.warn{color:#ffb86b}.err{color:#ff7b7b}
+@media(max-width:900px){main{flex-direction:column}aside,#right{width:auto;max-height:42vh;border:0;border-top:1px solid #333}}
+</style>
+</head>
+<body>
+<header>
+  <h1>MP 关卡编辑器</h1>
+  <button id="btnOpen">打开 levels_mp.js</button>
+  <input id="fileIn" type="file" accept=".js" style="display:none">
+  <button id="btnUndo">撤销 (Ctrl+Z)</button>
+  <button id="btnView">切换到总览</button>
+  <button id="btnExport" class="primary">改完了，导出 levels_mp.js</button>
+  <span id="status"></span>
+</header>
+<main>
+<aside>
+  <div id="tocSum"></div>
+  <div class="grp" style="padding:0 8px 6px">
+    <button id="btnNew">新建</button>
+    <button id="btnDup">复制</button>
+    <button id="btnDel" class="danger">删除</button>
+    <button id="btnUp">↑</button>
+    <button id="btnDown">↓</button>
+  </div>
+  <div id="tocWrap"></div>
+</aside>
+
+<div id="center">
+  <div id="toolbar">
+    <div class="grp">
+      <button data-tool="wall" class="on">墙</button>
+      <button data-tool="floor">地板</button>
+      <button data-tool="goal">目标</button>
+      <button data-tool="box">箱子</button>
+      <button data-tool="player">人</button>
+      <button data-tool="erase">擦除</button>
+    </div>
+    <div class="grp" style="margin-left:10px">
+      <button id="expT">+上</button><button id="expB">+下</button><button id="expL">+左</button><button id="expR">+右</button>
+    </div>
+    <div class="grp" style="margin-left:10px">
+      <button id="shT">-上</button><button id="shB">-下</button><button id="shL">-左</button><button id="shR">-右</button>
+    </div>
+    <button id="btnTrim" style="margin-left:10px">裁剪留一圈墙</button>
+  </div>
+  <div id="stage"><canvas id="cv"></canvas></div>
+  <div id="overview"></div>
+  <div class="hint" id="tip" style="padding:0 10px 6px">墙/地板/擦除：按住拖动绘制。目标/箱子/人：单击切换（人只能有一个）。</div>
+</div>
+
+<div id="right">
+  <h3>当前关卡</h3>
+  <div class="row"><label style="flex:0 0 40px">编号</label><input id="inId"></div>
+  <div class="row"><label style="flex:0 0 40px">备注</label><input id="inNote" placeholder="例如 小院转角｜3箱｜3目标"></div>
+  <div class="row"><label style="flex:0 0 40px">par</label><input id="inPar" type="number" placeholder="竞速不需要，留空即可"></div>
+  <div id="stats"></div>
+  <h3>检查</h3>
+  <div id="msgs"></div>
+
+  <h3>文本（XSB）</h3>
+  <textarea id="xsbTxt" spellcheck="false"></textarea>
+  <div class="grp"><button id="btnApplyTxt">应用文本到当前关卡</button></div>
+  <div class="hint">允许字符：# 空格 @ + $ * .</div>
+
+  <h3>导出</h3>
+  <div class="grp">
+    <button id="btnCopy">复制完整代码</button>
+    <button id="btnDownload">只下载，不检查</button>
+  </div>
+  <div class="hint">推荐用顶部"改完了，导出"：会先检查全部关卡再下载。复制后粘贴覆盖 GitHub 上的 levels_mp.js，然后在 index.html 把 ?v= 加一。</div>
+</div>
+</main>
+
+<script>
+/*CORE-START*/
+/*CORE-START*/
+function esc(s){return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'");}
+function extractNotes(src){
+  const map={}; const re=/id:\s*'([^']+)'\s*,?\s*\n\s*\/\/\s*([^\n]*)/g; let m;
+  while((m=re.exec(src))) map[m[1]]=m[2].trim();
+  return map;
+}
+function parsePack(src){
+  const mm=/^window\.MP_LEVEL_PACK\s*=/m.exec(src);
+  const idx=mm?mm.index:-1;
+  if(idx<0) throw new Error('找不到 window.MP_LEVEL_PACK');
+  const header=src.slice(0,idx);
+  const pack=new Function('window',src.slice(idx)+'\nreturn window.MP_LEVEL_PACK;')({});
+  if(!pack||!Array.isArray(pack.tiers)) throw new Error('格式不对：没有 tiers');
+  const notes=extractNotes(src);
+  return {header, version:pack.version||1, tiers:pack.tiers.map(t=>({
+    key:t.key, name:t.name||{zh:t.key,en:t.key},
+    levels:(t.levels||[]).map(l=>({id:l.id, note:notes[l.id]||'', par:l.par, xsb:String(l.xsb).replace(/\r/g,'')}))
+  }))};
+}
+function xsbToModel(xsb){
+  const rows=String(xsb).replace(/\r/g,'').split('\n');
+  const H=rows.length, W=Math.max(1,...rows.map(r=>r.length));
+  const cells=[];
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+    const c=rows[y][x]||' ';
+    cells.push({w:c==='#', g:'.*+'.includes(c), b:'$*'.includes(c), p:'@+'.includes(c)});
+  }
+  return {W,H,cells};
+}
+function modelToXsb(m){
+  const out=[];
+  for(let y=0;y<m.H;y++){
+    let s='';
+    for(let x=0;x<m.W;x++){
+      const c=m.cells[y*m.W+x];
+      if(c.w) s+='#';
+      else if(c.p) s+=c.g?'+':'@';
+      else if(c.b) s+=c.g?'*':'$';
+      else s+=c.g?'.':' ';
+    }
+    out.push(s);
+  }
+  return out.join('\n');
+}
+function emptyModel(W,H){
+  const cells=[]; for(let i=0;i<W*H;i++) cells.push({w:true,g:false,b:false,p:false});
+  return {W,H,cells};
+}
+function trimModel(m){
+  let x0=Infinity,y0=Infinity,x1=-1,y1=-1;
+  for(let y=0;y<m.H;y++)for(let x=0;x<m.W;x++){
+    if(!m.cells[y*m.W+x].w){x0=Math.min(x0,x);y0=Math.min(y0,y);x1=Math.max(x1,x);y1=Math.max(y1,y);}
+  }
+  if(x1<0) return emptyModel(5,5);
+  const W=x1-x0+3, H=y1-y0+3, n=emptyModel(W,H);
+  for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++) n.cells[(y-y0+1)*W+(x-x0+1)]={...m.cells[y*m.W+x]};
+  return n;
+}
+function expandModel(m,side){
+  const dx=side==='L'?1:0, dy=side==='T'?1:0;
+  const W=m.W+((side==='L'||side==='R')?1:0), H=m.H+((side==='T'||side==='B')?1:0);
+  const n=emptyModel(W,H);
+  for(let y=0;y<m.H;y++)for(let x=0;x<m.W;x++) n.cells[(y+dy)*W+(x+dx)]={...m.cells[y*m.W+x]};
+  return n;
+}
+function shrinkModel(m,side){
+  let x0=0,x1=m.W-1,y0=0,y1=m.H-1;
+  if(side==='L')x0++; if(side==='R')x1--; if(side==='T')y0++; if(side==='B')y1--;
+  for(let y=0;y<m.H;y++)for(let x=0;x<m.W;x++){
+    const out=x<x0||x>x1||y<y0||y>y1;
+    if(out&&!m.cells[y*m.W+x].w) return null;
+  }
+  if(x1<x0||y1<y0) return null;
+  // 缩小后新的边缘行/列必须全是墙，否则会露出地板
+  for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){
+    const onEdge=(side==='L'&&x===x0)||(side==='R'&&x===x1)||(side==='T'&&y===y0)||(side==='B'&&y===y1);
+    if(onEdge&&!m.cells[y*m.W+x].w) return null;
+  }
+  const cells=[];
+  for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++) cells.push({...m.cells[y*m.W+x]});
+  return {W:x1-x0+1,H:y1-y0+1,cells};
+}
+function validate(m){
+  const msgs=[]; let players=0,boxes=0,goals=0,start=null;
+  for(let y=0;y<m.H;y++)for(let x=0;x<m.W;x++){
+    const c=m.cells[y*m.W+x];
+    if(c.p&&!c.w){players++; start=start||[x,y];}
+    if(c.b&&!c.w) boxes++;
+    if(c.g&&!c.w) goals++;
+  }
+  let leak=false, reach=new Set();
+  if(start){
+    const st=[start]; reach.add(start[1]*m.W+start[0]);
+    while(st.length){
+      const [x,y]=st.pop();
+      if(x===0||y===0||x===m.W-1||y===m.H-1) leak=true;
+      for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+        const nx=x+dx, ny=y+dy;
+        if(nx<0||ny<0||nx>=m.W||ny>=m.H) continue;
+        const i=ny*m.W+nx;
+        if(m.cells[i].w||reach.has(i)) continue;
+        reach.add(i); st.push([nx,ny]);
+      }
+    }
+  }
+  if(players!==1) msgs.push({t:'err',s:`人的数量是 ${players}，必须正好 1 个`});
+  if(boxes!==goals) msgs.push({t:'err',s:`箱子 ${boxes} 个，目标 ${goals} 个，数量要相等`});
+  if(boxes===0) msgs.push({t:'warn',s:'没有箱子'});
+  if(leak) msgs.push({t:'err',s:'人能走到地图边缘，围墙有缺口'});
+  let unreach=0;
+  for(let y=0;y<m.H;y++)for(let x=0;x<m.W;x++){
+    const c=m.cells[y*m.W+x];
+    if(!c.w&&(c.b||c.g)&&!reach.has(y*m.W+x)) unreach++;
+  }
+  if(unreach) msgs.push({t:'warn',s:`有 ${unreach} 个箱子或目标人走不到（可能是孤立区域）`});
+  const ok=!msgs.some(x=>x.t==='err');
+  if(ok) msgs.unshift({t:'ok',s:'检查通过'});
+  return {msgs,players,boxes,goals,ok};
+}
+function serializePack(p){
+  const header=p.header&&p.header.trim()?p.header:'/* levels_mp.js */\n';
+  let s=header+'window.MP_LEVEL_PACK = {\n  version: '+p.version+',\n  tiers: [\n';
+  p.tiers.forEach((t,ti)=>{
+    s+='    {\n      key: \''+esc(t.key)+'\',\n      name: { zh: \''+esc(t.name.zh)+'\', en: \''+esc(t.name.en)+'\' },\n      levels: [\n';
+    t.levels.forEach((l,li)=>{
+      s+='        {\n          id: \''+esc(l.id)+'\',\n';
+      if(l.note) s+='          // '+String(l.note).replace(/[\r\n]+/g,' ')+'\n';
+      if(l.par!==undefined&&l.par!==null&&l.par!=='') s+='          par: '+Number(l.par)+',\n';
+      s+='          xsb: [\n';
+      s+=l.xsb.split('\n').map(r=>'            \''+esc(r)+'\'').join(',\n')+'\n';
+      s+='          ].join(\'\\n\')\n        }'+(li<t.levels.length-1?',':'')+'\n';
+    });
+    s+='      ]\n    }'+(ti<p.tiers.length-1?',':'')+'\n';
+  });
+  s+='  ]\n};\n';
+  return s;
+}
+/*CORE-END*/
+/*CORE-END*/
+
+// ===== 界面状态 =====
+const S={pack:null,ti:0,li:0,tool:'wall',hist:[],cs:24,m:null,view:'edit'};
+const $=id=>document.getElementById(id);
+const cv=$('cv'), stage=$('stage'), overview=$('overview');
+const DRAG=new Set(['wall','floor','erase']);
+const DEF_CS_MIN=10, DEF_CS_MAX=48;
+
+function setStatus(t,cls){const el=$('status');el.textContent=t;el.style.color=cls==='err'?'#ff7b7b':cls==='ok'?'#7bd88f':'#9aa';}
+function tier(){return S.pack?S.pack.tiers[S.ti]:null;}
+function cur(){const t=tier();return t&&t.levels[S.li]?t.levels[S.li]:null;}
+function clampSel(){const t=tier();if(!t){S.li=0;return;} if(S.li>=t.levels.length)S.li=Math.max(0,t.levels.length-1);}
+function allLevels(){ const out=[]; if(S.pack) S.pack.tiers.forEach((t,ti)=>t.levels.forEach((l,li)=>out.push({l,ti,li,t}))); return out; }
+
+// ===== 撤销 =====
+function undo(){ const h=S.hist.pop(); if(!h)return; h.ref.xsb=h.xsb; refresh(); setStatus('已撤销','ok'); }
+
+// ===== 修改当前关卡 =====
+function mutate(fn){
+  const lv=cur(); if(!lv) return;
+  const m=xsbToModel(lv.xsb); const res=fn(m);
+  if(res===null){ setStatus('缩小会让边缘露出地板或删掉内容，已取消','err'); return; }
+  const nx=modelToXsb(res||m);
+  if(nx!==lv.xsb){ S.hist.push({ref:lv,xsb:lv.xsb}); if(S.hist.length>200)S.hist.shift(); lv.xsb=nx; }
+  refresh();
+}
+function applyTool(m,x,y,tool){
+  const c=m.cells[y*m.W+x];
+  switch(tool){
+    case 'wall': c.w=true; c.g=c.b=c.p=false; break;
+    case 'floor': c.w=false; break;
+    case 'erase': c.w=false; c.g=c.b=c.p=false; break;
+    case 'goal': c.w=false; c.g=!c.g; break;
+    case 'box': if(c.w||c.p) break; c.b=!c.b; break;
+    case 'player': if(c.w) break; m.cells.forEach(k=>k.p=false); c.p=true; c.b=false; break;
+  }
+  return m;
+}
+
+// ===== 绘制（编辑区和总览缩略图共用）=====
+function drawModel(g,m,cs,dpr){
+  for(let y=0;y<m.H;y++)for(let x=0;x<m.W;x++){
+    const c=m.cells[y*m.W+x], px=x*cs, py=y*cs;
+    g.fillStyle=c.w?'#2a2f37':'#efe9dc'; g.fillRect(px,py,cs,cs);
+    g.strokeStyle='rgba(0,0,0,.12)'; g.strokeRect(px+.5,py+.5,cs-1,cs-1);
+    if(!c.w&&c.g){ g.strokeStyle='#d33'; g.lineWidth=Math.max(1,cs*.08); g.beginPath(); g.arc(px+cs/2,py+cs/2,cs*.2,0,Math.PI*2); g.stroke(); g.lineWidth=1; }
+    if(!c.w&&c.b){ g.fillStyle=c.g?'#7fbf5a':'#c8893a'; g.fillRect(px+cs*.12,py+cs*.12,cs*.76,cs*.76); g.strokeStyle='#5a3a10'; g.strokeRect(px+cs*.12,py+cs*.12,cs*.76,cs*.76); }
+    if(!c.w&&c.p){ g.fillStyle='#2f6fd6'; g.beginPath(); g.arc(px+cs/2,py+cs/2,cs*.34,0,Math.PI*2); g.fill(); if(cs>=14){ g.fillStyle='#fff'; g.font='bold '+Math.floor(cs*.36)+'px sans-serif'; g.textAlign='center'; g.textBaseline='middle'; g.fillText('人',px+cs/2,py+cs/2+1);} }
+  }
+}
+function draw(){
+  const lv=cur(); const dpr=window.devicePixelRatio||1;
+  if(!lv){ cv.width=cv.height=0; cv.style.width=cv.style.height='0px'; S.m=null; return; }
+  const m=xsbToModel(lv.xsb); S.m=m;
+  const sw=stage.clientWidth-24, sh=stage.clientHeight-24;
+  const cs=Math.max(DEF_CS_MIN,Math.min(DEF_CS_MAX,Math.floor(Math.min(sw/m.W,sh/m.H))));
+  S.cs=cs;
+  cv.style.width=m.W*cs+'px'; cv.style.height=m.H*cs+'px';
+  cv.width=m.W*cs*dpr; cv.height=m.H*cs*dpr;
+  const g=cv.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0);
+  drawModel(g,m,cs);
+}
+function cellAt(e){
+  const r=cv.getBoundingClientRect();
+  const x=Math.floor((e.clientX-r.left)/S.cs), y=Math.floor((e.clientY-r.top)/S.cs);
+  if(!S.m||x<0||y<0||x>=S.m.W||y>=S.m.H) return null;
+  return {x,y};
+}
+
+// ===== 画布绘制手势 =====
+let drawing=false, lastKey=null, strokeLv=null, strokeBefore=null;
+cv.addEventListener('pointerdown',e=>{
+  const c=cellAt(e); const lv=cur(); if(!c||!lv) return;
+  cv.setPointerCapture(e.pointerId);
+  drawing=true; lastKey=null; strokeLv=lv; strokeBefore=lv.xsb;
+  paintAt(c.x,c.y);
+});
+cv.addEventListener('pointermove',e=>{
+  if(!drawing||!DRAG.has(S.tool)) return;
+  const c=cellAt(e); if(!c) return;
+  paintAt(c.x,c.y);
+});
+function endStroke(){
+  if(!drawing) return; drawing=false;
+  if(strokeLv && strokeLv.xsb!==strokeBefore){ S.hist.push({ref:strokeLv,xsb:strokeBefore}); if(S.hist.length>200)S.hist.shift(); }
+  strokeLv=null; refresh();
+}
+cv.addEventListener('pointerup',endStroke);
+cv.addEventListener('pointercancel',endStroke);
+function paintAt(x,y){
+  const key=x+','+y;
+  if(DRAG.has(S.tool)&&key===lastKey) return;
+  if(!DRAG.has(S.tool)&&lastKey!==null) return;
+  lastKey=key;
+  const lv=strokeLv||cur(); if(!lv) return;
+  const m=xsbToModel(lv.xsb);
+  applyTool(m,x,y,S.tool);
+  lv.xsb=modelToXsb(m);
+  refresh();
+}
+
+// ===== 目录（全部地图）=====
+function levelStatus(l){ const v=validate(xsbToModel(l.xsb)); return v; }
+function renderToc(){
+  const wrap=$('tocWrap'); wrap.innerHTML='';
+  if(!S.pack){ $('tocSum').textContent='未加载'; return; }
+  let total=0, okc=0;
+  S.pack.tiers.forEach((t,ti)=>{
+    const h=document.createElement('div'); h.className='tierHead';
+    h.textContent=(t.name.zh||t.key)+'　'+t.levels.length+' 关';
+    wrap.appendChild(h);
+    t.levels.forEach((l,li)=>{
+      total++;
+      const m=xsbToModel(l.xsb), v=levelStatus(l); if(v.ok) okc++;
+      const d=document.createElement('div');
+      d.className='lv'+(ti===S.ti&&li===S.li?' sel':'');
+      const a=document.createElement('span'); a.textContent=l.id;
+      const b=document.createElement('small'); b.textContent=m.W+'×'+m.H+' · '+v.boxes+'箱 '+(v.ok?'✓':'!');
+      d.appendChild(a); d.appendChild(b);
+      d.onclick=()=>{ S.ti=ti; S.li=li; setView('edit'); refresh(); };
+      wrap.appendChild(d);
+    });
+  });
+  $('tocSum').textContent='共 '+total+' 关 · 检查通过 '+okc+' 关'+(total-okc?' · 待修 '+(total-okc)+' 关':'');
+}
+
+// ===== 总览 =====
+function renderOverview(){
+  overview.innerHTML='';
+  if(!S.pack) return;
+  S.pack.tiers.forEach((t,ti)=>{
+    const head=document.createElement('div');
+    head.style.cssText='grid-column:1/-1;font-weight:600;color:#9fb6d9;padding-top:4px';
+    head.textContent=(t.name.zh||t.key)+'（'+t.levels.length+' 关）';
+    overview.appendChild(head);
+    t.levels.forEach((l,li)=>{
+      const m=xsbToModel(l.xsb), v=levelStatus(l);
+      const card=document.createElement('div'); card.className='card';
+      const th=document.createElement('div'); th.className='thumb';
+      const c=document.createElement('canvas');
+      const cs=Math.max(4,Math.min(12,Math.floor(180/Math.max(m.W,m.H))));
+      const dpr=window.devicePixelRatio||1;
+      c.style.width=m.W*cs+'px'; c.style.height=m.H*cs+'px';
+      c.width=m.W*cs*dpr; c.height=m.H*cs*dpr;
+      const g=c.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0); drawModel(g,m,cs);
+      th.appendChild(c);
+      const t1=document.createElement('div'); t1.className='t'; t1.textContent=l.id+'　'+m.W+'×'+m.H;
+      const s1=document.createElement('div'); s1.className='s'; s1.textContent=(l.note||'（无备注）')+'  ·  '+v.boxes+'箱';
+      const s2=document.createElement('div'); s2.className=v.ok?'ok':'err'; s2.textContent=v.ok?'✓ 检查通过':'✗ '+(v.msgs.find(x=>x.t==='err')||{s:'有问题'}).s;
+      card.append(th,t1,s1,s2);
+      card.onclick=()=>{ S.ti=ti; S.li=li; setView('edit'); refresh(); };
+      overview.appendChild(card);
+    });
+  });
+}
+function setView(v){
+  S.view=v;
+  const edit=v==='edit';
+  stage.classList.toggle('hide',!edit);
+  overview.classList.toggle('show',!edit);
+  document.querySelectorAll('#toolbar').forEach(el=>el.style.display=edit?'flex':'none');
+  $('tip').style.display=edit?'block':'none';
+  $('btnView').textContent=edit?'切换到总览':'回到编辑';
+  if(!edit) renderOverview();
+}
+$('btnView').onclick=()=>{ setView(S.view==='edit'?'overview':'edit'); refresh(); };
+
+// ===== 右侧编辑面板 =====
+function renderMeta(){
+  const lv=cur(); const dis=!lv;
+  ['inId','inNote','inPar','xsbTxt'].forEach(id=>$(id).disabled=dis);
+  if(!lv){ $('inId').value=$('inNote').value=$('inPar').value=$('xsbTxt').value=''; return; }
+  if(document.activeElement!==$('inId')) $('inId').value=lv.id||'';
+  if(document.activeElement!==$('inNote')) $('inNote').value=lv.note||'';
+  if(document.activeElement!==$('inPar')) $('inPar').value=(lv.par===undefined||lv.par===null)?'':lv.par;
+  if(document.activeElement!==$('xsbTxt')) $('xsbTxt').value=lv.xsb;
+}
+function renderVal(){
+  const box=$('msgs'); box.innerHTML='';
+  const lv=cur(); if(!lv){ $('stats').textContent=''; return; }
+  const m=xsbToModel(lv.xsb), v=validate(m);
+  $('stats').textContent=m.W+' × '+m.H+'   箱 '+v.boxes+'   目标 '+v.goals+'   人 '+v.players;
+  v.msgs.forEach(x=>{const d=document.createElement('div');d.className=x.t==='ok'?'ok':x.t==='warn'?'warn':'err';d.textContent=(x.t==='ok'?'✓ ':x.t==='warn'?'! ':'✗ ')+x.s;box.appendChild(d);});
+}
+function refresh(){
+  clampSel();
+  renderToc(); renderMeta(); renderVal();
+  if(S.view==='edit') draw(); else renderOverview();
+  $('btnUndo').disabled=S.hist.length===0;
+  ['btnNew','btnDup','btnDel','btnUp','btnDown','btnCopy','btnDownload','btnExport'].forEach(id=>$(id).disabled=!S.pack);
+  ['expT','expB','expL','expR','shT','shB','shL','shR','btnTrim'].forEach(id=>$(id).disabled=!cur());
+}
+
+// ===== 关卡增删 =====
+function nextId(t){
+  const pref=t.key==='easy'?'MPE-':t.key==='normal'?'MPN-':(t.key.toUpperCase()+'-');
+  const used=new Set(); S.pack.tiers.forEach(tt=>tt.levels.forEach(l=>used.add(l.id)));
+  let max=0; t.levels.forEach(l=>{ if(l.id.startsWith(pref)){ const n=parseInt(l.id.slice(pref.length),10); if(n>max)max=n; } });
+  let id; do{ max++; id=pref+String(max).padStart(2,'0'); }while(used.has(id));
+  return id;
+}
+$('btnNew').onclick=()=>{
+  if(!S.pack)return; const t=tier();
+  const m=emptyModel(7,7);
+  for(let y=1;y<6;y++)for(let x=1;x<6;x++) m.cells[y*7+x].w=false;
+  m.cells[1*7+1].p=true; m.cells[2*7+2].b=true; m.cells[2*7+3].g=true;
+  t.levels.push({id:nextId(t),note:'',par:undefined,xsb:modelToXsb(m)});
+  S.li=t.levels.length-1; setView('edit'); refresh(); setStatus('已新建关卡，记得改编号和备注','ok');
+};
+$('btnDup').onclick=()=>{
+  const lv=cur(); if(!lv)return; const t=tier();
+  const copy={id:'',note:lv.note,par:undefined,xsb:lv.xsb};
+  t.levels.splice(S.li+1,0,copy); copy.id=nextId(t); S.li++; refresh(); setStatus('已复制，编号已自动分配','ok');
+};
+$('btnDel').onclick=()=>{
+  const lv=cur(); if(!lv)return; const t=tier();
+  if(!confirm('删除关卡 '+lv.id+' ？')) return;
+  t.levels.splice(S.li,1); refresh(); setStatus('已删除','ok');
+};
+$('btnUp').onclick=()=>{const t=tier(); if(!t||S.li<=0)return; [t.levels[S.li-1],t.levels[S.li]]=[t.levels[S.li],t.levels[S.li-1]]; S.li--; refresh();};
+$('btnDown').onclick=()=>{const t=tier(); if(!t||S.li>=t.levels.length-1)return; [t.levels[S.li+1],t.levels[S.li]]=[t.levels[S.li],t.levels[S.li+1]]; S.li++; refresh();};
+
+// ===== 事件绑定 =====
+document.querySelectorAll('[data-tool]').forEach(b=>b.onclick=()=>{
+  S.tool=b.dataset.tool;
+  document.querySelectorAll('[data-tool]').forEach(x=>x.classList.toggle('on',x===b));
+});
+$('expT').onclick=()=>mutate(m=>expandModel(m,'T'));
+$('expB').onclick=()=>mutate(m=>expandModel(m,'B'));
+$('expL').onclick=()=>mutate(m=>expandModel(m,'L'));
+$('expR').onclick=()=>mutate(m=>expandModel(m,'R'));
+$('shT').onclick=()=>mutate(m=>shrinkModel(m,'T'));
+$('shB').onclick=()=>mutate(m=>shrinkModel(m,'B'));
+$('shL').onclick=()=>mutate(m=>shrinkModel(m,'L'));
+$('shR').onclick=()=>mutate(m=>shrinkModel(m,'R'));
+$('btnTrim').onclick=()=>mutate(m=>trimModel(m));
+$('btnUndo').onclick=undo;
+document.addEventListener('keydown',e=>{
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)){e.preventDefault();undo();}
+});
+$('inId').oninput=e=>{const lv=cur(); if(lv){lv.id=e.target.value.trim(); renderToc();}};
+$('inNote').oninput=e=>{const lv=cur(); if(lv){lv.note=e.target.value;}};
+$('inPar').oninput=e=>{const lv=cur(); if(lv){lv.par=e.target.value===''?undefined:Number(e.target.value);}};
+$('btnApplyTxt').onclick=()=>{
+  const lv=cur(); if(!lv)return;
+  const raw=$('xsbTxt').value.replace(/\r/g,'').replace(/\s+$/,'');
+  if(/[^#\s@+$*.]/.test(raw)){ setStatus('文本里有不认识的字符（允许：# 空格 @ + $ * .）','err'); return; }
+  const rows=raw.split('\n'); const W=Math.max(...rows.map(r=>r.length));
+  S.hist.push({ref:lv,xsb:lv.xsb}); lv.xsb=rows.map(r=>r.padEnd(W,' ')).join('\n');
+  refresh(); setStatus('已应用文本','ok');
+};
+
+// ===== 导出 =====
+function outputCode(){ return S.pack?serializePack(S.pack):''; }
+function downloadText(name,text){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([text],{type:'text/javascript'})); a.download=name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+}
+function copyText(t){
+  if(navigator.clipboard&&window.isSecureContext){return navigator.clipboard.writeText(t);}
+  const ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();
+  try{document.execCommand('copy');}finally{document.body.removeChild(ta);} return Promise.resolve();
+}
+// 导出前全面检查：每关 validate + 编号重复
+function checkAll(){
+  const probs=[]; const seen={};
+  allLevels().forEach(({l})=>{
+    if(!l.id) probs.push('有一关没有编号');
+    else { if(seen[l.id]) probs.push('编号重复：'+l.id); seen[l.id]=1; }
+    const v=validate(xsbToModel(l.xsb));
+    if(!v.ok) probs.push((l.id||'?')+'：'+v.msgs.filter(x=>x.t==='err').map(x=>x.s).join('；'));
+  });
+  return probs;
+}
+$('btnExport').onclick=()=>{
+  if(!S.pack) return;
+  const probs=checkAll(); const n=allLevels().length;
+  if(probs.length){
+    const show=probs.slice(0,8).join('\n')+(probs.length>8?'\n…（共 '+probs.length+' 个问题）':'');
+    if(!confirm('检查发现问题：\n\n'+show+'\n\n仍然导出吗？')) return;
+  }
+  downloadText('levels_mp.js',outputCode());
+  setStatus('已导出 levels_mp.js（共 '+n+' 关'+(probs.length?'，有 '+probs.length+' 个问题未修':'，全部通过')+'）', probs.length?'warn':'ok');
+};
+$('btnDownload').onclick=()=>{ if(!S.pack)return; downloadText('levels_mp.js',outputCode()); setStatus('已下载（未检查）','warn'); };
+$('btnCopy').onclick=()=>{
+  if(!S.pack)return; const t=outputCode();
+  copyText(t).then(()=>setStatus('已复制全部代码，去 GitHub 覆盖 levels_mp.js 即可','ok')).catch(()=>setStatus('复制失败，请改用"导出"下载','err'));
+};
+
+// ===== 打开文件 =====
+$('btnOpen').onclick=()=>$('fileIn').click();
+$('fileIn').onchange=e=>{
+  const f=e.target.files[0]; if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      S.pack=parsePack(r.result); S.ti=0; S.li=0; S.hist=[];
+      setView('overview'); refresh();
+      const n=allLevels().length; setStatus('已打开，共 '+n+' 关。点左侧目录或总览里的卡片进入编辑','ok');
+    }catch(err){ setStatus('打开失败：'+err.message,'err'); }
+  };
+  r.readAsText(f);
+};
+
+window.addEventListener('resize',()=>{ if(S.view==='edit') draw(); });
+setView('edit');
+refresh();
+setStatus('请先打开 levels_mp.js');
+</script>
+</body>
+</html>
