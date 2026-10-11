@@ -5,7 +5,7 @@
 <script>
 /* ===== 版本号：发版只改这一行 =====
    主页版本号和所有子文件(css / js)的 ?v= 缓存参数都从这里生成(避坑 B8)。 */
-var APP_VERSION = '1.31.9';
+var APP_VERSION = '1.31.10';
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -944,7 +944,7 @@ if (WALK_DBG) {
     const txt = document.createElement('div');
     const mk = (label, fn) => { const b = document.createElement('button'); b.textContent = label; b.style.cssText = 'pointer-events:auto;margin:3px 4px 0 0;font:11px monospace;padding:6px 10px'; let lt = 0; const go = (e) => { e.stopPropagation(); const n = performance.now(); if (n - lt < 400) return; lt = n; fn(); }; b.addEventListener('touchend', go); b.addEventListener('click', go); return b; };
     const copy = mk('复制', () => {
-      const s = walkDbgStats(), out = JSON.stringify({ freeze: !!walkDbg.freeze, layer: !!walkDbg.layer, ua: navigator.userAgent, mv: typeof MOVE_DUR === 'number' ? MOVE_DUR : null, s, late: walkDbg.late.slice(-300).map((x) => Math.round(x * 10) / 10) });
+      const s = walkDbgStats(), out = JSON.stringify({ freeze: !!walkDbg.freeze, layer: !!walkDbg.layer, overlap: !!walkDbg.overlap, ua: navigator.userAgent, mv: typeof MOVE_DUR === 'number' ? MOVE_DUR : null, s, late: walkDbg.late.slice(-300).map((x) => Math.round(x * 10) / 10) });
       const ok = () => { copy.textContent = '已复制'; setTimeout(() => { copy.textContent = '复制'; }, 1200); };
       const fallback = () => { try { const ta = document.createElement('textarea'); ta.value = out; ta.style.cssText = 'position:fixed;left:0;top:0;opacity:0'; document.body.appendChild(ta); ta.focus(); ta.select(); document.execCommand('copy'); ta.remove(); ok(); } catch (e) { copy.textContent = '复制失败'; } };
       try { navigator.clipboard.writeText(out).then(ok, fallback); } catch (e) { fallback(); }
@@ -961,7 +961,13 @@ if (WALK_DBG) {
       walkDbg.layer = !walkDbg.layer; bd.style.willChange = walkDbg.layer ? 'transform' : ''; clearAll();
       lay.textContent = '图层:' + (walkDbg.layer ? '开' : '关');
     });
-    box.append(txt, copy, reset, frz, lay);
+    const ovl = mk('重叠:关', () => { // 测试用：走路的过渡时长 = 步节拍×1.1，下一步在上一步没走完时接上(溜冰早就这么做，见 CFG.iceOverlap)；切换时自动清零
+      if (!(window.EV && EV.moveTransMul)) { ovl.textContent = '重叠不可用'; return; }
+      if (!walkDbg.ovlWrapped) { const m0 = EV.moveTransMul; EV.moveTransMul = () => { const v = m0(); return (v === 1 && walkDbg.overlap) ? 1.1 : v; }; walkDbg.ovlWrapped = true; }
+      walkDbg.overlap = !walkDbg.overlap; clearAll();
+      ovl.textContent = '重叠:' + (walkDbg.overlap ? '开' : '关');
+    });
+    box.append(txt, copy, reset, frz, lay, ovl);
     document.body.appendChild(box);
     setInterval(() => {
       const s = walkDbgStats(), f = (x) => x.toFixed(1);
