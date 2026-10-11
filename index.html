@@ -5,7 +5,7 @@
 <script>
 /* ===== 版本号：发版只改这一行 =====
    主页版本号和所有子文件(css / js)的 ?v= 缓存参数都从这里生成(避坑 B8)。 */
-var APP_VERSION = '1.31.6';
+var APP_VERSION = '1.31.0';
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -927,12 +927,15 @@ function undoRepeat() {
    长帧 = 步进行中 rAF 间隔 >25ms 的次数(掉帧/解码卡顿)。「复制」把数据放进剪贴板，粘贴给 Claude。 */
 const WALK_DBG = true;
 const walkDbg = { late: [], frames: 0, longFrames: 0, bins: [0, 0, 0, 0, 0, 0], maxGap: 0, t0: 0, dur: 1 }; // bins：长帧在步内 0-20/20-40/40-60/60-80/80-100% 的次数，第6格=不在步内
+const walkSync = { tm: [], rd: [], cam: [], gait: [] }; // 步起点同步耗时(ms)：tryMove 整体 / renderDynamic / updateCamera / advanceGait
+function walkSyncRec(k, ms) { const a = walkSync[k]; a.push(ms); if (a.length > 600) a.shift(); }
+function walkSyncStat(k) { const a = walkSync[k].slice().sort((x, y) => x - y), n = a.length; return { n, p95: n ? a[Math.min(n - 1, Math.floor(n * 0.95))] : 0, max: n ? a[n - 1] : 0, over8: a.filter((x) => x > 8).length }; }
 function walkDbgRecord(late) { walkDbg.late.push(late); if (walkDbg.late.length > 600) walkDbg.late.shift(); }
 function walkDbgStats() {
   const a = walkDbg.late.slice().sort((x, y) => x - y), n = a.length;
   const q = (p) => (n ? a[Math.min(n - 1, Math.floor(n * p))] : 0);
   return { n, avg: n ? a.reduce((s, x) => s + x, 0) / n : 0, p50: q(0.5), p95: q(0.95), max: n ? a[n - 1] : 0,
-    over8: a.filter((x) => x > 8).length, over16: a.filter((x) => x > 16).length, frames: walkDbg.frames, longFrames: walkDbg.longFrames, bins: walkDbg.bins.slice(), maxGap: walkDbg.maxGap };
+    over8: a.filter((x) => x > 8).length, over16: a.filter((x) => x > 16).length, frames: walkDbg.frames, longFrames: walkDbg.longFrames, bins: walkDbg.bins.slice(), maxGap: walkDbg.maxGap, sync: { tm: walkSyncStat('tm'), rd: walkSyncStat('rd'), cam: walkSyncStat('cam'), gait: walkSyncStat('gait') } };
 }
 if (WALK_DBG) {
   const initDbg = () => {
@@ -946,18 +949,23 @@ if (WALK_DBG) {
       const fallback = () => { try { const ta = document.createElement('textarea'); ta.value = out; ta.style.cssText = 'position:fixed;left:0;top:0;opacity:0'; document.body.appendChild(ta); ta.focus(); ta.select(); document.execCommand('copy'); ta.remove(); ok(); } catch (e) { copy.textContent = '复制失败'; } };
       try { navigator.clipboard.writeText(out).then(ok, fallback); } catch (e) { fallback(); }
     });
-    const reset = mk('清零', () => { walkDbg.late.length = 0; walkDbg.frames = 0; walkDbg.longFrames = 0; walkDbg.bins = [0, 0, 0, 0, 0, 0]; walkDbg.maxGap = 0; });
+    const reset = mk('清零', () => { walkDbg.late.length = 0; walkDbg.frames = 0; walkDbg.longFrames = 0; walkDbg.bins = [0, 0, 0, 0, 0, 0]; walkDbg.maxGap = 0; for (const k in walkSync) walkSync[k].length = 0; });
     box.append(txt, copy, reset);
     document.body.appendChild(box);
     setInterval(() => {
       const s = walkDbgStats(), f = (x) => x.toFixed(1);
-      txt.textContent = `步数 ${s.n}  平均晚 ${f(s.avg)}ms\np50 ${f(s.p50)}  p95 ${f(s.p95)}  最大 ${f(s.max)}\n>8ms ${s.over8}  >16ms ${s.over16}\n长帧 ${s.longFrames}/${s.frames}  最长卡 ${Math.round(s.maxGap)}ms\n长帧在步内位置：\n0-20 ${s.bins[0]}  20-40 ${s.bins[1]}  40-60 ${s.bins[2]}\n60-80 ${s.bins[3]}  80-100 ${s.bins[4]}  其他 ${s.bins[5]}`;
+      txt.textContent = `步数 ${s.n}  平均晚 ${f(s.avg)}ms\np50 ${f(s.p50)}  p95 ${f(s.p95)}  最大 ${f(s.max)}\n>8ms ${s.over8}  >16ms ${s.over16}\n长帧 ${s.longFrames}/${s.frames}  最长卡 ${Math.round(s.maxGap)}ms\n长帧在步内位置：\n0-20 ${s.bins[0]}  20-40 ${s.bins[1]}  40-60 ${s.bins[2]}\n60-80 ${s.bins[3]}  80-100 ${s.bins[4]}  其他 ${s.bins[5]}\n步起点同步耗时 p95/最大(ms)：\n整步 ${f(s.sync.tm.p95)}/${f(s.sync.tm.max)}  >8ms ${s.sync.tm.over8}\n渲染 ${f(s.sync.rd.p95)}/${f(s.sync.rd.max)}  镜头 ${f(s.sync.cam.p95)}/${f(s.sync.cam.max)}  换帧 ${f(s.sync.gait.p95)}/${f(s.sync.gait.max)}`;
     }, 500);
     let last = performance.now();
     const loop = (t) => { if (typeof state === 'object' && state && state.moveLock) { walkDbg.frames++; if (t - last > 25) { walkDbg.longFrames++; walkDbg.maxGap = Math.max(walkDbg.maxGap, t - last); const ph = (last - walkDbg.t0) / walkDbg.dur; walkDbg.bins[ph < 0 || ph >= 1 ? 5 : Math.floor(ph * 5)]++; } } last = t; requestAnimationFrame(loop); };
     requestAnimationFrame(loop);
   };
   if (document.body) initDbg(); else document.addEventListener('DOMContentLoaded', initDbg);
+}
+if (WALK_DBG) { // 给步起点的几个函数套一层计时(只读耗时，不改行为)
+  const tm0 = tryMove, rd0 = renderDynamic, cam0 = updateCamera, gait0 = advanceGait;
+  const wrap = (f, k) => function (...a) { const t = performance.now(); try { return f.apply(this, a); } finally { walkSyncRec(k, performance.now() - t); } };
+  tryMove = wrap(tm0, 'tm'); renderDynamic = wrap(rd0, 'rd'); updateCamera = wrap(cam0, 'cam'); advanceGait = wrap(gait0, 'gait');
 }
 /* WALK_DBG_END */
 
