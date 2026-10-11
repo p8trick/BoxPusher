@@ -5,7 +5,7 @@
 <script>
 /* ===== 版本号：发版只改这一行 =====
    主页版本号和所有子文件(css / js)的 ?v= 缓存参数都从这里生成(避坑 B8)。 */
-var APP_VERSION = '1.31.7';
+var APP_VERSION = '1.31.0';
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -944,13 +944,19 @@ if (WALK_DBG) {
     const txt = document.createElement('div');
     const mk = (label, fn) => { const b = document.createElement('button'); b.textContent = label; b.style.cssText = 'pointer-events:auto;margin:3px 4px 0 0;font:11px monospace;padding:6px 10px'; let lt = 0; const go = (e) => { e.stopPropagation(); const n = performance.now(); if (n - lt < 400) return; lt = n; fn(); }; b.addEventListener('touchend', go); b.addEventListener('click', go); return b; };
     const copy = mk('复制', () => {
-      const s = walkDbgStats(), out = JSON.stringify({ ua: navigator.userAgent, mv: typeof MOVE_DUR === 'number' ? MOVE_DUR : null, s, late: walkDbg.late.slice(-300).map((x) => Math.round(x * 10) / 10) });
+      const s = walkDbgStats(), out = JSON.stringify({ freeze: !!walkDbg.freeze, ua: navigator.userAgent, mv: typeof MOVE_DUR === 'number' ? MOVE_DUR : null, s, late: walkDbg.late.slice(-300).map((x) => Math.round(x * 10) / 10) });
       const ok = () => { copy.textContent = '已复制'; setTimeout(() => { copy.textContent = '复制'; }, 1200); };
       const fallback = () => { try { const ta = document.createElement('textarea'); ta.value = out; ta.style.cssText = 'position:fixed;left:0;top:0;opacity:0'; document.body.appendChild(ta); ta.focus(); ta.select(); document.execCommand('copy'); ta.remove(); ok(); } catch (e) { copy.textContent = '复制失败'; } };
       try { navigator.clipboard.writeText(out).then(ok, fallback); } catch (e) { fallback(); }
     });
-    const reset = mk('清零', () => { walkDbg.late.length = 0; walkDbg.frames = 0; walkDbg.longFrames = 0; walkDbg.bins = [0, 0, 0, 0, 0, 0]; walkDbg.maxGap = 0; for (const k in walkSync) walkSync[k].length = 0; });
-    box.append(txt, copy, reset);
+    const clearAll = () => { walkDbg.late.length = 0; walkDbg.frames = 0; walkDbg.longFrames = 0; walkDbg.bins = [0, 0, 0, 0, 0, 0]; walkDbg.maxGap = 0; for (const k in walkSync) walkSync[k].length = 0; };
+    const reset = mk('清零', clearAll);
+    const frz = mk('锁帧:关', () => { // 测试用：开了之后人物不再换帧(只剩平移)，用来判断换帧是不是掉帧的原因；切换时自动清零
+      if (!walkDbg.canFreeze) { frz.textContent = '锁帧不可用'; return; }
+      walkDbg.freeze = !walkDbg.freeze; walkDbg.frozenUrl = null; clearAll();
+      frz.textContent = '锁帧:' + (walkDbg.freeze ? '开' : '关');
+    });
+    box.append(txt, copy, reset, frz);
     document.body.appendChild(box);
     setInterval(() => {
       const s = walkDbgStats(), f = (x) => x.toFixed(1);
@@ -965,6 +971,12 @@ if (WALK_DBG) {
 if (WALK_DBG) { // 给步起点的几个函数套一层计时(只读耗时，不改行为)
   const tm0 = tryMove, rd0 = renderDynamic, cam0 = updateCamera, gait0 = advanceGait;
   const wrap = (f, k) => function (...a) { const t = performance.now(); try { return f.apply(this, a); } finally { walkSyncRec(k, performance.now() - t); } };
+  walkDbg.freeze = false; walkDbg.frozenUrl = null; walkDbg.canFreeze = false;
+  try {
+    const fu0 = frameURL;
+    frameURL = function (k) { if (walkDbg.freeze) { if (!walkDbg.frozenUrl) walkDbg.frozenUrl = fu0(k); return walkDbg.frozenUrl; } return fu0(k); };
+    walkDbg.canFreeze = true;
+  } catch (e) {}
   tryMove = wrap(tm0, 'tm'); renderDynamic = wrap(rd0, 'rd'); updateCamera = wrap(cam0, 'cam'); advanceGait = wrap(gait0, 'gait');
 }
 /* WALK_DBG_END */
