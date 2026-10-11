@@ -5,7 +5,7 @@
 <script>
 /* ===== 版本号：发版只改这一行 =====
    主页版本号和所有子文件(css / js)的 ?v= 缓存参数都从这里生成(避坑 B8)。 */
-var APP_VERSION = '1.31.3';
+var APP_VERSION = '1.31.0';
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -918,10 +918,48 @@ function undoRepeat() {
   undoHold.timer = setTimeout(undoRepeat, undoGap(undoHold.k));
 }
 
+/* ===== 走路卡顿诊断：WALK_DBG=true 时左上角出一个小面板；测完改回 false，整段可删 =====
+   late = 每步的锁实际到点时间 − MOVE_DUR(毫秒)。偶尔很大(>16ms)说明步与步之间有停顿；
+   长帧 = 步进行中 rAF 间隔 >25ms 的次数(掉帧/解码卡顿)。「复制」把数据放进剪贴板，粘贴给 Claude。 */
+const WALK_DBG = true;
+const walkDbg = { late: [], frames: 0, longFrames: 0 };
+function walkDbgRecord(late) { walkDbg.late.push(late); if (walkDbg.late.length > 600) walkDbg.late.shift(); }
+function walkDbgStats() {
+  const a = walkDbg.late.slice().sort((x, y) => x - y), n = a.length;
+  const q = (p) => (n ? a[Math.min(n - 1, Math.floor(n * p))] : 0);
+  return { n, avg: n ? a.reduce((s, x) => s + x, 0) / n : 0, p50: q(0.5), p95: q(0.95), max: n ? a[n - 1] : 0,
+    over8: a.filter((x) => x > 8).length, over16: a.filter((x) => x > 16).length, frames: walkDbg.frames, longFrames: walkDbg.longFrames };
+}
+if (WALK_DBG) {
+  const initDbg = () => {
+    const box = document.createElement('div');
+    box.style.cssText = 'position:fixed;left:4px;top:calc(env(safe-area-inset-top,0px) + 4px);z-index:99999;background:rgba(0,0,0,.65);color:#fff;font:11px/1.35 monospace;padding:4px 6px;border-radius:6px;pointer-events:none;white-space:pre';
+    const txt = document.createElement('div');
+    const mk = (label, fn) => { const b = document.createElement('button'); b.textContent = label; b.style.cssText = 'pointer-events:auto;margin:3px 4px 0 0;font:11px monospace;padding:2px 6px'; b.addEventListener('click', fn); return b; };
+    const copy = mk('复制', () => {
+      const s = walkDbgStats(), out = JSON.stringify({ ua: navigator.userAgent, mv: typeof MOVE_DUR === 'number' ? MOVE_DUR : null, s, late: walkDbg.late.slice(-300).map((x) => Math.round(x * 10) / 10) });
+      try { navigator.clipboard.writeText(out).then(() => { copy.textContent = '已复制'; setTimeout(() => { copy.textContent = '复制'; }, 1200); }); } catch (e) { copy.textContent = '复制失败'; }
+    });
+    const reset = mk('清零', () => { walkDbg.late.length = 0; walkDbg.frames = 0; walkDbg.longFrames = 0; });
+    box.append(txt, copy, reset);
+    document.body.appendChild(box);
+    setInterval(() => {
+      const s = walkDbgStats(), f = (x) => x.toFixed(1);
+      txt.textContent = `步数 ${s.n}  平均晚 ${f(s.avg)}ms\np50 ${f(s.p50)}  p95 ${f(s.p95)}  最大 ${f(s.max)}\n>8ms ${s.over8}  >16ms ${s.over16}\n长帧 ${s.longFrames}/${s.frames}`;
+    }, 500);
+    let last = performance.now();
+    const loop = (t) => { if (typeof state === 'object' && state && state.moveLock) { walkDbg.frames++; if (t - last > 25) walkDbg.longFrames++; } last = t; requestAnimationFrame(loop); };
+    requestAnimationFrame(loop);
+  };
+  if (document.body) initDbg(); else document.addEventListener('DOMContentLoaded', initDbg);
+}
+
 function lockMovement() {
   state.moveLock = true;
   if (state.moveLockTimer) clearTimeout(state.moveLockTimer);
+  const dbgT0 = performance.now(), dbgDur = MOVE_DUR;
   state.moveLockTimer = setTimeout(() => {
+    if (WALK_DBG) walkDbgRecord(performance.now() - dbgT0 - dbgDur); // 诊断：锁实际到点比 MOVE_DUR 晚了多少毫秒
     state.moveLock = false;
     state.moveLockTimer = null;
     if (window.EV && EV.slideStep()) return; // 溜冰：这一步走完接着滑
