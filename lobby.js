@@ -680,8 +680,10 @@ function addHomeBtn(id, key) {
   menu.appendChild(b);
   return b;
 }
-const bResume = addHomeBtn('homeMpResume', 'mpResume'); // 杀后台/掉线后回来：有可恢复的房间/对局才显示
-bResume.style.display = 'none';
+// 「恢复游戏」：杀后台/掉线后回来，有可恢复的房间/对局才出现。平时不挂在 DOM 里(refreshResume 按需插入/摘掉)，而不是 display:none 藏着——
+// 真机上它藏着的时候，「创建房间」上方那一格(它的位置)出现过一块没有文字的半透明残影；整个摘掉就没有任何东西可画。
+const bResume = document.createElement('button');
+bResume.className = 'homeBtn mpOnly'; bResume.id = 'homeMpResume'; bResume.dataset.i18n = 'mpResume';
 const bCreate = addHomeBtn('homeMpCreate', 'mpCreate');
 const bJoin = addHomeBtn('homeMpJoin', 'mpJoin');
 const bBack = addHomeBtn('homeMpBack', 'mpBack');
@@ -695,7 +697,11 @@ function resumeInfo() { // 「恢复游戏」只给「对局进行中被杀/掉�
   if (hs && (!gs || hs.t >= gs.t)) return { role: 'host', code: hs.code };
   return gs ? { role: 'guest', code: gs.code } : null;
 }
-function refreshResume() { bResume.style.display = (!(LB.room || LB.busy) && resumeInfo()) ? '' : 'none'; }
+function refreshResume() {
+  const show = !(LB.room || LB.busy) && !!resumeInfo();
+  if (show && !bResume.isConnected) { bResume.textContent = t('mpResume'); menu.insertBefore(bResume, bCreate); } // 恒在「创建房间」上方，和以前的位置一致
+  else if (!show && bResume.isConnected) bResume.remove();
+}
 function doResume() {
   const ri = resumeInfo();
   if (!ri) { refreshResume(); return; }
