@@ -9,7 +9,7 @@
    完成人数 ≥ 有效玩家数−1(至少 1)时 settle()：endRound({rank,total,lv}) → 全体 {k:'result'} → 毛玻璃结算画面 → 「返回大厅」。
    有玩家掉线：房主 bcastGame({k:'pz',on:1,n:[名字]}) → 全体锁住输入并显示暂停；房主可选「不等了，继续」(removePlayer)；用时扣除暂停时段。
    本机与房主断线(onStatus 非 ok)：本机锁住输入，显示重连提示。
-   即时消息(k)：fin(玩家→房主)  pz(房主→全体，暂停/恢复)  result(房主→全体，结算)  pg(进度：玩家→房主，房主再转发给其他人)。
+   即时消息(k)：fin(玩家→房主)  pz(房主→全体，暂停/恢复)  result(房主→全体，结算)  pg(进度：玩家→房主，房主再转发给其他人)  fo(房主→全体，已通关名次 {o:[pid…]}：收到新通关立刻发 + 每秒补发，晚连上/重连的人也能对上；结算前数据条显示 🥇🥈🥉、别人通关时顶部闪 3 秒提示)。
    进度同步：每走一步(最快每 120ms 一次)就发 pg，不等 1 秒一次的心跳；心跳(setReport)只当兜底。两边都带 q(单调递增的版本号，用毫秒时间戳)，旧的不会盖掉新的。
    续局：每台设备每秒把「房间码 + 本局编号 + 自己的走法」存进 localStorage(切后台/关页时再存一次)；被杀后从「恢复游戏」回到同一局，按走法重放就回到原来的步数和箱子位置。
    房主还额外存已通关的名次/暂停累计；房主自己被杀时 lan.js 的会话里存了「对局中 + 关卡 + 本局编号 + 开局时刻」，restore 后直接回到 playing。 */
@@ -21,20 +21,22 @@ const net = () => window.LAN_NET || null;
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const BAR_ROW_H = 18; // 数据条每行高度(px)，要和下面 CSS 的 line-height 一致
 const NEED_DEF = (valid) => Math.max(1, valid - 1); // 完成多少人就结算：有效玩家数 − 1，至少 1
+const MEDALS = ['🥇', '🥈', '🥉']; // 通关名次标记(结算前：数据条 + 顶部提示)；人数上限 4、完成 N−1 人就结算，所以结算前最多出现这三个
+const FLASH_MS = 3000;           // 别人通关时顶部提示停留时长
 const MAX_LOG_IN_MSG = 6500; // 走法超过这么长就不随通关消息发(单条消息上限 8000)，房主按步数信任
 const PROG_MS = 120;         // 进度消息最短间隔：每步 260ms 左右，基本每一步都会发出去
 const SNAP_KEY = 'boxpusher_mp_snap_v1', SNAP_TTL = 30 * 60 * 1000;
 
 /* ---------- 文案(并入 I18N，zh/en 两份) ---------- */
 Object.assign(I18N.zh, {
-  mpSteps: (n) => `${n}步`, mpFinWait: '已完成！等待其他玩家…', mpResTitle: '本局结算', mpUnfinished: '未完成', mpOffline: '掉线',
+  mpSteps: (n) => `${n}步`, mpFinWait: '已完成！等待其他玩家…', mpFinRank: (n) => `${MEDALS[n - 1] || '✓'} 第${n}名！等待其他玩家…`, mpFinFlash: (s) => `${s} 完成了！`, mpResTitle: '本局结算', mpUnfinished: '未完成', mpOffline: '掉线',
   mpEndConfirm: '再点一次，结束本局比赛',
   mpPauseTitle: (n) => `${n} 掉线了`, mpPauseSub: '已暂停，等他重新连上…', mpPauseGo: '不等了，继续',
   mpNetLost: '连接中断', mpNetLostSub: '正在重连，已暂停…', mpNetFailed: '自动重连失败', mpNetFailedSub: '请确认房主在线后手动重连', mpNetRetry: '手动重连', mpNetExit: '退出对局',
   mpNoLevel: '找不到这局的关卡，请更新到最新版本后再试', mpAborted: '本局已结束，回到大厅',
 });
 Object.assign(I18N.en, {
-  mpSteps: (n) => `${n} mv`, mpFinWait: 'Done! Waiting for the others…', mpResTitle: 'Results', mpUnfinished: 'Unfinished', mpOffline: 'Offline',
+  mpSteps: (n) => `${n} mv`, mpFinWait: 'Done! Waiting for the others…', mpFinRank: (n) => `${MEDALS[n - 1] || '✓'} #${n}! Waiting for the others…`, mpFinFlash: (s) => `${s} finished!`, mpResTitle: 'Results', mpUnfinished: 'Unfinished', mpOffline: 'Offline',
   mpEndConfirm: 'Tap again to end the match',
   mpPauseTitle: (n) => `${n} went offline`, mpPauseSub: 'Paused, waiting for them to reconnect…', mpPauseGo: 'Continue without',
   mpNetLost: 'Connection lost', mpNetLostSub: 'Reconnecting, paused…', mpNetFailed: 'Auto-reconnect failed', mpNetFailedSub: 'Check the host is online, then reconnect', mpNetRetry: 'Reconnect', mpNetExit: 'Leave match',
@@ -257,10 +259,11 @@ function paintBar() { // 只改文字节点和类名，不重绘(B24)
   const bar = $('mpBar');
   if (!M || !bar) return;
   bar.querySelectorAll('.mpP').forEach((el) => {
-    const pid = el.dataset.pid, r = pid === M.myPid ? mine() : M.rep[pid];
+    const pid = el.dataset.pid, r = pid === M.myPid ? mine() : M.rep[pid], rk = M.fo.indexOf(pid); // rk：房主公布的通关名次(0 起)，没有=-1
     el.querySelector('.mpDot').className = 'mpDot ' + dotClass(pid);
     let txt = '';
-    if (r && typeof r.s === 'number') txt = t('mpSteps', r.s) + ' ' + (r.p | 0) + '/' + M.total + (r.f ? ' ✓' : '') + (r.x ? ' ' + r.x : ''); // r.x：以后惩罚状态(如「混乱」)，现在恒为空
+    if (r && typeof r.s === 'number') txt = t('mpSteps', r.s) + ' ' + (r.p | 0) + '/' + M.total + (r.f || rk >= 0 ? ' ' + (MEDALS[rk] || '✓') : '') + (r.x ? ' ' + r.x : ''); // r.x：以后惩罚状态(如「混乱」)，现在恒为空
+    else if (rk >= 0) txt = M.total ? (MEDALS[rk] || '✓') : ''; // 房主已公布他通关、他自己的进度还没传到(刚重连/刚开局)：先只显示名次
     el.querySelector('.mpS').textContent = txt;
   });
 }
@@ -271,8 +274,25 @@ function paintTop() {
   top.style.display = on ? 'flex' : 'none';
   if (!on) return;
   const ban = $('mpBanner');
-  ban.textContent = t('mpFinWait');
-  ban.classList.toggle('on', M.finished);
+  let txt = '';
+  if (M.flash) txt = M.flash; // 别人刚通关：闪几秒，优先于下面的等待提示
+  else if (M.finished) { const rk = M.fo.indexOf(M.myPid); txt = rk >= 0 ? t('mpFinRank', rk + 1) : t('mpFinWait'); } // 名次还没从房主那边传回来时先显示「已完成」
+  ban.textContent = txt;
+  ban.classList.toggle('on', !!txt);
+}
+function flashFin(pid, rk) { // 别人通关：顶部闪「🥇 全名 完成了！」(数据条里只有两位缩写，对不上人)
+  if (!M) return;
+  M.flash = t('mpFinFlash', (MEDALS[rk] || '✓') + ' ' + (M.names[pid] || '?'));
+  clearTimeout(M.flashTimer);
+  M.flashTimer = setTimeout(() => { if (M) { M.flash = ''; M.flashTimer = null; paintTop(); } }, FLASH_MS);
+}
+function applyFo(d) { // 房主公布的通关名次；内容没变(每秒补发)就不重画
+  const o = (Array.isArray(d.o) ? d.o : []).map(String).filter((p, i, a) => M.order.includes(p) && a.indexOf(p) === i).slice(0, 4);
+  if (o.join('|') === M.fo.join('|')) { M.foQuiet = false; return; }
+  const old = M.fo, quiet = M.foQuiet;
+  M.fo = o; M.foQuiet = false;
+  if (!quiet) o.forEach((pid, i) => { if (!old.includes(pid) && pid !== M.myPid) flashFin(pid, i); }); // 续局回来第一次收到：不为已经发生过的通关再闪
+  paintBar(); paintTop();
 }
 function card(title, sub, btns) {
   return `<div class="mpCard"><h3>${esc(title)}</h3><p>${esc(sub || '')}</p>${btns.map(([key, act]) => `<button class="mrBtn" data-act="${act}">${esc(t(key))}</button>`).join('')}</div>`;
@@ -310,7 +330,8 @@ function startMatch(room) {
   M = { levelId: lv.id, xsb: lv.xsb, total: 0, myPid: room.you, hostPid: room.hostPid, isHost: room.hostPid === room.you, names, skins, order, room,
     rep: {}, ping: {}, pingAt, t0, seg: 100 + (++matchNo) * 5, q: Date.now(), lastProg: 0, progTimer: null, finMsg: null, lastSnap: 0,
     finished: false, paused: false, pauseNames: [], netBad: false, netFailed: false, done: false,
-    fins: [], pausedMs: 0, pauseAt: 0, hostPaused: false, settling: false, endArmed: false, timer: null };
+    fins: [], pausedMs: 0, pauseAt: 0, hostPaused: false, settling: false, endArmed: false, timer: null,
+    fo: [], foQuiet: false, flash: '', flashTimer: null };
   modalKey = '';
   if (typeof closeSettings === 'function') closeSettings();
   if (typeof closeLevelPick === 'function') closeLevelPick();
@@ -330,6 +351,7 @@ function startMatch(room) {
     placedOf: (pid) => pid === M.myPid ? placed() : (M.rep[pid] ? M.rep[pid].p | 0 : 0) }); // 随机事件
   const sn = readSnap(room, lv.id); // 杀后台/重连回来：按上次的走法重放，回到原来的步数和箱子位置
   if (sn) {
+    M.foQuiet = true;
     if (M.isHost) { M.fins = (Array.isArray(sn.fins) ? sn.fins : []).filter((f) => f && M.order.includes(f.pid)).slice(0, 4); M.pausedMs = +sn.pm || 0; }
     if (sn.log) restoreMpMoves(sn.log); // 重放时若已推完，会走 mpSolved 重发通关消息(房主按人去重，不会重复算)
   }
@@ -337,8 +359,8 @@ function startMatch(room) {
   M.timer = setInterval(tick, 1000);
   if (M.isHost) hostRoomChanged(); // 房主恢复对局时玩家都还没回来：立刻进入暂停等待
 }
-function tick() { if (!M || M.done) return; pushReport(); paintBar(); snapNow(); }
-function stopMatchTimers() { if (window.EV) EV.detach(); if (M && M.timer) { clearInterval(M.timer); M.timer = null; } if (M && M.progTimer) { clearTimeout(M.progTimer); M.progTimer = null; } }
+function tick() { if (!M || M.done) return; pushReport(); paintBar(); snapNow(); hostSendFo(); }
+function stopMatchTimers() { if (window.EV) EV.detach(); if (M && M.timer) { clearInterval(M.timer); M.timer = null; } if (M && M.progTimer) { clearTimeout(M.progTimer); M.progTimer = null; } if (M && M.flashTimer) { clearTimeout(M.flashTimer); M.flashTimer = null; } }
 function hideResultUI() { resultOpen = false; const r = $('mpResOv'); if (r) r.classList.remove('show'); }
 function endMatchUI() { // 收起对局画面，把主页放回来，单机恢复到进入前的关卡
   if (window.SFX && SFX.bgmMatch) SFX.bgmMatch(false);
@@ -367,6 +389,10 @@ function abortMatch() { // 没经结算就回大厅了(房主强制结束，或�
 }
 
 /* ---------- 房主：收集通关 / 暂停表决 / 结算 ---------- */
+function hostSendFo() { // 房主：把已通关名次广播给全体(含自己，本机走 onGame 回环)；没人通关就不发
+  if (!M || !M.isHost || M.done || !M.fins.length) return;
+  const n = net(); if (n) n.bcastGame({ k: 'fo', o: M.fins.map((f) => f.pid) });
+}
 function hostOnFin(pid, d) {
   if (!M || !M.isHost || M.done || !M.order.includes(pid) || M.fins.some((f) => f.pid === pid)) return;
   let steps = Math.max(1, Math.min(99999, Math.floor(Number(d.s)) || 0));
@@ -381,6 +407,7 @@ function hostOnFin(pid, d) {
   const paused = M.pausedMs + (M.hostPaused ? now - M.pauseAt : 0);
   M.fins.push({ pid, t: Math.max(0, now - t0 - paused - oneWay), s: steps }); // 名次=收到的先后；用时只是显示用
   snapNow(); // 房主被杀后恢复，已通关的名次还在
+  hostSendFo(); // 先公布名次再判结算：还要继续的人立刻看到
   hostCheckSettle();
 }
 function validCount() { return M.room.players.filter((p) => p.online !== false).length; }
@@ -472,6 +499,7 @@ function onGame(d, fromPid) {
     }
     paintBar(); return;
   }
+  if (d.k === 'fo') { if (fromPid === M.hostPid) applyFo(d); return; }
   if (d.k === 'pz') {
     if (fromPid !== M.hostPid) return;
     M.paused = !!d.on;
