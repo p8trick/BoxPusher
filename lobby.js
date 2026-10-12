@@ -708,10 +708,18 @@ function doResume() {
   if (ri.role === 'host') { openLobby('create'); doRestore(); }
   else { openLobby('join'); LB.f.code = ri.code; paintField('code'); doGo(); }
 }
-function enterMultiHome() { menu.classList.add('multi'); bgMulti.classList.add('on'); refreshResume(); }
+// 单人主页(4 个按钮)↔ 多人主页(3 个)：切换时把整个菜单从 DOM 摘下再装回原位。真机(iOS)上只靠 display:none 隐藏按钮，
+// 单人主页最上面那个按钮(START，多人主页里空出来的那一格)会在原地留下一块半透明残影，要切后台整页重绘才消失；摘下重装会销毁菜单的合成层，残影没处留。
+// 同一个任务里摘下又装回，中间不会绘制，不闪；菜单里 mpOnly 按钮的淡入动画会在装回后才开始(只播一次)。
+function rebuildMenu() {
+  const p = menu.parentNode; if (!p) return;
+  const nx = menu.nextSibling;
+  p.removeChild(menu); p.insertBefore(menu, nx);
+}
+function enterMultiHome() { menu.classList.add('multi'); bgMulti.classList.add('on'); refreshResume(); rebuildMenu(); }
 window.addEventListener('load', refreshResume); // lan.js 比本文件晚加载，等全部加载完再算一次；切回前台也算一次
 document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshResume(); });
-function exitMultiHome() { menu.classList.remove('multi'); bgMulti.classList.remove('on'); }
+function exitMultiHome() { menu.classList.remove('multi'); bgMulti.classList.remove('on'); rebuildMenu(); }
 bindTap($('homeMulti'), enterMultiHome);
 bindTap(bResume, doResume);
 bindTap(bCreate, () => openLobby('create'));
