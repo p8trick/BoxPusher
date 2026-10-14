@@ -13,7 +13,7 @@
    重开：只有房主能点；房主发 cr{v}，全体重置(v 只增不减，快照比较不受影响)。
 
    ── 显示 ──
-   规范状态按横屏(iPad)行列存；竖屏设备(!isWideLayout)在 toXsb 和方向键两处转置，状态不转置。单机核心的 state 只是「本机视角的投影」：
+   规范状态按横屏行列存，快照/事件永远用规范坐标。显示默认不转置(TRANSPOSE='off')：各设备只按屏幕大小缩放，两台设备上棋盘方向一致；设成 'auto' 则竖屏设备(!isWideLayout)在 toXsb 和方向键两处转置(手机上格子更大，但和横屏设备的样子不一样)，状态本身不转置。单机核心的 state 只是「本机视角的投影」：
    我的角色 = core 的 state.player(走路动画/镜头/连走全部复用)，箱子 = state.boxes，同伴 = 本文件另画的 #partnerEl(class 沿用 .player/.sprite，样式全靠 style.css；皮肤用 base.js 的 loadSkin/skinKey/spriteURL，帧换脚逻辑照核心的 advanceGait 简化)。
    核心里只有几处钩子：tryMove/undo 开头(合作时改走 COOP.intent/undo)、renderBoardStructure/renderDynamic 末尾(afterBuild/afterRender)、holdStep(同伴当障碍)。 */
 (function () {
@@ -24,6 +24,7 @@ const $ = (id) => document.getElementById(id);
 const net = () => window.LAN_NET || null;
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+const TRANSPOSE = 'off';     // 竖屏设备是否把地图行列互换后显示：'auto'=竖屏转置(手机上格子更大，但和横屏设备上的样子不一样)；'off'=永远不转置(两台设备画面方向一致，宽地图在手机上格子会小)
 const SNAP_MS = 2000;          // 房主广播整盘快照的间隔(只是兜底；正常情况下对不上的次数应当是 0)
 const END_MS = 900;            // 最后一步落位后停一下，再弹通关卡片
 const FADE_MS = 200;           // 对齐时「对不上」的角色/箱子淡出淡入各用多久
@@ -170,7 +171,7 @@ function start(room) {
   const myIdx = order.indexOf(room.you);
   if (myIdx < 0) { skipPlaying = true; return; }
   C = { room, lv, G, order, names, skins, myIdx, oi: 1 - myIdx, myPid: room.you, hostPid: room.hostPid, isHost: room.you === room.hostPid,
-    tr: !isWideLayout(), // 竖屏设备转置显示(开局时定，对局中不跟着转)
+    tr: TRANSPOSE === 'auto' && !isWideLayout(), // 竖屏设备转置显示(开局时定，对局中不跟着转)
     seg: 1000 + (++coNo) * 5, t0: Date.now(), timer: null, endTimer: null, fresh: false,
     paused: false, pauseNames: [], netBad: false, netFailed: false, done: false, ending: false, res: null,
     hostPaused: false, pauseAt: 0, pausedMs: 0, winSent: false, lastSnap: 0, lastAsk: 0, seq: 0, pend: {},
