@@ -122,7 +122,7 @@ function paintModal() { // 优先级：通关卡片 > 本机断线 > 别人掉�
   const card = (title, sub, btns, extra) => `<div class="mpCard"><h3>${esc(title)}</h3>${extra || ''}<p>${esc(sub || '')}</p>${btns.map(([k, a]) => `<button class="mrBtn" data-act="${a}">${esc(t(k))}</button>`).join('')}</div>`;
   if (C && C.res) {
     key = 'res';
-    const head = (pid) => `<span>${(window.Lobby && Lobby.headHTML) ? Lobby.headHTML(C.skins[pid], 40) : ''}${esc(C.names[pid] || '?')}</span>`;
+    const head = (pid) => `<span>${(window.Lobby && Lobby.headHTML) ? Lobby.headHTML(C.skins[pid], 40, C.genders[pid]) : ''}${esc(C.names[pid] || '?')}</span>`;
     html = card(t('coWin'), t('coStat', fmtTime(C.res.t), C.res.n | 0), [['lbBackLobby', 'back']], `<div class="coHeads">${head(C.order[0])}${head(C.order[1])}</div>`);
   } else if (C && !C.done && C.netBad) {
     key = C.netFailed ? 'nf' : 'nw';
@@ -160,17 +160,18 @@ function readSnap(room, lvId) { // 只认「同一个房间 + 同一局」的存
 
 /* ---------- 开局 / 收尾 ---------- */
 function mySkinIn(room) { const me = room.players.find((p) => p.pid === room.you); return me ? me.skin : null; }
+function myGenderIn(room) { const me = room.players.find((p) => p.pid === room.you); return me ? me.gender : null; }
 
 function start(room) {
   const lv = findLevel(room.levelId);
   if (!lv) { skipPlaying = true; showToast(t('mpNoLevel')); return; } // 缺关卡(文件没更新)：留在大厅
   const G = R.fromXsb(lv.xsb), other = room.players.find((p) => p.pid !== room.hostPid);
   if (!G || room.players.length !== 2 || !other) { skipPlaying = true; showToast(t('coBadRoom')); return; }
-  const order = [room.hostPid, other.pid], names = {}, skins = {};
-  room.players.forEach((p) => { names[p.pid] = p.name; skins[p.pid] = p.skin; });
+  const order = [room.hostPid, other.pid], names = {}, skins = {}, genders = {};
+  room.players.forEach((p) => { names[p.pid] = p.name; skins[p.pid] = p.skin; genders[p.pid] = p.gender === 'f' ? 'f' : 'm'; });
   const myIdx = order.indexOf(room.you);
   if (myIdx < 0) { skipPlaying = true; return; }
-  C = { room, lv, G, order, names, skins, myIdx, oi: 1 - myIdx, myPid: room.you, hostPid: room.hostPid, isHost: room.you === room.hostPid,
+  C = { room, lv, G, order, names, skins, genders, myIdx, oi: 1 - myIdx, myPid: room.you, hostPid: room.hostPid, isHost: room.you === room.hostPid,
     tr: TRANSPOSE === 'auto' && !isWideLayout(), // 竖屏设备转置显示(开局时定，对局中不跟着转)
     seg: 1000 + (++coNo) * 5, t0: Date.now(), timer: null, endTimer: null, fresh: false,
     paused: false, pauseNames: [], netBad: false, netFailed: false, done: false, ending: false, res: null,
@@ -182,14 +183,14 @@ function start(room) {
     if (sn && R.validSnap(G, sn.s)) { R.load(G, sn.s); C.pausedMs = +sn.pm || 0; }
   } else C.fresh = true; // 玩家端：第一份快照静默套用(可能是中途加入/重连回来)，不播对齐动画
   modalKey = '';
-  if (SPRITE_EXT === 'svg') { const c = C; loadSkin(partnerSkin()).then(() => { if (C === c) paintPartner(); }); } // 备好同伴那套皮肤的 12 帧(每套只做一次)，好了重画同伴
+  if (SPRITE_EXT === 'svg') { const c = C; loadSkin(partnerSkin(), partnerGender()).then(() => { if (C === c) paintPartner(); }); } // 备好同伴那套皮肤的 12 帧(每套只做一次)，好了重画同伴
   if (typeof closeSettings === 'function') closeSettings();
   if (typeof closeLevelPick === 'function') closeLevelPick();
   if (window.Lobby) Lobby.hide();
   hideHomeScreen();
   if (window.SFX && SFX.bgmMatch) SFX.bgmMatch(true);
   ensureDom();
-  setSkinOverride(skins[room.you]); // 角色配色用房主分配的色(房主永远经典、玩家随机不重色)
+  setSkinOverride(skins[room.you], genders[room.you]); // 角色配色/形象用大厅里选定的(开局后锁定)
   $('app').classList.add('mp');
   buildBar();
   loadMpLevel(R.toXsb(G, myIdx, C.tr), lv.id, C.seg); // 核心的棋盘按「本机视角」的 XSB 建；建完会回调 afterBuild 挂上同伴角色
@@ -423,10 +424,12 @@ function partnerMove(d, res) { // 同伴角色：位置由 afterRender 按 G 摆
   paintBar();
 }
 function pFrameKey() { const d = SPRITE[C.pg.dir]; return C.pg.neutral ? d.stand : (C.pg.side === 'A' ? d.stepA : d.stepB); }
+function partnerGender() { const g = C && C.genders[C.order[C.oi]]; return g === 'f' ? 'f' : 'm'; }
 function partnerSkin() { const k = C && C.skins[C.order[C.oi]]; return (typeof SKIN_KEYS !== 'undefined' && SKIN_KEYS.includes(k)) ? k : 'classic'; }
 function partnerURL(key) { // 同伴的帧：和 frameURL 同一套(base.js)，只是皮肤用房主分配给同伴的那套；还没栅格化好时 spriteURL 退回原版，备好后 loadSkin().then 会重画
-  if (SPRITE_EXT !== 'svg') return spriteURL(PLAYER_FRAMES[key]);
-  return spriteURL(skinKey(PLAYER_FRAMES[key], partnerSkin()));
+  const fr = framesOf(partnerGender()); // 同伴的形象(男/女)也是大厅里选的，帧路径跟着变
+  if (SPRITE_EXT !== 'svg') return spriteURL(fr[key]);
+  return spriteURL(skinKey(fr[key], partnerSkin()));
 }
 function paintPartner() {
   const s = $('partnerSprite');
@@ -505,7 +508,7 @@ function onRoom(room) { // 返回 true=合作接管了，竞速那边别再处�
   if (!C) {
     if (!mine) return false;
     if (room.phase !== 'playing') skipPlaying = false;
-    if (room.phase === 'starting') setSkinOverride(mySkinIn(room)); // 倒计时就把配色备好，开局时不闪
+    if (room.phase === 'starting') setSkinOverride(mySkinIn(room), myGenderIn(room)); // 倒计时就把配色/形象备好，开局时不闪
     else if (room.phase === 'lobby') setSkinOverride(null);
     if (room.phase === 'playing' && !skipPlaying) start(room);
     return true;
