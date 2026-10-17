@@ -38,7 +38,7 @@
 (function () {
 'use strict';
 
-const PROTO = 5; // 5：玩家新增 gender(男/女形象)，hello 可带 skin/g 偏好，新增 look/notice 消息，合作档房间最多 2 人；4：新增 tier 'coop'(双人合作)和 c* 系列游戏消息，旧版连不上更干净；3：房间状态新增 tier/levelId、玩家 inResult，新增 g/back/pong.r/hb.r(竞速)；2：房间状态里不再带 token，改用公开的 pid。和旧版互相连会得到「版本不一致」
+const PROTO = 6; // 6：合作规则新增「推开对方角色」(cm 带 pp/pt)，新旧版本推演会对不上，所以升协议；5：玩家新增 gender(男/女形象)，hello 可带 skin/g 偏好，新增 look/notice 消息，合作档房间最多 2 人；4：新增 tier 'coop'(双人合作)和 c* 系列游戏消息，旧版连不上更干净；3：房间状态新增 tier/levelId、玩家 inResult，新增 g/back/pong.r/hb.r(竞速)；2：房间状态里不再带 token，改用公开的 pid。和旧版互相连会得到「版本不一致」
 const HOST_PREFIX = 'box-host-';
 const MAX_PLAYERS = 4;
 const COOP_MAX = 2;               // 双人合作档房间的人数上限
