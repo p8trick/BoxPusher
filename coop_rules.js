@@ -19,7 +19,7 @@ const key = (r, c) => r + ',' + c;
 /* 解析 XSB → 状态。不合法(缺 1 号/2 号/目标)返回 null */
 function fromXsb(xsb) {
   const rows = String(xsb).split('\n');
-  const G = { w: 0, h: rows.length, walls: new Set(), targets: new Set(), boxes: [], p: [null, null], d: ['D', 'D'], v: 0, moves: 0 };
+  const G = { w: 0, h: rows.length, walls: new Set(), targets: new Set(), boxes: [], p: [null, null], d: ['D', 'D'], v: 0, moves: 0, un: 0 };
   rows.forEach((row, r) => {
     G.w = Math.max(G.w, row.length);
     for (let c = 0; c < row.length; c++) {
@@ -73,6 +73,31 @@ function step(G, pi, d, dry) {
   return { ok: true, to: [nr, nc], push: b, bto, pp: o, pto };
 }
 
+/* 后撤(合作撤销)：每人只能撤自己最近的一步(房主那边每人一个栈，最多 UNDO_MAX 步)。栈里的一条记录 e = {from:走之前的格子, to:走到的格子, push:当时推的箱子id或-1, bto:箱子被推到的格子或null}。
+   撤销 = 我从 e.to 退回 e.from(朝向不变，就是后撤步)，被推的箱子(如果有)退回 e.to(我刚离开的格子)。推了对方角色那一步：只退我自己，不把对方一起拉回来(对方留在被推到的位置)。
+   合法性：我还站在 e.to；e.from 现在是空的(不是墙/箱子/对方)；推过箱子的话那个箱子还在 e.bto。不合法就撤不了(why: 'moved'|'blocked'|'box')，什么都不改。
+   撤销后总步数 G.moves 减 1(撤掉的那一步不再算，和单机一样)，另记撤销次数 G.un，v(同步序号) +1。 */
+function undoCheck(G, pi, e) {
+  if (!e || (pi !== 0 && pi !== 1) || !Array.isArray(e.from) || !Array.isArray(e.to)) return { ok: false, why: 'bad' };
+  if (G.p[pi][0] !== e.to[0] || G.p[pi][1] !== e.to[1]) return { ok: false, why: 'moved' };
+  if (Math.abs(e.from[0] - e.to[0]) + Math.abs(e.from[1] - e.to[1]) !== 1) return { ok: false, why: 'bad' };
+  const fr = e.from[0], fc = e.from[1];
+  if (isWall(G, fr, fc) || boxAt(G, fr, fc) >= 0 || playerAt(G, fr, fc, pi) >= 0) return { ok: false, why: 'blocked' };
+  if (e.push >= 0) {
+    const b = G.boxes[e.push];
+    if (!b || !Array.isArray(e.bto) || b[0] !== e.bto[0] || b[1] !== e.bto[1]) return { ok: false, why: 'box' };
+  }
+  return { ok: true };
+}
+function undo(G, pi, e, dry) {
+  const r = undoCheck(G, pi, e);
+  if (!r.ok || dry) return r;
+  G.p[pi] = [e.from[0], e.from[1]];
+  if (e.push >= 0) G.boxes[e.push] = [e.to[0], e.to[1]];
+  G.moves = Math.max(0, G.moves - 1); G.un = (G.un | 0) + 1; G.v++;
+  return r;
+}
+
 /* 转身(没走成：撞墙/推不动/被人挡)：只改朝向，序号 +1(朝向是快照的一部分，每次可见的变化都占一个序号)，步数不加 */
 function face(G, pi, d) {
   if (!DIRS[d] || (pi !== 0 && pi !== 1)) return false;
@@ -88,7 +113,7 @@ function solved(G) {
 
 /* ---- 快照(整盘状态，几十~一百多字节)：房主定期广播、玩家重连/发现跑偏时用来对齐 ---- */
 function snapshot(G) {
-  return { v: G.v, n: G.moves, p: G.p.map((q, i) => [q[0], q[1], G.d[i]]), b: G.boxes.map((b) => [b[0], b[1]]) };
+  return { v: G.v, n: G.moves, u: G.un | 0, p: G.p.map((q, i) => [q[0], q[1], G.d[i]]), b: G.boxes.map((b) => [b[0], b[1]]) };
 }
 function validSnap(G, s) { // 来自网络/本地存档的快照：形状和范围都查一遍，坏的直接丢
   if (!s || typeof s !== 'object' || !Number.isInteger(s.v) || s.v < 0 || !Number.isInteger(s.n) || s.n < 0) return false;
@@ -106,7 +131,7 @@ function same(G, s) { // 状态(位置/箱子/朝向)是否和快照一致；不
   return G.moves === s.n;
 }
 function load(G, s) {
-  G.v = s.v; G.moves = s.n;
+  G.v = s.v; G.moves = s.n; G.un = Number.isInteger(s.u) && s.u >= 0 ? s.u : 0;
   G.p = s.p.map((q) => [q[0], q[1]]); G.d = s.p.map((q) => q[2]);
   G.boxes = s.b.map((b) => [b[0], b[1]]);
 }
@@ -143,7 +168,7 @@ function check(xsb) {
   return { ok: reach(G.p[1]) && boxesOk && targetsOk && G.boxes.length >= G.targets.size, boxes: G.boxes.length, targets: G.targets.size, w: G.w, h: G.h };
 }
 
-const API = { DIRS, fromXsb, step, face, solved, snapshot, validSnap, same, load, toXsb, toView, fromView, check, boxAt, playerAt };
+const API = { DIRS, fromXsb, step, face, undoCheck, undo, solved, snapshot, validSnap, same, load, toXsb, toView, fromView, check, boxAt, playerAt };
 root.COOP_RULES = API;
 if (typeof module !== 'undefined' && module.exports) module.exports = API;
 })(typeof window !== 'undefined' ? window : globalThis);
