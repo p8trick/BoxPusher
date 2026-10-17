@@ -333,9 +333,9 @@ function modalAct(act) {
 function startMatch(room) {
   const lv = findLevel(room.levelId);
   if (!lv) { skipPlaying = true; showToast(t('mpNoLevel')); return; } // 缺关卡(文件没更新)：留在大厅，房主可以「结束本局」
-  const names = {}, skins = {}, order = [], pingAt = {}, t0 = Date.now();
-  room.players.forEach((p) => { names[p.pid] = p.name; skins[p.pid] = p.skin; order.push(p.pid); pingAt[p.pid] = t0; });
-  M = { levelId: lv.id, xsb: lv.xsb, total: 0, myPid: room.you, hostPid: room.hostPid, isHost: room.hostPid === room.you, names, skins, order, room,
+  const names = {}, skins = {}, genders = {}, order = [], pingAt = {}, t0 = Date.now();
+  room.players.forEach((p) => { names[p.pid] = p.name; skins[p.pid] = p.skin; genders[p.pid] = p.gender === 'f' ? 'f' : 'm'; order.push(p.pid); pingAt[p.pid] = t0; });
+  M = { levelId: lv.id, xsb: lv.xsb, total: 0, myPid: room.you, hostPid: room.hostPid, isHost: room.hostPid === room.you, names, skins, genders, order, room,
     rep: {}, ping: {}, pingAt, t0, seg: 100 + (++matchNo) * 5, q: Date.now(), lastProg: 0, progTimer: null, finMsg: null, lastSnap: 0,
     finished: false, paused: false, pauseNames: [], netBad: false, netFailed: false, done: false,
     fins: [], pausedMs: 0, pauseAt: 0, hostPaused: false, settling: false, endArmed: false, timer: null,
@@ -347,7 +347,7 @@ function startMatch(room) {
   hideHomeScreen();
   if (window.SFX && SFX.bgmMatch) SFX.bgmMatch(true); // 联机对局 BGM：开局显式开(之前靠主页类名推断，联机路径下不触发)
   ensureDom();
-  setSkinOverride(skins[room.you]); // 角色配色用房主分配的(房主永远经典、玩家随机不重色)；对局内「游戏外观」里这一栏灰掉
+  setSkinOverride(skins[room.you], genders[room.you]); // 角色配色/形象用大厅里选定的(开局后锁定)；对局内「游戏外观」里这两栏灰掉
   $('app').classList.add('mp');
   buildBar();
   loadMpLevel(lv.xsb, lv.id, M.seg); // 单机进度先存好、联机不碰单机存档(见 index.html)
@@ -426,11 +426,11 @@ function hostCheckSettle() {
 function settle() { // 房主：生成名次，endRound 广播给全体(含自己)
   if (!M || !M.isHost || M.done || M.settling) return;
   M.settling = true;
-  const rank = M.fins.map((f) => ({ pid: f.pid, n: M.names[f.pid], c: M.skins[f.pid], t: f.t, s: f.s, p: M.total, d: 1 }));
+  const rank = M.fins.map((f) => ({ pid: f.pid, n: M.names[f.pid], c: M.skins[f.pid], g: M.genders[f.pid], t: f.t, s: f.s, p: M.total, d: 1 }));
   const rest = M.order.filter((pid) => !M.fins.some((f) => f.pid === pid)).map((pid) => {
     const r = pid === M.myPid ? mine() : (M.rep[pid] || {});
     const pl = M.room.players.find((x) => x.pid === pid);
-    return { pid, n: M.names[pid], c: M.skins[pid], s: r.s | 0, p: r.p | 0, d: 0, o: pl && pl.online !== false ? 0 : 1 };
+    return { pid, n: M.names[pid], c: M.skins[pid], g: M.genders[pid], s: r.s | 0, p: r.p | 0, d: 0, o: pl && pl.online !== false ? 0 : 1 };
   }).sort((a, b) => b.p - a.p || a.s - b.s); // 没完成的：已落位箱子多的靠前，再按步数少
   const n = net();
   if (!n || !n.endRound({ rank: rank.concat(rest), total: M.total, lv: M.levelId })) M.settling = false;
@@ -506,7 +506,7 @@ function showResult(d) {
     const done = !!x.d, me = x.pid === myPid;
     const res = done ? `<b class="mrT">${fmtTime(x.t)}</b><small>${t('mpSteps', x.s | 0)}</small>`
       : `<b class="mrT dim">${t(x.o ? 'mpOffline' : 'mpUnfinished')}</b><small>${t('mpSteps', x.s | 0)} · ${x.p | 0}/${total}</small>`;
-    return `<div class="mrRow${i === 0 && done ? ' first' : ''}${me ? ' me' : ''}"><span class="mrRank">${i + 1}</span>${(window.Lobby && Lobby.headHTML) ? Lobby.headHTML(x.c, 32) : `<i class="lbDot" style="${skinStyle(x.c)}"></i>`}` + // 头像和大厅同一套(Lobby.headHTML)，没有 lobby.js 就退回小圆点
+    return `<div class="mrRow${i === 0 && done ? ' first' : ''}${me ? ' me' : ''}"><span class="mrRank">${i + 1}</span>${(window.Lobby && Lobby.headHTML) ? Lobby.headHTML(x.c, 32, x.g) : `<i class="lbDot" style="${skinStyle(x.c)}"></i>`}` + // 头像和大厅同一套(Lobby.headHTML)，没有 lobby.js 就退回小圆点
       `<span class="mrName">${esc(x.n || '?')}${me ? `<em>(${t('lbMe')})</em>` : ''}</span><span class="mrRes">${res}</span></div>`;
   }).join('');
   resultOpen = true;
@@ -515,12 +515,13 @@ function showResult(d) {
 
 /* ---------- 来自 lobby.js 的转发 ---------- */
 function mySkinIn(room) { const me = room.players.find((p) => p.pid === room.you); return me ? me.skin : null; }
+function myGenderIn(room) { const me = room.players.find((p) => p.pid === room.you); return me ? me.gender : null; }
 function onRoom(room) {
   curRoom = room;
   if (window.COOP && COOP.onRoom(room)) return; // 合作模式(room.tier==='coop')：整局由 coop.js 接管
   if (room.phase !== 'playing') skipPlaying = false;
   if (!M) { // 倒计时(starting)就把配色备好，开局时不会闪；倒计时被取消/回到大厅就还原
-    if (room.phase === 'starting') setSkinOverride(mySkinIn(room));
+    if (room.phase === 'starting') setSkinOverride(mySkinIn(room), myGenderIn(room));
     else if (room.phase === 'lobby' && !resultOpen) setSkinOverride(null);
   }
   if (room.phase === 'starting' && room.levelId && warnedLv !== room.levelId && !findLevel(room.levelId)) { warnedLv = room.levelId; showToast(t('mpNoLevel')); } // 倒计时期间就提醒缺关卡
