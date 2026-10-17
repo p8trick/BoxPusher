@@ -229,15 +229,15 @@ html[data-lang="en"] .lbBtn { font-size: 16px; letter-spacing: 0.06em; text-inde
 .lbHeadPair .emA { animation: lbEmA 7s linear infinite; } .lbHeadPair .emB { animation: lbEmB 7s linear infinite; } /* 7 秒一轮：每个头像停 3 秒，两个头像之间渐变 0.5 秒 */
 @keyframes lbEmA { 0%, 42.86% { opacity: 0.4; } 50%, 92.86% { opacity: 0; } 100% { opacity: 0.4; } }
 @keyframes lbEmB { 0%, 42.86% { opacity: 0; } 50%, 92.86% { opacity: 0.4; } 100% { opacity: 0; } }
-.lbRowWrap { display: flex; flex-direction: column; }
-.lbLookBtn { flex: none; display: flex; align-items: center; gap: 4px; margin-left: 2px; padding: 5px 8px 5px 6px; border-radius: 15px; background: rgba(255, 244, 220, 0.10); box-shadow: inset 0 0 0 1px rgba(255, 240, 210, 0.32); -webkit-tap-highlight-color: transparent; }
-.lbLookBtn .lbDot { width: 18px; height: 18px; box-shadow: 0 0 0 1.5px rgba(255, 240, 210, 0.4); }
-.lbLookBtn::after { content: ''; border: 4px solid transparent; border-top-color: #f6e3ae; border-bottom-width: 0; transition: transform 0.2s; }
+.lbRowWrap { position: relative; } .lbRowWrap.open { z-index: 30; } /* 菜单展开时这一行整体抬到最上层 */
+.lbLookBtn { flex: none; display: flex; align-items: center; justify-content: center; width: 32px; height: 30px; margin-left: 2px; border-radius: 15px; background: rgba(255, 244, 220, 0.10); box-shadow: inset 0 0 0 1px rgba(255, 240, 210, 0.32); -webkit-tap-highlight-color: transparent; }
+.lbLookBtn::after { content: ''; border: 5px solid transparent; border-top-color: #f6e3ae; border-bottom-width: 0; transition: transform 0.2s; } /* 只有一个三角箭头，展开时翻转 */
 .lbLookBtn.open::after { transform: rotate(180deg); }
 .lbLookBtn.dim { opacity: 0.5; }
-.lbLookMenu { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px 14px; margin: 6px 4px 0; padding: 10px 12px; border-radius: 14px; /* 二级菜单：磨砂玻璃，无木框 */
-  background: rgba(255, 248, 230, 0.10); -webkit-backdrop-filter: blur(14px) saturate(1.3); backdrop-filter: blur(14px) saturate(1.3);
-  border: 1px solid rgba(255, 244, 220, 0.30); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 8px 20px rgba(0, 0, 0, 0.28); }
+.lbLookMenu { position: absolute; left: 0; right: 0; top: 100%; margin: 6px 0 0; z-index: 30; /* 覆盖在大厅上，不占位、不推挤下面的版面 */
+  display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px 14px; padding: 12px; border-radius: 14px; /* 二级菜单：磨砂玻璃，无木框；底色压深一点，盖住下面的内容也看得清 */
+  background: rgba(36, 28, 18, 0.58); -webkit-backdrop-filter: blur(16px) saturate(1.3); backdrop-filter: blur(16px) saturate(1.3);
+  border: 1px solid rgba(255, 244, 220, 0.32); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 10px 26px rgba(0, 0, 0, 0.4); }
 .lbLookMenu.pop { animation: lbMenuIn 0.22s ease-out; transform-origin: top center; } /* 只在刚点开时播一次，之后房间状态刷新重绘不再重播 */
 @keyframes lbMenuIn { from { opacity: 0; transform: translateY(-6px) scaleY(0.85); } to { opacity: 1; transform: none; } }
 .lbLookMenu.off { opacity: 0.4; pointer-events: none; } /* 倒计时中 / 已准备 / 连接异常：整块变暗不可点 */
@@ -401,6 +401,16 @@ const ov = document.createElement('div');
 ov.id = 'lobbyOverlay';
 ov.innerHTML = '<div id="lobbyWrap"><div id="lobbySheet" class="artPanel"><div id="lbHead"><span id="lbTitle"></span><span id="lbSub"></span></div><div id="lbBody"></div></div></div>';
 document.body.appendChild(ov);
+/* 外观二级菜单开着时：点菜单和折叠按钮以外的任何地方只负责收起菜单，不触发被点到的控件(避免误点开始/准备)；
+   收起后 400ms 内的同一次点按的后续事件(touchend/click 等)也一并吞掉 */
+function closeLookMenu() { LB.lookOpen = false; LB.lookAnim = false; LB.lookSwallowUntil = Date.now() + 400; if (LB.room && LB.view === 'room') renderRoom(); }
+function lookOutsideTap(e) {
+  if (!LB.lookOpen && !(LB.lookSwallowUntil && Date.now() < LB.lookSwallowUntil)) return;
+  if (e.target && e.target.closest && e.target.closest('.lbLookMenu, #lbLookBtn')) return;
+  e.stopPropagation(); e.preventDefault();
+  if (LB.lookOpen && (e.type === 'touchstart' || e.type === 'mousedown' || e.type === 'pointerdown')) closeLookMenu();
+}
+['pointerdown', 'touchstart', 'touchend', 'mousedown', 'mouseup', 'click'].forEach((ev) => ov.addEventListener(ev, lookOutsideTap, true));
 
 function tap(id, fn) { // 带「灰掉就不响应」保护的 bindTap；顺便在用户点按里恢复音频(iOS 解锁)
   const el = $(id);
@@ -687,6 +697,7 @@ function renderRoom() {
     ? `<span class="lbHeadPair"><img class="lbHead emptyHead emA" alt="" draggable="false" src="${eM}" style="animation-delay:-${emPhase}s"><img class="lbHead emptyHead emB" alt="" draggable="false" src="${eF}" style="animation-delay:-${emPhase}s"></span>`
     : (eM || eF) ? `<img class="lbHead emptyHead" alt="" draggable="false" src="${eM || eF}">` : `<i class="lbDot"></i>`;
   // 自己的外观(开局前自己选)：自己那行最右边一个小按钮(当前配色点+箭头)，点开在这行下面拉出磨砂玻璃二级菜单：形象男/女 + 6 个配色点，被别人占的灰掉
+  if (r.phase !== 'lobby') LB.lookOpen = false; // 倒计时/对局开始就自动收起
   const lookLocked = !live || r.phase !== 'lobby' || (!isHost && !!me.ready); // 倒计时中 / 玩家已准备 / 连接异常：菜单变暗不可点
   const takenBy = (k) => r.players.some((x) => x.pid !== myPid && x.skin === k);
   const lookMenu = () => `<div class="lbLookMenu${lookLocked ? ' off' : ''}${LB.lookAnim ? ' pop' : ''}"><div class="lbG">` +
@@ -703,10 +714,10 @@ function renderRoom() {
       : p.ready ? `<span class="lbTag ready">${t('lbReady')}</span>` : `<span class="lbTag wait">${t('lbNotReady')}</span>`;
     const ping = isH ? '' : `<span class="lbPing off" data-pid="${esc(p.pid)}" data-on="${p.online === false ? 0 : 1}"></span>`; // 房主自己没有延迟
     const hs = headSrc(p.skin, p.gender), mine = p.pid === myPid;
-    const lookBtn = mine ? `<span id="lbLookBtn" class="lbLookBtn${LB.lookOpen ? ' open' : ''}${lookLocked ? ' dim' : ''}"><i class="lbDot" style="${skinDot(p.skin)}"></i></span>` : '';
+    const lookBtn = mine ? `<span id="lbLookBtn" class="lbLookBtn${LB.lookOpen ? ' open' : ''}${lookLocked ? ' dim' : ''}"></span>` : '';
     const row = `<div class="lbRow${mine ? ' me' : ''}${p.inResult ? ' inRes' : ''}">` + (hs ? `<img class="lbHead" alt="" draggable="false" src="${hs}">` : `<i class="lbDot" style="${skinDot(p.skin)}"></i>`) +
       `<span class="lbName">${esc(p.name)}${mine ? `<em>(${t('lbMe')})</em>` : ''}</span>${ping}${tag}${lookBtn}</div>`;
-    rows += mine ? `<div class="lbRowWrap">${row}${LB.lookOpen ? lookMenu() : ''}</div>` : row;
+    rows += mine ? `<div class="lbRowWrap${LB.lookOpen ? ' open' : ''}">${row}${LB.lookOpen ? lookMenu() : ''}</div>` : row;
   }
   LB.lookAnim = false;
 
