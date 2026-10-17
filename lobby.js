@@ -68,10 +68,12 @@ Object.assign(I18N.en, {
 Object.assign(I18N.zh, {
   lbTier: '难度', lbTierEasy: '竞速入门', lbTierNormal: '竞速正常', lbTierCoop: '双人合作', lbInResult: '结算中', lbHintResWait: '等待大家看完结算、回到大厅…',
   lbErrNoLevels: '没有可用的多人关卡：请检查 levels_mp.js 是否加载、这个难度档里是否有关卡', lbEndMatch: '结束本局',
+  lbCoopMax: '双人合作最多 2 人，先让多余的玩家离开', lbLookTaken: '这个颜色刚被别人选走了',
 });
 Object.assign(I18N.en, {
   lbTier: 'Level', lbTierEasy: 'Easy', lbTierNormal: 'Normal', lbTierCoop: 'Co-op', lbInResult: 'Results', lbHintResWait: 'Waiting for everyone to leave the results…',
   lbErrNoLevels: 'No race levels: check levels_mp.js is loaded and this tier has levels', lbEndMatch: 'End match',
+  lbCoopMax: 'Co-op allows 2 players max', lbLookTaken: 'That color was just taken',
 });
 const MODE_KEYS = { easy: 'lbMdEasy', normal: 'lbMdNormal', coop: 'lbMdCoop' }; // 下拉里显示的「模式-难度」
 const TIER_KEYS = [['easy', 'lbTierEasy'], ['normal', 'lbTierNormal'], ['coop', 'lbTierCoop']]; // 和 lan.js 的 TIERS 一致；easy/normal 同时是 levels_mp.js 的 tiers[].key，coop 的关卡在 levels_coop.js
@@ -222,6 +224,21 @@ html[data-lang="en"] .lbBtn { font-size: 16px; letter-spacing: 0.06em; text-inde
 .lbDDList b { display: block; padding: 11px 14px; text-align: center; border-radius: 9px; color: #d9c08a; box-shadow: none; -webkit-tap-highlight-color: transparent; }
 .lbDDList b.sel { background: rgba(242, 180, 94, 0.2); color: #f6e3ae; box-shadow: inset 0 0 0 1px rgba(242, 180, 94, 0.55); }
 .lbDDList b.dis { color: rgba(217, 192, 138, 0.4); }
+.lbHeadPair { position: relative; flex: none; width: 28px; height: 28px; margin: 0 0 0 -2px; pointer-events: none; } /* 空位：男/女空心头像叠在同一个格子里交替淡入淡出(10 秒一轮、所有空位同相位，animation-delay 按全局时钟算，重绘也接得上) */
+.lbHeadPair .lbHead { position: absolute; left: 0; top: 0; margin: 0; }
+.lbHeadPair .emA { animation: lbEmA 10s linear infinite; } .lbHeadPair .emB { animation: lbEmB 10s linear infinite; }
+@keyframes lbEmA { 0%, 38% { opacity: 0.4; } 50%, 88% { opacity: 0; } 100% { opacity: 0.4; } }
+@keyframes lbEmB { 0%, 38% { opacity: 0; } 50%, 88% { opacity: 0.4; } 100% { opacity: 0; } }
+.lbLook { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 6px 12px; margin: -4px 0 12px; }
+.lbLook.off { opacity: 0.4; pointer-events: none; } /* 倒计时中 / 已准备 / 掉线：整排变暗不可点 */
+.lbG { display: flex; gap: 6px; }
+.lbG b { padding: 6px 12px; border-radius: 14px; font-size: 13px; font-weight: 800; color: #d9c08a; box-shadow: inset 0 0 0 1px rgba(217, 192, 138, 0.35); -webkit-tap-highlight-color: transparent; }
+.lbG b.sel { background: rgba(242, 180, 94, 0.2); color: #f6e3ae; box-shadow: inset 0 0 0 1px rgba(242, 180, 94, 0.55); }
+.lbSw { display: flex; gap: 2px; }
+.lbSw b { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; -webkit-tap-highlight-color: transparent; }
+.lbSw b .lbDot { width: 22px; height: 22px; }
+.lbSw b.sel { box-shadow: 0 0 0 2px #f2b45e; }
+.lbSw b.taken { opacity: 0.22; filter: grayscale(0.7); pointer-events: none; } /* 被别人选走的色：灰掉不可点 */
 .lbRow.inRes .lbName, .lbRow.inRes .lbDot, .lbRow.inRes .lbHead { opacity: 0.4; filter: grayscale(1); } /* 还在结算画面的玩家：名字变灰，回来后恢复 */
 .lbProg { flex: none; font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; color: #f6e3ae; }
 .lbHint { min-height: 20px; margin: -4px 0 12px; text-align: center; font-size: 14px; font-weight: 700; color: #d9c08a; }
@@ -246,56 +263,74 @@ function loadProfile() {
   let p = {};
   try { p = JSON.parse(localStorage.getItem(PROFILE_KEY) || '{}') || {}; } catch (e) { p = {}; }
   if (!p.token) p.token = randHex(12);
+  if (!SKIN_KEYS.includes(p.skin)) p.skin = ''; // 上次在联机大厅选的配色/形象(没选过=空：房主默认经典、玩家随机；形象默认跟单机设置)
+  if (p.gender !== 'm' && p.gender !== 'f') p.gender = '';
   p.name = cleanName(p.name) || (t('lbDefName') + (10 + Math.floor(Math.random() * 90)));
   saveProfile(p);
   return p;
 }
-function saveProfile(p) { try { localStorage.setItem(PROFILE_KEY, JSON.stringify({ token: p.token, name: p.name, last: p.last || '', tier: p.tier || '' })); } catch (e) {} } // last=最后一次成功加入的房间配对码；tier=房主最近选的模式(创建房间后自动套用)
-/* 玩家头像：assets/UI/icons/icon_head.svg(Kenney 人物头像，帽子是绿色两档)，按配色把帽子换色后做成 blob 图；没加载好/失败就退回原来的小圆点 */
-const HEAD_URL = 'assets/UI/icons/icon_head.svg', HEAD_HAT = ['#2ECC71', '#28B162']; // 帽子主色 / 暗部(暗部 = 主色 × 0.87)
-let headTpl = ''; const headCache = {};
+function myLookPref() { // 创建/加入/恢复房间时带给网络层的偏好：配色没偏好就不带(房主→经典，玩家→随机)；形象默认跟单机设置里的
+  const o = {};
+  if (LB.me.skin && SKIN_KEYS.includes(LB.me.skin)) o.skin = LB.me.skin;
+  const g = LB.me.gender || (typeof settings !== 'undefined' && settings.gender) || 'm'; o.gender = g === 'f' ? 'f' : 'm';
+  return o;
+}
+function saveProfile(p) { try { localStorage.setItem(PROFILE_KEY, JSON.stringify({ token: p.token, name: p.name, last: p.last || '', tier: p.tier || '', skin: p.skin || '', gender: p.gender || '' })); } catch (e) {} } // last=最后一次成功加入的房间配对码；tier=房主最近选的模式(创建房间后自动套用)
+/* 玩家头像：男 icon_head.svg / 女 icon_head_female.svg(Kenney 人物头像，帽子是绿色两档，两个文件用同一组色值)，按配色把帽子换色后做成 blob 图；没加载好/失败就退回原来的小圆点。
+   空位头像：男/女空心线条版各一张(icon_head_empty.svg / icon_head_female_empty.svg)，白线换成空位主题色。 */
+const HEAD_URL = { m: 'assets/UI/icons/icon_head.svg', f: 'assets/UI/icons/icon_head_female.svg' }, HEAD_HAT = ['#2ECC71', '#28B162']; // 帽子主色 / 暗部(暗部 = 主色 × 0.87)
+const gOf = (g) => (g === 'f' ? 'f' : 'm');
+const headTpl = { m: '', f: '' }, headCache = {};
 function shade(hex, k) { const n = parseInt(hex.slice(1), 16); return '#' + [16, 8, 0].map((sh) => Math.round(((n >> sh) & 255) * k).toString(16).padStart(2, '0')).join('').toUpperCase(); }
-function headSrc(skin) {
-  if (!headTpl) return '';
-  if (headCache[skin]) return headCache[skin].src;
+function headSrc(skin, g) {
+  g = gOf(g);
+  if (!headTpl[g]) return '';
+  const ck = g + ':' + skin;
+  if (headCache[ck]) return headCache[ck].src;
   const c = (typeof SKIN_COLORS !== 'undefined' && SKIN_COLORS[skin]) || [HEAD_HAT[0]];
   if (!/^#[0-9a-fA-F]{6}$/.test(c[0])) return '';
-  const svg = headTpl.split(`"${HEAD_HAT[0]}"`).join(`"${c[0]}"`).split(`"${HEAD_HAT[1]}"`).join(`"${shade(c[0], 0.87)}"`); // 带引号匹配(B11)
+  const svg = headTpl[g].split(`"${HEAD_HAT[0]}"`).join(`"${c[0]}"`).split(`"${HEAD_HAT[1]}"`).join(`"${shade(c[0], 0.87)}"`); // 带引号匹配(B11)
   const im = new Image(); im.decoding = 'async';
   im.src = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
-  headCache[skin] = im; // 留着引用，重绘大厅时不闪(B9)
+  headCache[ck] = im; // 留着引用，重绘大厅时不闪(B9)
   return im.src;
 }
-const EMPTY_URL = 'assets/UI/icons/icon_head_empty.svg', EMPTY_LINE = '#FFFFFF', EMPTY_COLOR = '#D9C08A'; // 空位头像(线条版)：白线换成空位主题色
-let emptyTpl = '', emptySrcCache = null;
-function emptySrc() {
-  if (!emptyTpl) return '';
-  if (emptySrcCache) return emptySrcCache.src;
-  const svg = emptyTpl.split(`"${EMPTY_LINE}"`).join(`"${EMPTY_COLOR}"`); // 带引号匹配(B11)
+const EMPTY_URL = { m: 'assets/UI/icons/icon_head_empty.svg', f: 'assets/UI/icons/icon_head_female_empty.svg' }, EMPTY_LINE = '#FFFFFF', EMPTY_COLOR = '#D9C08A'; // 空位头像(线条版)：白线换成空位主题色
+const emptyTpl = { m: '', f: '' }, emptyCache = {};
+function emptySrc(g) {
+  g = gOf(g);
+  if (!emptyTpl[g]) return '';
+  if (emptyCache[g]) return emptyCache[g].src;
+  const svg = emptyTpl[g].split(`"${EMPTY_LINE}"`).join(`"${EMPTY_COLOR}"`); // 带引号匹配(B11)
   const im = new Image(); im.decoding = 'async';
   im.src = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
-  emptySrcCache = im; // 留着引用，重绘大厅时不闪(B9)
+  emptyCache[g] = im; // 留着引用，重绘大厅时不闪(B9)
   return im.src;
 }
+function refreshRoomView() { if (ov.classList.contains('show') && LB.room && LB.view === 'room') renderRoom(); } // 模板刚到：补刷一次
 function loadEmptyTpl() {
-  if (emptyTpl || typeof fetch !== 'function') return;
-  fetch(EMPTY_URL).then((r) => (r.ok ? r.text() : Promise.reject(r.status))).then((tx) => {
-    if (tx.indexOf(EMPTY_LINE) < 0) return; // 不是预期的文件：保持虚线圆圈
-    emptyTpl = tx;
-    if (ov.classList.contains('show') && LB.room && LB.view === 'room') renderRoom(); // 刚到：补刷一次
-  }).catch(() => {});
+  if (typeof fetch !== 'function') return;
+  ['m', 'f'].forEach((g) => {
+    if (emptyTpl[g]) return;
+    fetch(EMPTY_URL[g]).then((r) => (r.ok ? r.text() : Promise.reject(r.status))).then((tx) => {
+      if (tx.indexOf(EMPTY_LINE) < 0) { console.warn('[lobby] 空位头像里没找到白线色值：', EMPTY_URL[g]); return; } // 不是预期的文件：这一款保持虚线圆圈/只显示另一款
+      emptyTpl[g] = tx; refreshRoomView();
+    }).catch(() => {});
+  });
 }
 function loadHeadTpl() {
   loadEmptyTpl();
-  if (headTpl || typeof fetch !== 'function') return;
-  fetch(HEAD_URL).then((r) => (r.ok ? r.text() : Promise.reject(r.status))).then((tx) => {
-    if (tx.indexOf(HEAD_HAT[0]) < 0) return; // 不是预期的头像文件：保持圆点
-    headTpl = tx;
-    if (ov.classList.contains('show') && LB.room && LB.view === 'room') renderRoom(); // 头像刚到：补刷一次
-  }).catch(() => {});
+  if (typeof fetch !== 'function') return;
+  ['m', 'f'].forEach((g) => {
+    if (headTpl[g]) return;
+    fetch(HEAD_URL[g]).then((r) => (r.ok ? r.text() : Promise.reject(r.status))).then((tx) => {
+      if (tx.indexOf(HEAD_HAT[0]) < 0) { console.warn('[lobby] 头像里没找到帽子色值，保持圆点：', HEAD_URL[g]); return; } // 不是预期的头像文件：保持圆点
+      headTpl[g] = tx; refreshRoomView();
+    }).catch(() => {});
+  });
 }
-function headHTML(skin, px) { // 给 Multiplayer.js 的结算画面等用：和大厅同一套头像，没加载好退回小圆点；px=边长(默认 28)
-  const n = px || 28, hs = headSrc(skin);
+function headHTML(skin, px, g) { // 给 Multiplayer.js / coop.js 的结算等用：和大厅同一套头像，没加载好退回小圆点；px=边长(默认 28)；g='m'|'f'(默认男)
+  const n = px || 28, hs = headSrc(skin, g);
   return hs ? `<img class="lbHead" alt="" draggable="false" src="${hs}" style="width:${n}px;height:${n}px">` : `<i class="lbDot" style="${skinDot(skin)};width:${Math.round(n * 0.78)}px;height:${Math.round(n * 0.78)}px"></i>`;
 }
 function skinDot(skin) { const c = (typeof SKIN_COLORS !== 'undefined' && SKIN_COLORS[skin]) || ['#2ECC71', '#E74C3C']; return `--c1:${c[0]};--c2:${c[1]}`; }
@@ -362,7 +397,7 @@ function openLobby(form) {
   LB.f = { name: LB.me.name, code: '' }; closeKb();
   audioCtx();
   net = getNet();
-  if (net) { net.onRoom = onRoom; net.onClosed = onClosed; net.onStatus = onStatus; net.onLatency = onLatency; net.onLog = onLog; net.onGame = onGame; net.onReports = onReports; } // 对局内的回调(onGame/onReports 等)转给 Multiplayer.js
+  if (net) { net.onRoom = onRoom; net.onClosed = onClosed; net.onStatus = onStatus; net.onLatency = onLatency; net.onLog = onLog; net.onGame = onGame; net.onReports = onReports; net.onNotice = onNotice; } // 对局内的回调(onGame/onReports 等)转给 Multiplayer.js
   renderForm();
   if (!net) showMsg(t('lbErrNoLan')); // 一打开面板就提示，不用等点创建
   ov.classList.add('show');
@@ -495,7 +530,7 @@ function renderForm() {
 async function doGo() {
   if (LB.busy) return;
   closeKb(); LB.kb = null; commitName();
-  const meInfo = { token: LB.me.token, name: LB.me.name };
+  const meInfo = Object.assign({ token: LB.me.token, name: LB.me.name }, myLookPref());
   const join = LB.form === 'join';
   let code = '';
   if (join) {
@@ -518,7 +553,7 @@ async function doRestore() {
   if (LB.busy || !net) return;
   closeKb(); LB.kb = null; commitName();
   setBusy(true); showMsg(t('lbRestoring'), true); showDiag('');
-  try { await net.restore({ me: { token: LB.me.token, name: LB.me.name } }); } // 成功后房间状态走 onRoom 渲染
+  try { await net.restore({ me: Object.assign({ token: LB.me.token, name: LB.me.name }, myLookPref()) }); } // 成功后房间状态走 onRoom 渲染
   catch (e) {
     if (!(e && e.reason === 'cancelled')) {
       showMsg(t(ERR_KEY[e && e.reason] || 'lbErrTimeout') + (e && e.detail ? ` [${e.detail}]` : ''));
@@ -528,8 +563,17 @@ async function doRestore() {
   setBusy(false);
 }
 
+function onNotice(k) { if (k === 'lookTaken') { LB.want = null; showToast(t('lbLookTaken')); } } // 房主拒绝了我的换色(刚被别人选走)：房间状态会紧接着发回来，界面自动还原
 function onRoom(room) {
   LB.lastPhase = room.phase; LB.room = room;
+  if (LB.want) { // 我点了换色/换形象：房主确认(房间状态里已是新的)后才记成「上次偏好」，被拒的不记
+    const me = room.players.find((p) => p.pid === room.you), w = LB.want;
+    if (me && (w.skin === undefined || me.skin === w.skin) && (w.gender === undefined || me.gender === w.gender)) {
+      if (w.skin !== undefined) LB.me.skin = w.skin;
+      if (w.gender !== undefined) LB.me.gender = w.gender;
+      saveProfile(LB.me); LB.want = null;
+    }
+  }
   if (room.phase !== 'starting') LB.cd = 0;
   if (window.MP) MP.onRoom(room); // 对局的开始/收尾由它判断(可能顺手把大厅收起来)
   if (!ov.classList.contains('show')) return;
@@ -618,20 +662,31 @@ function renderRoom() {
   $('lbTitle').textContent = t('lbRoomTitle');
   $('lbSub').innerHTML = `<small>${t('lbCode')}</small><b>${esc(r.code)}</b>`;
 
+  const slots = Math.max(r.tier === 'coop' ? 2 : MAX_PLAYERS, r.players.length); // 双人合作：房间自动收成 2 个位(房主 + 1 个玩家位)
+  const eM = emptySrc('m'), eF = emptySrc('f'), emPhase = ((Date.now() % 10000) / 1000).toFixed(2); // 空位男女头像交替淡入淡出：相位取全局时钟，所有空位同步、重绘不重头来
+  const emptyHead = eM && eF
+    ? `<span class="lbHeadPair"><img class="lbHead emptyHead emA" alt="" draggable="false" src="${eM}" style="animation-delay:-${emPhase}s"><img class="lbHead emptyHead emB" alt="" draggable="false" src="${eF}" style="animation-delay:-${emPhase}s"></span>`
+    : (eM || eF) ? `<img class="lbHead emptyHead" alt="" draggable="false" src="${eM || eF}">` : `<i class="lbDot"></i>`;
   let rows = '';
-  for (let i = 0; i < MAX_PLAYERS; i++) {
+  for (let i = 0; i < slots; i++) {
     const p = r.players[i];
-    if (!p) { const es = emptySrc(); rows += `<div class="lbRow empty">` + (es ? `<img class="lbHead emptyHead" alt="" draggable="false" src="${es}">` : `<i class="lbDot"></i>`) + `<span class="lbName">${t('lbWaitSlot')}</span></div>`; continue; }
+    if (!p) { rows += `<div class="lbRow empty">${emptyHead}<span class="lbName">${t('lbWaitSlot')}</span></div>`; continue; }
     const isH = p.pid === r.hostPid;
     const tag = p.online === false ? `<span class="lbTag wait">${t('lbOffline')}</span>`
       : p.inResult ? `<span class="lbTag wait">${t('lbInResult')}</span>`
       : isH ? `<span class="lbTag host">${t('lbHost')}</span>`
       : p.ready ? `<span class="lbTag ready">${t('lbReady')}</span>` : `<span class="lbTag wait">${t('lbNotReady')}</span>`;
     const ping = isH ? '' : `<span class="lbPing off" data-pid="${esc(p.pid)}" data-on="${p.online === false ? 0 : 1}"></span>`; // 房主自己没有延迟
-    const hs = headSrc(p.skin);
+    const hs = headSrc(p.skin, p.gender);
     rows += `<div class="lbRow${p.pid === myPid ? ' me' : ''}${p.inResult ? ' inRes' : ''}">` + (hs ? `<img class="lbHead" alt="" draggable="false" src="${hs}">` : `<i class="lbDot" style="${skinDot(p.skin)}"></i>`) +
       `<span class="lbName">${esc(p.name)}${p.pid === myPid ? `<em>(${t('lbMe')})</em>` : ''}</span>${ping}${tag}</div>`;
   }
+  // 自己的外观(开局前自己选)：形象男/女 + 6 个配色点；被别人占的灰掉。倒计时中 / 已准备(玩家) / 连接异常时整排变暗
+  const lookLocked = !live || r.phase !== 'lobby' || (!isHost && !!me.ready);
+  const takenBy = (k) => r.players.some((x) => x.pid !== myPid && x.skin === k);
+  const lookRow = `<div class="lbLook${lookLocked ? ' off' : ''}"><div class="lbG">` +
+    ['m', 'f'].map((g) => `<b id="lbG_${g}" class="${me.gender === g ? 'sel' : ''}">${t('gender_' + g)}</b>`).join('') + `</div><div class="lbSw">` +
+    SKIN_KEYS.map((k) => `<b id="lbSk_${k}" class="${me.skin === k ? 'sel' : takenBy(k) ? 'taken' : ''}"><i class="lbDot" style="${skinDot(k)}"></i></b>`).join('') + `</div></div>`;
 
   let hint, action;
   if (isHost) {
@@ -650,11 +705,13 @@ function renderRoom() {
 
   $('lbBody').innerHTML =
     `<div id="lbModeRow" class="lbMode dd"><span>${t('lbMode')}</span><b id="lbDDBtn" class="on ddBtn${canTier ? ' pick' : ''}">${t(MODE_KEYS[r.tier] || 'lbMdEasy')}</b>` +
-    (canTier ? `<div class="lbDDList">${TIER_KEYS.map(([k]) => `<b id="lbTier_${k}" class="${r.tier === k ? 'sel' : ''}">${t(MODE_KEYS[k])}</b>`).join('')}</div>` : '') + `</div>` +
-    `<div id="lbList">${rows}</div><div class="lbHint">${hint}</div>` +
+    (canTier ? `<div class="lbDDList">${TIER_KEYS.map(([k]) => `<b id="lbTier_${k}" class="${r.tier === k ? 'sel' : ''}${k === 'coop' && r.players.length > 2 ? ' dis' : ''}">${t(MODE_KEYS[k])}</b>`).join('')}</div>` : '') + `</div>` +
+    `<div id="lbList">${rows}</div>${lookRow}<div class="lbHint">${hint}</div>` +
     `<div class="lbBtns">${action}<button id="lbLeave" class="lbBtn red">${t(isHost ? 'lbDisband' : 'lbLeave')}</button></div><div id="lbLog"></div>`;
 
   tap('lbReady', () => net.setReady(!me.ready));
+  ['m', 'f'].forEach((g) => tap('lbG_' + g, () => { if (lookLocked || me.gender === g) return; LB.want = Object.assign({}, LB.want, { gender: g }); net.setLook({ gender: g }); }));
+  SKIN_KEYS.forEach((k) => tap('lbSk_' + k, () => { if (lookLocked || me.skin === k) return; if (takenBy(k)) { showToast(t('lbLookTaken')); return; } LB.want = Object.assign({}, LB.want, { skin: k }); net.setLook({ skin: k }); }));
   tap('lbStart', () => { // 先倒计时，结束后 phase 变 playing，由 onRoom 统一弹提示
     const id = pickLevel(r.tier);
     if (!id) { showToast(t('lbErrNoLevels')); return; }
@@ -662,7 +719,7 @@ function renderRoom() {
   });
   if (canTier) { // 点当前选项展开/收起；选了就立刻推送给所有人(房间状态广播)，同时收起
     tap('lbDDBtn', () => $('lbModeRow').classList.toggle('open'));
-    TIER_KEYS.forEach(([k]) => tap('lbTier_' + k, () => { $('lbModeRow').classList.remove('open'); if (r.tier !== k) { net.setTier(k); LB.me.tier = k; saveProfile(LB.me); } }));
+    TIER_KEYS.forEach(([k]) => tap('lbTier_' + k, () => { $('lbModeRow').classList.remove('open'); if (r.tier !== k) { if (k === 'coop' && r.players.length > 2) { showToast(t('lbCoopMax')); return; } if (net.setTier(k) === false) { showToast(t('lbCoopMax')); return; } LB.me.tier = k; saveProfile(LB.me); } }));
   }
   tap('lbCancelStart', () => net.cancelStart());
   tap('lbEnd', () => net.endGame());
