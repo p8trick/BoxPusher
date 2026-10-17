@@ -39,15 +39,22 @@ function playerAt(G, r, c, except) { for (let i = 0; i < 2; i++) if (i !== excep
 function isWall(G, r, c) { return r < 0 || c < 0 || r >= G.h || c >= G.w || G.walls.has(key(r, c)); }
 
 /* 走一步。dry=true 只试探不改状态。
-   规则：不穿墙；人不穿人；推箱的方向上有墙/箱子/人就推不动。
-   成功：{ok:true, to:[r,c], push:被推箱子的id或-1, bto:箱子新坐标或null}；失败：{ok:false, why:'wall'|'player'|'box'|'boxplayer'|'bad'}
+   规则：不穿墙；推箱的方向上有墙/箱子/人就推不动；可以把对方角色推开一格(v1.37)：对方身后那一格是空地才推得动(对方前进一格、我补到他原来的格子)，身后是墙/箱子就推不动(why='player')，不会连环推也不会顺带推箱子。
+   「两人同时朝对方按、互相推」由 coop.js 的房主在时间窗内判定，不在这里(这里一次只算一个人的一步)。
+   成功：{ok:true, to:[r,c], push:被推箱子的id或-1, bto:箱子新坐标或null, pp:被推角色的下标或-1, pto:被推角色新坐标或null}；失败：{ok:false, why:'wall'|'player'|'box'|'boxplayer'|'bad'}
    非 dry 时：更新位置/朝向，moves 和 v(同步序号)各 +1 */
 function step(G, pi, d, dry) {
   const dv = DIRS[d];
   if (!dv || (pi !== 0 && pi !== 1)) return { ok: false, why: 'bad' };
   const nr = G.p[pi][0] + dv[0], nc = G.p[pi][1] + dv[1];
   if (isWall(G, nr, nc)) return { ok: false, why: 'wall' };
-  if (playerAt(G, nr, nc, pi) >= 0) return { ok: false, why: 'player' };
+  const o = playerAt(G, nr, nc, pi); // 前面是对方角色：身后空着就把他推开一格
+  let pto = null;
+  if (o >= 0) {
+    const pr = nr + dv[0], pc = nc + dv[1];
+    if (isWall(G, pr, pc) || boxAt(G, pr, pc) >= 0) return { ok: false, why: 'player' };
+    pto = [pr, pc];
+  }
   const b = boxAt(G, nr, nc);
   let bto = null;
   if (b >= 0) {
@@ -58,9 +65,10 @@ function step(G, pi, d, dry) {
   }
   if (!dry) {
     if (b >= 0) G.boxes[b] = bto;
+    if (o >= 0) G.p[o] = pto;
     G.p[pi] = [nr, nc]; G.d[pi] = d; G.moves++; G.v++;
   }
-  return { ok: true, to: [nr, nc], push: b, bto };
+  return { ok: true, to: [nr, nc], push: b, bto, pp: o, pto };
 }
 
 /* 转身(没走成：撞墙/推不动/被人挡)：只改朝向，序号 +1(朝向是快照的一部分，每次可见的变化都占一个序号)，步数不加 */
