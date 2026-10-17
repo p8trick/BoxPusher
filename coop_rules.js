@@ -13,6 +13,7 @@
 'use strict';
 
 const DIRS = { U: [-1, 0], D: [1, 0], L: [0, -1], R: [0, 1] };
+const OPP = { U: 'D', D: 'U', L: 'R', R: 'L' };
 const key = (r, c) => r + ',' + c;
 
 /* 解析 XSB → 状态。不合法(缺 1 号/2 号/目标)返回 null */
@@ -39,8 +40,8 @@ function playerAt(G, r, c, except) { for (let i = 0; i < 2; i++) if (i !== excep
 function isWall(G, r, c) { return r < 0 || c < 0 || r >= G.h || c >= G.w || G.walls.has(key(r, c)); }
 
 /* 走一步。dry=true 只试探不改状态。
-   规则：不穿墙；推箱的方向上有墙/箱子/人就推不动；可以把对方角色推开一格(v1.37)：对方身后那一格是空地才推得动(对方前进一格、我补到他原来的格子)，身后是墙/箱子就推不动(why='player')，不会连环推也不会顺带推箱子。
-   「两人同时朝对方按、互相推」由 coop.js 的房主在时间窗内判定，不在这里(这里一次只算一个人的一步)。
+   规则：不穿墙；推箱的方向上有墙/箱子/人就推不动；可以把对方角色推开一格：①对方正面面对我(他的朝向 G.d 正对着我)=顶住，推不动；②对方没正面对着我(背对/侧对)才推得动，而且他身后那一格必须是空地(对方前进一格、我补到他原来的格子)；身后是墙/箱子也推不动；不会连环推也不会顺带推箱子；推不动的 why 都是 'player'。
+   被推的人转身面对我的操作(按朝我的方向，被挡后转身)能立刻让他进入「顶住」，但「被推的这一步滑动时间内转身不起作用」(惯性)是房主 coop.js 的时序规则，不在这里(这里只看当前朝向)。
    成功：{ok:true, to:[r,c], push:被推箱子的id或-1, bto:箱子新坐标或null, pp:被推角色的下标或-1, pto:被推角色新坐标或null}；失败：{ok:false, why:'wall'|'player'|'box'|'boxplayer'|'bad'}
    非 dry 时：更新位置/朝向，moves 和 v(同步序号)各 +1 */
 function step(G, pi, d, dry) {
@@ -51,6 +52,7 @@ function step(G, pi, d, dry) {
   const o = playerAt(G, nr, nc, pi); // 前面是对方角色：身后空着就把他推开一格
   let pto = null;
   if (o >= 0) {
+    if (G.d[o] === OPP[d]) return { ok: false, why: 'player' }; // 对方正面面对我：顶住
     const pr = nr + dv[0], pc = nc + dv[1];
     if (isWall(G, pr, pc) || boxAt(G, pr, pc) >= 0) return { ok: false, why: 'player' };
     pto = [pr, pc];
