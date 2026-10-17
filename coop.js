@@ -7,7 +7,7 @@
    玩家按键 → 本机先用副本试探(撞墙/推不动/被人挡：当场弹开，不发)；能走就发 ci{d,s} 给房主(房主自己直接判定)。
    房主 step() 判定：成功 → v+1 → 广播 cm{i,d,v,to,b,bt,s}(谁、往哪、第几步、结果位置、被推箱子 id/新位置)，各端用同一套规则推演并播动画(房主本机经回环走同一条视觉路径)；
    没走成(撞墙/推不动/被人挡，包括两人同一瞬间抢同一格后到的那个)→ 房主只改这个人的朝向，序号 +1，广播 cf{i,d,v,w,s}：所有人都看到他转身并撞一下(失误也看得见)；本人自己的屏幕不等网络，按键当场就转身撞一下，收到自己的 cf 时不重复播。
-   互推(v1.37)：走向对方角色=把他推开一格(身后空地才行，规则在 coop_rules.js 的 step，cm 里多带 pp/pt=被推的人和他的新格子)；房主收到「会推到人」的意图时先等 PUSH_WAIT_MS，期间对方若正好也朝这边推过来，两人都推不动(各自 cf，w='player'，并带 n=1 让房主自己也补播回弹)，否则照常执行。
+   互推(v1.37/1.38)：走向对方角色=把他推开一格，规则在 coop_rules.js 的 step：对方正面面对我就顶住(推不动)，没正面对着我才推得动(身后空地)；cm 里多带 pp/pt=被推的人和他的新格子。惯性(纯画面)：被推的人在这一步滑动期间按方向转身面对推他的人，所有人屏幕上都立刻看到他转身(不延迟)，但这次转身不弹(cf 带 q=1：只转身，不顶一下也不放撞击音)，推人的人照常把这一步推完，被推的人面对着对方倒退滑到位停下；滑完之后双方面对面，谁再推就按「正面面对=顶住」回弹。房主用 C.inertia 判定「是不是被推的那一步滑动期间的转身」，被推的人本机用 C.pushed 同样预判(不用等房主回执)。
    每 SNAP_MS 房主广播一次整盘快照 cs{v,n,p,b}；玩家端：序号落后/同号但状态不同=跑偏 → 对齐(只让「对不上」的角色/箱子淡出再在正确位置淡入，没变的不动)。
    cm 自带校验：跳号/推演结果和房主给的不一致 → 当场 cq 请求快照，不等下一个周期。常态下快照触发次数应当是 0，不是 0 就是规则/消息处理有 bug，要修源头。
    重连/解除暂停：房主立刻补发快照。房主每步把整盘状态存本机(被杀后从「恢复游戏」回到同一局)；玩家不用存，回来要一份快照即可。
@@ -26,7 +26,6 @@ const net = () => window.LAN_NET || null;
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 const TRANSPOSE = 'off';     // 竖屏设备是否把地图行列互换后显示：'auto'=竖屏转置(手机上格子更大，但和横屏设备上的样子不一样)；'off'=永远不转置(两台设备画面方向一致，宽地图在手机上格子会小)
-const PUSH_WAIT_MS = 150;      // 房主收到「会推到人」的意图时，等这么久看对方是不是正好也朝这边推(互推)
 const SNAP_MS = 2000;          // 房主广播整盘快照的间隔(只是兜底；正常情况下对不上的次数应当是 0)
 const END_MS = 900;            // 最后一步落位后停一下，再弹通关卡片
 const FADE_MS = 200;           // 对齐时「对不上」的角色/箱子淡出淡入各用多久
@@ -177,7 +176,7 @@ function start(room) {
     tr: TRANSPOSE === 'auto' && !isWideLayout(), // 竖屏设备转置显示(开局时定，对局中不跟着转)
     seg: 1000 + (++coNo) * 5, t0: Date.now(), timer: null, endTimer: null, fresh: false,
     paused: false, pauseNames: [], netBad: false, netFailed: false, done: false, ending: false, res: null,
-    hostPaused: false, pauseAt: 0, pausedMs: 0, winSent: false, lastSnap: 0, lastAsk: 0, seq: 0, pend: {}, bumped: {}, pushWait: null,
+    hostPaused: false, pauseAt: 0, pausedMs: 0, winSent: false, lastSnap: 0, lastAsk: 0, seq: 0, pend: {}, bumped: {}, inertia: null, pushed: null,
     boxEl: [], boxKey: [], pg: { dir: 'down', side: 'B', neutral: true, t1: 0, t2: 0 }, pshown: null,
     stat: { cm: 0, bump: 0, drift: 0, gap: 0, rtt: -1, last: '' } };
   if (C.isHost) { // 房主被杀后恢复：回到上次存的整盘状态(玩家端不用存，回来要一份快照就行)
@@ -201,7 +200,7 @@ function start(room) {
   C.timer = setInterval(tick, 1000);
   if (C.isHost) { saveSnap(); hostRoomChanged(); } else askSnap('start', true);
 }
-function stopTimers() { if (C) { if (C.pushWait) { clearTimeout(C.pushWait.t); C.pushWait = null; } clearInterval(C.timer); C.timer = null; clearTimeout(C.endTimer); C.endTimer = null; clearTimeout(C.pg.t1); clearTimeout(C.pg.t2); } }
+function stopTimers() { if (C) { clearInertia(); clearInterval(C.timer); C.timer = null; clearTimeout(C.endTimer); C.endTimer = null; clearTimeout(C.pg.t1); clearTimeout(C.pg.t2); } }
 function end() { // 收起合作画面，把主页放回来，单机恢复到进入前的关卡
   if (window.SFX && SFX.bgmMatch) SFX.bgmMatch(false);
   stopTimers(); clearSnap();
@@ -272,6 +271,15 @@ function ownBump(d, w) { // 本机角色转身撞一下，并且和同伴那边�
   const tile = tileSize();
   nudge($('playerEl'), state.dir, state.player.c * tile, state.player.r * tile);
 }
+function ownTurn(d) { // 本机角色只转身(被推滑动中面朝推我的人)：没有撞一下，也没有撞击音，滑动照常继续
+  state.dir = vword(d);
+  renderDynamic(); scheduleIdle();
+}
+function partnerTurn(d) { // 同伴只转身(同上)，不顶一下
+  const g = C.pg;
+  clearTimeout(g.t1); clearTimeout(g.t2);
+  g.dir = vword(d); g.neutral = true; paintPartner();
+}
 function partnerBump(d) { // 同伴转身面朝撞到的东西，身体朝那边顶一下再回来(纯画面；不发 bump 事件，免得被当成我自己的撞墙计数)
   const vd = vword(d), g = C.pg, el = $('partnerEl');
   clearTimeout(g.t1); clearTimeout(g.t2);
@@ -291,8 +299,14 @@ function onCf(d) { // 房主确认：某人这一步没走成，转身面向 d.d
     R.face(G, i, d.d);
   }
   C.stat.bump++;
+  if (d.q) { // 滑动中的转身：只转身，不弹
+    if (i !== C.myIdx) { partnerTurn(d.d); return; }
+    if (C.isHost) return;                                         // 房主自己的：按键时已经转过了
+    if (d.s && C.bumped[d.s]) { delete C.bumped[d.s]; return; }   // 玩家自己的：本机预判时已经转过了
+    ownTurn(d.d); return;
+  }
   if (i === C.myIdx) {
-    if (C.isHost) { if (d.n) ownBump(d.d, d.w); return; }          // 房主自己的：按键时已经播过；n=1 是互推(按键时还不知道会失败)，现在补播
+    if (C.isHost) return;                                         // 房主自己的：按键时已经播过
     if (d.s && C.bumped[d.s]) { delete C.bumped[d.s]; return; }   // 玩家自己的：本机预判撞墙时已经播过
     ownBump(d.d, d.w); return;                                    // 本机副本没预判到(比如刚好被同伴抢了格子)：房主说撞了，现在补播
   }
@@ -313,30 +327,16 @@ function onCz(d) { // 暂停/恢复(房主：有人掉线)
 /* ---------- 同步：房主侧 ---------- */
 function bcast(d) { const n = net(); if (n) n.bcastGame(d); }
 function sendSnap() { if (!C || !C.isHost) return; C.lastSnap = Date.now(); bcast(Object.assign({ k: 'cs' }, R.snapshot(C.G))); }
-function flushPushWait() { // 等待窗口到了/被别的意图打断：把等着的那个推人意图照常执行
-  const w = C && C.pushWait; if (!w) return;
-  clearTimeout(w.t); C.pushWait = null;
-  hostStep(w.pi, w.d, w.s);
+function stepMs() { return Math.max(50, Math.round(settings.walkMs * (window.EV ? EV.durMul() : 1))); } // 一步(走路)的时长，和核心 setMoveDur 同一算法
+function clearInertia() { if (C) { C.inertia = null; C.pushed = null; } }
+function inertiaDir(w, pi, d) { // 惯性窗口 w 里，pi 的方向 d 是不是「朝着推他的人」(转身顶住)
+  if (!w || (w.pp !== undefined && w.pp !== pi) || Date.now() >= w.until) return false;
+  const a = R.DIRS[d], b = R.DIRS[w.d]; return a[0] + b[0] === 0 && a[1] + b[1] === 0;
 }
-function hostIntent(pi, d, s) { // 房主裁判入口(房主本机和玩家的 ci 都先到这里)：会推到对方角色的意图先等一个窗口，看对方是不是正好也推过来
-  if (!C || !C.isHost || C.done || C.ending || C.hostPaused) return;
-  const w = C.pushWait, r = R.step(C.G, pi, d, true);
-  if (w && w.pi !== pi && r.ok && r.pp === w.pi) {
-    const rw = R.step(C.G, w.pi, w.d, true);
-    if (rw.ok && rw.pp === pi) { // 互推：两人同时朝对方按 → 都推不动，各自回弹
-      clearTimeout(w.t); C.pushWait = null;
-      hostFace(w.pi, w.d, 'player', w.s, true); hostFace(pi, d, 'player', s, true);
-      return;
-    }
-  }
-  if (w) flushPushWait();
-  const r2 = w ? R.step(C.G, pi, d, true) : r; // 先执行了等着的那一步，局面可能变了，重新判
-  if (r2.ok && r2.pp >= 0) { // 会把对方推开：等一个窗口
-    C.pushWait = { pi, d, s, t: setTimeout(flushPushWait, PUSH_WAIT_MS) };
-    if (pi === C.myIdx) lockMovement(); // 房主自己的：这段时间也锁住，节奏和等回执一致
-    return;
-  }
-  hostStep(pi, d, s);
+function pushedInertia(pi, d) { return !!C && inertiaDir(C.inertia, pi, d); } // 房主：pi 刚被推开、这一步还在滑，d 是朝着推他的人
+function pushedNow(d) { // 本机：我刚被同伴推开、这一步还在滑，d 是朝着推我的人(用 performance.now，和 partnerMove 里记的一致)
+  const p = C && C.pushed; if (!p || performance.now() >= p.until) return false;
+  const a = R.DIRS[d], b = R.DIRS[p.d]; return a[0] + b[0] === 0 && a[1] + b[1] === 0;
 }
 function hostStep(pi, d, s) { // 房主裁判：所有人(含自己)的移动意图都走这里
   if (!C || !C.isHost || C.done || C.ending || C.hostPaused) return;
@@ -344,18 +344,18 @@ function hostStep(pi, d, s) { // 房主裁判：所有人(含自己)的移动意
   if (!r.ok) { if (r.why !== 'bad') hostFace(pi, d, r.why, s); return; } // 没走成：转身撞一下，大家都看得见
   const m = { k: 'cm', i: pi, d, v: C.G.v, to: r.to, b: r.push };
   if (r.push >= 0) m.bt = r.bto; // P5：消息里不放 undefined
-  if (r.pp >= 0) { m.pp = r.pp; m.pt = r.pto; } // 推到了对方角色
+  if (r.pp >= 0) { m.pp = r.pp; m.pt = r.pto; C.inertia = { pp: r.pp, d, until: Date.now() + stepMs() }; } // 推到了对方角色：被推的人这一步滑动期间有惯性
   if (s) m.s = s;
   saveSnap();
   bcast(m); // 本机经 onGame 回环，和玩家走同一条视觉路径
   if (R.solved(C.G)) hostWin();
 }
-function hostFace(pi, d, why, s, late) { // 某人这一步没走成：房主改他的朝向(序号 +1)并广播 cf
+function hostFace(pi, d, why, s) { // 某人这一步没走成：房主改他的朝向(序号 +1)并广播 cf
   if (!C || !C.isHost || C.done || C.ending || C.hostPaused) return;
   if (!R.face(C.G, pi, d)) return;
   const m = { k: 'cf', i: pi, d, v: C.G.v, w: why };
   if (s) m.s = s;
-  if (late) m.n = 1; // 互推：房主自己的那一份按键时没有预判到，要补播回弹
+  if (pushedInertia(pi, d)) m.q = 1; // 被推的那一步滑动期间转身面对推他的人：只转身，不回弹(大家同步看到)
   saveSnap();
   bcast(m); // 房主本机经回环 onCf：自己的不重播、玩家的在房主屏幕上播
 }
@@ -399,11 +399,11 @@ function intent(dr, dc, vdir) {
   const d = R.fromView(vdir, C.tr), i = C.myIdx;
   const chk = R.step(C.G, i, d, true); // 用本机副本先试探：撞墙/推不动/被人挡，当场转身撞一下(和单机一样，不等网络)
   if (!chk.ok) {
-    ownBump(d, chk.why);
+    if (pushedNow(d)) ownTurn(d); else ownBump(d, chk.why); // 被推滑动中转身面对推我的人：只转身不弹
     if (C.isHost) hostFace(i, d, chk.why, 0); else sendIntent(d, true); // 同时告诉房主，让同伴也看到这个失误
     return;
   }
-  if (C.isHost) { hostIntent(i, d, 0); return; }
+  if (C.isHost) { hostStep(i, d, 0); return; }
   if (!sendIntent(d, false)) return;
   lockMovement(); // 等房主回执的这段时间也锁住，节奏和单机一样(连走/排队照常)；回执到了会按真正的步时长重新上锁
 }
@@ -452,7 +452,7 @@ function partnerMove(d, res) { // 同伴角色：位置由 afterRender 按 G 摆
   g.t2 = setTimeout(() => { g.neutral = true; paintPartner(); }, MOVE_DUR + IDLE_GRACE);
   let mv = null;
   if (push) mv = moveBox(res.push, res.bto);
-  if (res.pp === C.myIdx) { const pt = vk(res.pto); state.player = { r: pt[0], c: pt[1] }; } // 我被同伴推开了一格：我的角色跟着滑过去
+  if (res.pp === C.myIdx) { const pt = vk(res.pto); state.player = { r: pt[0], c: pt[1] }; C.pushed = { d, until: performance.now() + MOVE_DUR }; } // 我被同伴推开了一格：我的角色跟着滑过去；记下这一步的滑动期(这期间我转身面对他不弹)
   renderDynamic(); // 末尾的 afterRender 会把同伴摆到新格子(CSS 过渡滑过去)
   if (push) {
     C.boxEl[res.push] = state.boxEls[mv.tk] || mv.el;
@@ -566,7 +566,7 @@ function onGame(d, fromPid) { // 返回 true=这条消息是合作的(已处理�
   const fromHost = fromPid === C.hostPid;
   if (k === 'ci') {
     const pi = C.order.indexOf(fromPid);
-    if (C.isHost && !fromHost && pi === 1 && typeof d.d === 'string' && d.d.length === 1 && 'UDLR'.includes(d.d)) hostIntent(pi, d.d, d.s | 0);
+    if (C.isHost && !fromHost && pi === 1 && typeof d.d === 'string' && d.d.length === 1 && 'UDLR'.includes(d.d)) hostStep(pi, d.d, d.s | 0);
   } else if (k === 'cq') { if (C.isHost && !fromHost) sendSnap(); }
   else if (!fromHost) return true; // 下面这些只认房主
   else if (k === 'cm') onCm(d);
@@ -598,7 +598,7 @@ function restart() { // 暂停菜单「重来」：只有房主能点，全体�
   if (blocked()) return;
   const G = R.fromXsb(C.lv.xsb);
   if (!G) return;
-  if (C.pushWait) { clearTimeout(C.pushWait.t); C.pushWait = null; } // 重开时等着的推人意图作废
+  clearInertia(); // 重开时惯性/等着的转身作废
   G.v = C.G.v + 1; C.G = G; C.winSent = false; // v 只增不减：重开后的快照/事件序号仍然比重开前的大
   saveSnap();
   bcast({ k: 'cr', v: G.v }); // 本机经回环 onCr → resetView(loadMpLevel 里的 resetPauseUI 会收起暂停菜单)，和玩家同一条路
