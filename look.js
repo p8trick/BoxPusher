@@ -5,7 +5,7 @@
 
    依赖主文件里的这些名字(都在调用时才用；改名/删除前先看这里)：
      base.js ：settings  saveSettings  applySettings  t  I18N  bindTap  bindBackdropClose
-               spriteURL  skinKey  SPRITE_EXT  FLOOR_KEYS  WALL_KEYS  CRATE_KEYS  HALO_KEYS  SKIN_KEYS
+               spriteURL  skinKey  SPRITE_EXT  FLOOR_KEYS  WALL_KEYS  CRATE_KEYS  HALO_KEYS  SKIN_KEYS  GENDER_KEYS  playerFramePath
      ui.js   ：closeSettings
      style.css：.cell / .box / .box.done / .player / .sprite / .pillBtn / .settingsSection / .settingsLabel / .swatchRow
                 及主题变量 --panel --panel-border --ink --sub --accent --frame-bg --frame-border
@@ -18,7 +18,7 @@
 
   /* ---------- 依赖自检 ---------- */
   const NEED = ['settings', 'saveSettings', 'applySettings', 't', 'I18N', 'bindTap', 'bindBackdropClose',
-    'spriteURL', 'skinKey', 'SPRITE_EXT', 'THEME_KEYS', 'FLOOR_KEYS', 'WALL_KEYS', 'CRATE_KEYS', 'HALO_KEYS', 'SKIN_KEYS', 'closeSettings'];
+    'spriteURL', 'skinKey', 'SPRITE_EXT', 'THEME_KEYS', 'FLOOR_KEYS', 'WALL_KEYS', 'CRATE_KEYS', 'HALO_KEYS', 'SKIN_KEYS', 'GENDER_KEYS', 'playerFramePath', 'closeSettings'];
   const missing = NEED.filter(n => { try { return new Function('return typeof ' + n)() === 'undefined'; } catch (e) { return true; } });
   const anchorRow = document.getElementById('langRow');
   if (missing.length || !anchorRow) {
@@ -30,18 +30,19 @@
   Object.assign(I18N.zh, {
     lookEntry: '游戏外观', lookOpen: '自定义', lookTitle: '游戏外观',
     lookBackMenu: '返回菜单', lookBackGame: '返回游戏',
-    lookRow_player: '角色', lookRow_floor: '地板', lookRow_halo: '目标点光圈', lookRow_wall: '墙壁', lookRow_crate: '箱子', lookRow_theme: '界面主题',
+    lookRow_gender: '形象', lookRow_player: '角色配色', lookRow_floor: '地板', lookRow_halo: '目标点光圈', lookRow_wall: '墙壁', lookRow_crate: '箱子', lookRow_theme: '界面主题',
     lookSkinLocked: '联机对局中，角色配色由房间分配'
   });
   Object.assign(I18N.en, {
     lookEntry: 'Game look', lookOpen: 'Customize', lookTitle: 'Game look',
     lookBackMenu: 'Back to menu', lookBackGame: 'Back to game',
-    lookRow_player: 'Outfit', lookRow_floor: 'Floor', lookRow_halo: 'Target ring', lookRow_wall: 'Walls', lookRow_crate: 'Crates', lookRow_theme: 'Theme',
+    lookRow_gender: 'Character', lookRow_player: 'Outfit', lookRow_floor: 'Floor', lookRow_halo: 'Target ring', lookRow_wall: 'Walls', lookRow_crate: 'Crates', lookRow_theme: 'Theme',
     lookSkinLocked: 'Outfit is assigned by the room during a match'
   });
 
   /* ---------- 选项行：顺序 = 面板里从上到下；key 对应 settings 里的字段 ---------- */
   const ROWS = [
+    { key: 'gender', keys: () => GENDER_KEYS, label: k => t('gender_' + k) },
     { key: 'player', keys: () => SKIN_KEYS,  label: k => t('skin_' + k) },
     { key: 'floor',  keys: () => FLOOR_KEYS, label: k => t(k) },
     { key: 'halo',   keys: () => HALO_KEYS,  label: k => t('halo_' + k) },
@@ -126,7 +127,7 @@
 
   function renderPreview() {
     boardEl.innerHTML = '';
-    const playerImg = spriteURL(skinKey(`assets/Player/Down2.${SPRITE_EXT}`, shownSkin())); // Down2 = 站立正面帧，每套皮肤启动时都已备好
+    const playerImg = spriteURL(skinKey(playerFramePath('Down2', settings.gender), shownSkin())); // Down2 = 站立正面帧，男/女×每套皮肤启动时都已备好
     MAP.forEach(line => [...line].forEach(ch => {
       const cell = document.createElement('div');
       cell.className = 'cell ' + (ch === '#' ? 'wall' : (ch === 'T' || ch === 'D') ? 'target' : 'floor');
