@@ -20,7 +20,8 @@ const SPRITE_PX = 192;            // 栅格化边长(px)，约 3×，iPhone 3× 
 const _spriteCache = {};          // 原路径 -> blob URL
 const _spriteJobs = {};           // 缓存键 -> Promise，同一张只做一次
 let _activeSkin = null;           // 人物当前实际显示的皮肤(选新皮肤时等它 12 帧都备好才切，避免走一半闪)
-const _skinReady = {};            // 皮肤名 -> Promise(12 帧栅格化+解码完)
+let _activeGender = null;         // 人物当前实际显示的形象('m' 男 / 'f' 女)，切换规则同上
+const _skinReady = {};            // '形象:皮肤名' -> Promise(12 帧栅格化+解码完)
 function spriteURL(path) { return _spriteCache[path] || path.replace(/#.*$/, '').replace(/\.svg$/, '.png'); } // 兜底=旧 png(变体退回原版)；png 已删就是空白，方便一眼看出哪张没渲染成功
 
 /* 目标点光圈样式：classic = Kenney 原版(地板自带光圈)；white = 同一张 svg 里外围那道细括号改成半透明白色(HALO_WHITE_ALPHA)，比经典明显、又不至于抢箱子的注意力。
@@ -32,8 +33,8 @@ const HALO_WHITE_ALPHA = 0.6; // white 版外围括号的白色不透明度：0=
 
 /* 人物配色：hex→hex 换色。原版 svg 里 帽子+上衣 = 绿三档，背带裤 = 红两档；肤色/描边/鞋/帽徽不动。
    SKIN_COLORS = [帽子+上衣, 背带裤]；深浅档按原版比例压暗。缓存键 = 原路径 + '#皮肤名'(原版不带后缀) */
-const SKIN_KEYS = ['classic', 'blue', 'purple', 'gold'];
-const SKIN_COLORS = { blue: ['#3498DB', '#F1C40F'], purple: ['#9B59B6', '#E67E22'], gold: ['#F4C724', '#2F4A9A'] };
+const SKIN_KEYS = ['classic', 'blue', 'purple', 'gold', 'red', 'white'];
+const SKIN_COLORS = { blue: ['#3498DB', '#F1C40F'], purple: ['#9B59B6', '#E67E22'], gold: ['#F4C724', '#2F4A9A'], red: ['#E5484D', '#F3EBDD'], white: ['#F2F2F2', '#16A394'] };
 function shadeHex(hex, k) {
   const n = [1, 3, 5].map(i => Math.round(parseInt(hex.slice(i, i + 2), 16) * k));
   return '#' + n.map(v => v.toString(16).padStart(2, '0')).join('').toUpperCase();
@@ -47,8 +48,10 @@ function skinMap(skin) {
   return poison ? { ...m, ...POISON_SKIN } : m;
 }
 function skinKey(path, skin) { return skin === 'classic' ? path : `${path}#${skin}`; }
-function loadSkin(skin) { // 该皮肤 12 帧的栅格化+解码，每个皮肤只做一次
-  return _skinReady[skin] || (_skinReady[skin] = Promise.all(Object.values(PLAYER_FRAMES).map(p =>
+function loadSkin(skin, g) { // 该形象(男/女)+皮肤的 12 帧栅格化+解码，每种组合只做一次；g 不给=当前形象
+  g = g || effectiveGender();
+  const k = g + ':' + skin;
+  return _skinReady[k] || (_skinReady[k] = Promise.all(Object.values(framesOf(g)).map(p =>
     rasterizeSprite(skinKey(p, skin), p, skin === 'classic' ? null : skinMap(skin)))));
 }
 /* 联机对局里的角色配色由房主分配(房主永远经典、玩家随机且不重色)，只在内存里覆盖，不写进设置；对局结束/离开房间就还原。
@@ -57,12 +60,13 @@ let _skinOverride = null;
 function effectiveSkin() { return _skinOverride || settings.player; }
 function skinLocked() { return _skinOverride !== null; }
 function setSkinOverride(k) { _skinOverride = (k && SKIN_KEYS.includes(k)) ? k : null; ensureSkin(effectiveSkin()); }
-function ensureSkin(skin) { // 设置里一选中就立刻在后台备货；12 帧都好了才真正切换，切之前人物继续用旧皮肤，不会闪
-  if (SPRITE_EXT !== 'svg' || skin === _activeSkin) return;
-  if (_activeSkin === null) _activeSkin = skin; // 冷启动：先按设置里的，帧备好后再刷新一次
-  loadSkin(skin).then(() => {
-    if (effectiveSkin() !== skin) return; // 备货期间又换了别的皮肤
-    _activeSkin = skin;
+function ensureSkin(skin, g) { // 设置里一选中就立刻在后台备货；12 帧都好了才真正切换，切之前人物继续用旧形象/皮肤，不会闪
+  g = g || effectiveGender();
+  if (SPRITE_EXT !== 'svg' || (skin === _activeSkin && g === _activeGender)) return;
+  if (_activeSkin === null) { _activeSkin = skin; _activeGender = g; } // 冷启动：先按设置里的，帧备好后再刷新一次
+  loadSkin(skin, g).then(() => {
+    if (effectiveSkin() !== skin || effectiveGender() !== g) return; // 备货期间又换了别的
+    _activeSkin = skin; _activeGender = g;
     refreshPlayerSprite();
   });
 }
@@ -74,22 +78,31 @@ function targetPath(floor, halo) {
 
 /* ---------- 素材帧表：行走与推箱共用同一套12帧，不再区分动作 ---------- */
 const PLAYER_FRAMES = {};
-['Down', 'Up', 'Left', 'Right'].forEach(d => [1, 2, 3].forEach(i => { PLAYER_FRAMES[d + i] = `assets/Player/${d}${i}.${SPRITE_EXT}`; }));
+const PLAYER_FRAMES_F = {};   // 女版：assets/PlayerF/，文件名与男版一致
+['Down', 'Up', 'Left', 'Right'].forEach(d => [1, 2, 3].forEach(i => {
+  PLAYER_FRAMES[d + i] = `assets/Player/${d}${i}.${SPRITE_EXT}`;
+  PLAYER_FRAMES_F[d + i] = `assets/PlayerF/${d}${i}.${SPRITE_EXT}`;
+}));
+/* 形象(男/女)：设置里 settings.gender；effectiveGender() 以后大厅/联机要覆盖形象时在这里加(和 effectiveSkin 同理) */
+const GENDER_KEYS = ['m', 'f'];
+function effectiveGender() { return GENDER_KEYS.includes(settings.gender) ? settings.gender : 'm'; }
+function framesOf(g) { return g === 'f' ? PLAYER_FRAMES_F : PLAYER_FRAMES; }
+function playerFramePath(key, g) { return framesOf(g || effectiveGender())[key]; } // 如 playerFramePath('Down2','f')
 /* 联机随机事件·中毒：人物肤色变黄绿。变体 12 帧备好后才切(没备好就保持原样，不闪不退回旧 png)；events.js 在中毒开始/结束时调 setPoisonSkin。 */
 let _poisoned = false, _poisonWant = false;
 function setPoisonSkin(on) {
   _poisonWant = !!on;
   if (SPRITE_EXT !== 'svg') return;
   if (!_poisonWant) { if (_poisoned) { _poisoned = false; refreshPlayerSprite(); } return; }
-  const skin = effectiveSkin();
-  loadSkin(skin + '+poison').then(() => { if (_poisonWant && effectiveSkin() === skin) { _poisoned = true; refreshPlayerSprite(); } });
+  const skin = effectiveSkin(), g = effectiveGender();
+  loadSkin(skin + '+poison', g).then(() => { if (_poisonWant && effectiveSkin() === skin && effectiveGender() === g) { _poisoned = true; refreshPlayerSprite(); } });
 }
 function preloadPoisonSkin() { if (SPRITE_EXT === 'svg') loadSkin(effectiveSkin() + '+poison'); } // 进对局时先备好，第一次中毒就不用等
 function frameURL(key) {
   if (SPRITE_EXT !== 'svg') return spriteURL(PLAYER_FRAMES[key]);
-  const sk = _activeSkin || settings.player;
-  if (_poisoned) { const pk = skinKey(PLAYER_FRAMES[key], sk + '+poison'); if (_spriteCache[pk]) return _spriteCache[pk]; } // 变体没备好(比如中毒中途换了皮肤)：用原皮肤
-  return spriteURL(skinKey(PLAYER_FRAMES[key], sk));
+  const sk = _activeSkin || settings.player, fr = framesOf(_activeGender || effectiveGender());
+  if (_poisoned) { const pk = skinKey(fr[key], sk + '+poison'); if (_spriteCache[pk]) return _spriteCache[pk]; } // 变体没备好(比如中毒中途换了皮肤)：用原皮肤
+  return spriteURL(skinKey(fr[key], sk));
 }
 function refreshPlayerSprite() { // 换皮肤/栅格化完成后刷新人物当前帧；核心还没起来(state 不存在)就跳过
   try {
@@ -132,7 +145,8 @@ const I18N = {
     theme_green: '森林绿', theme_dark: '酷黑', theme_blue: '海蓝',
     floor: '地板颜色（目标点光圈随地板配套）', wall: '墙壁样式', crate: '箱子颜色',
     halo: '目标点光圈', halo_classic: '经典', halo_white: '浅白边',
-    player: '角色配色', skin_classic: '原版', skin_blue: '蓝帽黄裤', skin_purple: '紫帽橙裤', skin_gold: '黄帽蓝裤',
+    player: '角色配色', skin_classic: '原版', skin_blue: '蓝帽黄裤', skin_purple: '紫帽橙裤', skin_gold: '黄帽蓝裤', skin_red: '红帽米裤', skin_white: '白帽青裤',
+    gender: '形象', gender_m: '男生', gender_f: '女生',
     grey: '灰', brown: '棕', green: '绿', red: '红', blue: '蓝',
     wall_grey: '灰砖', wall_brown: '棕砖', wall_red1: '红砖A', wall_red2: '红砖B',
     dpadStyle: 'D-pad 样式', dpad_cross: '十字连体', dpad_split: '分离按键',
@@ -158,7 +172,8 @@ const I18N = {
     theme_green: 'Forest', theme_dark: 'Dark', theme_blue: 'Ocean',
     floor: 'Floor colour (targets match the floor)', wall: 'Wall style', crate: 'Crate colour',
     halo: 'Target ring', halo_classic: 'Classic', halo_white: 'Soft white',
-    player: 'Outfit', skin_classic: 'Classic', skin_blue: 'Blue', skin_purple: 'Purple', skin_gold: 'Gold',
+    player: 'Outfit', skin_classic: 'Classic', skin_blue: 'Blue', skin_purple: 'Purple', skin_gold: 'Gold', skin_red: 'Red', skin_white: 'White',
+    gender: 'Character', gender_m: 'Boy', gender_f: 'Girl',
     grey: 'Grey', brown: 'Brown', green: 'Green', red: 'Red', blue: 'Blue',
     wall_grey: 'Grey brick', wall_brown: 'Brown brick', wall_red1: 'Red brick A', wall_red2: 'Red brick B',
     dpadStyle: 'D-pad style', dpad_cross: 'Cross', dpad_split: 'Split',
@@ -204,7 +219,7 @@ const CRATE_LABELS = { grey: '灰', red: '红', brown: '棕', blue: '蓝', green
 
 const SETTINGS_KEY = 'sokoban_appearance_v1';
 
-const DEFAULT_SETTINGS = { lang: defaultLang(), theme: 'green', floor: 'grey', wall: 'red1', crate: 'brown', halo: 'classic', player: 'classic', dpadStyle: 'cross', dpadCross: { scale: 100, x: 0, y: 0 }, dpadSplit: { scale: 100, x: 0, y: 0, gap: 48 }, boardWPct: 100, boardHPct: 100, undoY: 0, mapY: 0, walkMs: 260, pushMs: 300, boxFx: 'rebound', musicVol: 50, musicMuted: false, sfxVol: 100, sfxMuted: false, tuneVer: 1 };
+const DEFAULT_SETTINGS = { lang: defaultLang(), theme: 'green', floor: 'grey', wall: 'red1', crate: 'brown', halo: 'classic', player: 'classic', gender: 'm', dpadStyle: 'cross', dpadCross: { scale: 100, x: 0, y: 0 }, dpadSplit: { scale: 100, x: 0, y: 0, gap: 48 }, boardWPct: 100, boardHPct: 100, undoY: 0, mapY: 0, walkMs: 260, pushMs: 300, boxFx: 'rebound', musicVol: 50, musicMuted: false, sfxVol: 100, sfxMuted: false, tuneVer: 1 };
 
 // tuneVer：手感默认值版本号，存档里的版本落后就重置这几项为新默认值；以后改默认值把 tuneVer 加 1 即可
 
@@ -246,7 +261,8 @@ function applySettings() {
   if (!['off', 'rebound'].includes(settings.boxFx)) settings.boxFx = 'rebound';
   if (!HALO_KEYS.includes(settings.halo)) settings.halo = 'classic';
   if (!SKIN_KEYS.includes(settings.player)) settings.player = 'classic';
-  ensureSkin(effectiveSkin());
+  if (!GENDER_KEYS.includes(settings.gender)) settings.gender = 'm';
+  ensureSkin(effectiveSkin(), effectiveGender());
   refreshPlayerSprite();
   const tc = document.getElementById('themeColorMeta');
   if (tc) tc.content = THEMES[settings.theme].bg;
@@ -368,9 +384,11 @@ function preloadSprites() {
   if (SPRITE_EXT !== 'svg') { list.forEach(src => { const img = new Image(); img.src = src; _preloadedImages.push(img); }); return; }
   const jobs = list.map(p => rasterizeSprite(p, p));
   FLOOR_KEYS.forEach(k => jobs.push(rasterizeSprite(targetPath(k, 'white'), targetPath(k, 'classic'), { [HALO_OUTER[k]]: `#FFFFFF" fill-opacity="${HALO_WHITE_ALPHA}` } /* 替换值里带上 fill-opacity 属性：rasterizeSprite 会把它拼成 fill="#FFFFFF" fill-opacity="0.6" */)));
-  const d2 = `assets/Player/Down2.${SPRITE_EXT}`; // 设置里角色配色的预览小图：每套皮肤只做 Down2 一帧
-  SKIN_KEYS.forEach(k => { if (k !== 'classic') jobs.push(rasterizeSprite(skinKey(d2, k), d2, skinMap(k))); });
-  jobs.push(loadSkin(settings.player));
+  GENDER_KEYS.forEach(g => { // 设置里角色预览小图：男/女 × 每套皮肤，各只做 Down2 一帧(原版男版的 Down2 已在 spriteList 里)
+    const d2 = playerFramePath('Down2', g);
+    SKIN_KEYS.forEach(k => { if (k !== 'classic') jobs.push(rasterizeSprite(skinKey(d2, k), d2, skinMap(k))); else if (g === 'f') jobs.push(rasterizeSprite(d2, d2)); });
+  });
+  jobs.push(loadSkin(settings.player, effectiveGender()));
   Promise.all(jobs).then(() => {
     applySettings(); // 把 --img-* 换成栅格化后的 blob 地址
     refreshPlayerSprite();
