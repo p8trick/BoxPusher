@@ -56,10 +56,14 @@ function loadSkin(skin, g) { // 该形象(男/女)+皮肤的 12 帧栅格化+解
 }
 /* 联机对局里的角色配色由房主分配(房主永远经典、玩家随机且不重色)，只在内存里覆盖，不写进设置；对局结束/离开房间就还原。
    skinLocked() 为真时「游戏外观」里的角色配色一栏要灰掉(look.js 用)。 */
-let _skinOverride = null;
+let _skinOverride = null, _genderOverride = null;
 function effectiveSkin() { return _skinOverride || settings.player; }
-function skinLocked() { return _skinOverride !== null; }
-function setSkinOverride(k) { _skinOverride = (k && SKIN_KEYS.includes(k)) ? k : null; ensureSkin(effectiveSkin()); }
+function skinLocked() { return _skinOverride !== null; } // 配色和形象一起锁(look.js 里「形象」「角色配色」两栏一起灰掉)
+function setSkinOverride(k, g) { // k=配色；g=形象('m'/'f')，联机里两样都在大厅选好、开局后锁定；不给 g 就沿用单机设置里的形象；setSkinOverride(null) 两样都还原
+  _skinOverride = (k && SKIN_KEYS.includes(k)) ? k : null;
+  _genderOverride = (_skinOverride && (g === 'm' || g === 'f')) ? g : null;
+  ensureSkin(effectiveSkin(), effectiveGender());
+}
 function ensureSkin(skin, g) { // 设置里一选中就立刻在后台备货；12 帧都好了才真正切换，切之前人物继续用旧形象/皮肤，不会闪
   g = g || effectiveGender();
   if (SPRITE_EXT !== 'svg' || (skin === _activeSkin && g === _activeGender)) return;
@@ -83,9 +87,9 @@ const PLAYER_FRAMES_F = {};   // 女版：assets/PlayerF/，文件名与男版�
   PLAYER_FRAMES[d + i] = `assets/Player/${d}${i}.${SPRITE_EXT}`;
   PLAYER_FRAMES_F[d + i] = `assets/PlayerF/${d}${i}.${SPRITE_EXT}`;
 }));
-/* 形象(男/女)：设置里 settings.gender；effectiveGender() 以后大厅/联机要覆盖形象时在这里加(和 effectiveSkin 同理) */
+/* 形象(男/女)：设置里 settings.gender；联机对局中由 setSkinOverride(k, g) 覆盖(_genderOverride)，和 effectiveSkin 同理 */
 const GENDER_KEYS = ['m', 'f'];
-function effectiveGender() { return GENDER_KEYS.includes(settings.gender) ? settings.gender : 'm'; }
+function effectiveGender() { return _genderOverride || (GENDER_KEYS.includes(settings.gender) ? settings.gender : 'm'); }
 function framesOf(g) { return g === 'f' ? PLAYER_FRAMES_F : PLAYER_FRAMES; }
 function playerFramePath(key, g) { return framesOf(g || effectiveGender())[key]; } // 如 playerFramePath('Down2','f')
 /* 联机随机事件·中毒：人物肤色变黄绿。变体 12 帧备好后才切(没备好就保持原样，不闪不退回旧 png)；events.js 在中毒开始/结束时调 setPoisonSkin。 */
@@ -172,7 +176,7 @@ const I18N = {
     theme_green: 'Forest', theme_dark: 'Dark', theme_blue: 'Ocean',
     floor: 'Floor colour (targets match the floor)', wall: 'Wall style', crate: 'Crate colour',
     halo: 'Target ring', halo_classic: 'Classic', halo_white: 'Soft white',
-    player: 'Outfit', skin_classic: 'Classic', skin_blue: 'Blue', skin_purple: 'Purple', skin_gold: 'Gold', skin_red: 'Red', skin_orange: 'Orange',
+    player: 'Outfit', skin_classic: 'Orig', skin_blue: 'Blue', skin_purple: 'Violet', skin_gold: 'Gold', skin_red: 'Red', skin_orange: 'Orange',
     gender: 'Character', gender_m: 'Boy', gender_f: 'Girl',
     grey: 'Grey', brown: 'Brown', green: 'Green', red: 'Red', blue: 'Blue',
     wall_grey: 'Grey brick', wall_brown: 'Brown brick', wall_red1: 'Red brick A', wall_red2: 'Red brick B',
