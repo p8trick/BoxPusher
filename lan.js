@@ -16,8 +16,10 @@
    cancelStart()           房主：倒计时期间取消开始
    debugInfo()             一段给真机排查用的状态文字
    me = { token, name }：token 是设备本地生成的私密随机串，只在 hello 里发给房主，房主用它认人；昵称只是显示用，重名也不会混。
-   room = { code, mode:'race', tier:'easy'|'normal', levelId, phase:'lobby'|'starting'|'playing', hostPid, you, seq, players:[{pid,name,skin,ready,online,inResult}] }：
+   room = { code, mode:'race', tier:'easy'|'normal', levelId, phase:'lobby'|'starting'|'playing', hostPid, you, seq, players:[{pid,name,skin,gender,ready,online,inResult}] }：
    (v3 竞速) tier=房主选的难度档(大厅里 setTier)；levelId=本局关卡 id(start({levelId}) 时写入，倒计时期间玩家就能预载；回大厅后清空)；inResult=该玩家还停在结算画面(没点「返回大厅」)，期间不能准备、房主不能开始。
+   setLook({skin,gender}) 大厅(phase=lobby)里改自己的配色/形象('m' 男 / 'f' 女)：玩家发 look 给房主，房主裁决——配色同房间内不能重复，被占就拒绝并发回 notice('lookTaken') + 当前房间状态让对方界面还原；房主自己改同理(返回 false 表示被拒)；
+   onNotice(k) 房主给某个玩家的单发提示(目前只有 'lookTaken')；create/join 的 me 可带 skin/gender=本机上次偏好(加入时偏好色没被占用就用它，被占才随机；房主默认 classic、可自选)；合作档(coop)房间最多 2 人(setTier 切到 coop 时人数超了会返回 false，人满再加入得到 'full')；
    setTier(k) 房主选档 / start({levelId}) 房主开始 / setReport(obj) 本机进度(随每秒一次的 pong 上报，房主汇总后随 hb 发给全体，onReports({pid:obj}) 每秒回调)；
    sendGame(d) 任何人→房主的即时游戏消息(房主自己调用也会回环到 onGame)，bcastGame(d) 房主→全体(含房主自己)，onGame(d, fromPid) 收到时回调；
    endRound(payload) 房主：本局结束→phase 回 'lobby'、在线玩家标记 inResult、先把 {k:'result',…payload} 发给全体再广播房间状态；back() 玩家点结算画面的「返回大厅」→inResult 清除；startedAt(只读，房主端)=本局 go 的时刻(房主时钟，用于算用时)。
@@ -36,9 +38,10 @@
 (function () {
 'use strict';
 
-const PROTO = 4; // 4：新增 tier 'coop'(双人合作)和 c* 系列游戏消息，旧版连不上更干净；3：房间状态新增 tier/levelId、玩家 inResult，新增 g/back/pong.r/hb.r(竞速)；2：房间状态里不再带 token，改用公开的 pid。和旧版互相连会得到「版本不一致」
+const PROTO = 5; // 5：玩家新增 gender(男/女形象)，hello 可带 skin/g 偏好，新增 look/notice 消息，合作档房间最多 2 人；4：新增 tier 'coop'(双人合作)和 c* 系列游戏消息，旧版连不上更干净；3：房间状态新增 tier/levelId、玩家 inResult，新增 g/back/pong.r/hb.r(竞速)；2：房间状态里不再带 token，改用公开的 pid。和旧版互相连会得到「版本不一致」
 const HOST_PREFIX = 'box-host-';
 const MAX_PLAYERS = 4;
+const COOP_MAX = 2;               // 双人合作档房间的人数上限
 const TIERS = ['easy', 'normal', 'coop']; // 模式档：easy/normal 是竞速难度档(key 和 levels_mp.js 的 tiers[].key 一致)；coop=双人合作，关卡在 levels_coop.js，必须恰好 2 人
 const MAX_GAME_MSG = 8000;        // 单条游戏消息(JSON)长度上限
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 去掉容易混的 0/O/1/I，和 lobby.js 一致
@@ -67,7 +70,7 @@ const DEF = {
 
 function createLAN(cfg) {
   const C = Object.assign({}, DEF, cfg || {});
-  const L = { onRoom: null, onClosed: null, onStatus: null, onLatency: null, onLog: null, onGame: null, onReports: null };
+  const L = { onRoom: null, onClosed: null, onStatus: null, onLatency: null, onLog: null, onGame: null, onReports: null, onNotice: null };
 
   /* ---------- 状态 ----------
      房主：IDLE → CREATING → HOST_ACTIVE ⇄ HOST_RECOVERING → (HOST_INVALID：重建失败，等手动)
@@ -129,9 +132,14 @@ function createLAN(cfg) {
   function sendTo(conn, msg) { try { if (conn && conn.open !== false) { conn.send(msg); return true; } } catch (e) { dlog('send fail', e && e.message); } return false; }
   function saveSession(o) { try { localStorage.setItem(SESSION_KEY, JSON.stringify(o)); } catch (e) {} }
   function clearSession() { try { localStorage.removeItem(SESSION_KEY); } catch (e) {} }
-  function skinKeys() { return (typeof SKIN_KEYS !== 'undefined' && SKIN_KEYS.length) ? SKIN_KEYS : ['classic', 'blue', 'purple', 'gold']; }
-  function freeSkin() { // 房主永远是第一个(经典)；玩家进房间时从还没人用的里面随机一个，同一房间不会重色(给以后双人同屏合作用)
-    const used = room.players.map((p) => p.skin), free = skinKeys().filter((k) => !used.includes(k));
+  function skinKeys() { return (typeof SKIN_KEYS !== 'undefined' && SKIN_KEYS.length) ? SKIN_KEYS : ['classic', 'blue', 'purple', 'gold', 'red', 'orange']; }
+  const okSkin = (k) => typeof k === 'string' && skinKeys().includes(k);
+  const okGender = (g) => g === 'm' || g === 'f';
+  const maxPlayers = (tier) => (tier === 'coop' ? COOP_MAX : MAX_PLAYERS);
+  function freeSkin(pref) { // 玩家进房间：上次偏好的色没被占就用它，被占了(或没偏好)再从没人用的里面随机一个；同一房间不会重色
+    const used = room.players.map((p) => p.skin);
+    if (okSkin(pref) && !used.includes(pref)) return pref;
+    const free = skinKeys().filter((k) => !used.includes(k));
     return free.length ? free[Math.floor(Math.random() * free.length)] : skinKeys()[0];
   }
 
@@ -218,7 +226,7 @@ function createLAN(cfg) {
       role = 'host'; hostPeer = peer;
       const hpid = newPid();
       room = { code, mode: 'race', tier: 'easy', levelId: '', phase: 'lobby', hostToken: me.token, hostPid: hpid, seq: 0,
-        players: [{ pid: hpid, token: me.token, name: cleanName(me.name) || 'Player', skin: skinKeys()[0], ready: true, online: true, inResult: false }] };
+        players: [{ pid: hpid, token: me.token, name: cleanName(me.name) || 'Player', skin: okSkin(me.skin) ? me.skin : skinKeys()[0], gender: okGender(me.gender) ? me.gender : 'm', ready: true, online: true, inResult: false }] }; // 房主默认经典、可自选
       wireHostPeer(peer);
       startHostTick();
       persistHost();
@@ -265,12 +273,13 @@ function createLAN(cfg) {
       const used = [];
       const keepPid = (p) => { const id = /^[0-9a-f]{8}$/.test(p && p.pid) && !used.includes(p.pid) ? p.pid : newPid(used); used.push(id); return id; }; // 恢复后 pid 不变，玩家重连后在别人界面里还是同一个人
       const hpid = keepPid(mine);
-      const players = ss.players.filter((p) => p && p.token && p.token !== me.token).slice(0, MAX_PLAYERS - 1).map((p) => ({ // 其余玩家先标记掉线，等他们重连；给足时间不被移出
-        pid: keepPid(p), token: String(p.token), name: cleanName(p.name) || 'Player', skin: p.skin || 'classic', ready: false, online: false, inResult: false }));
+      const rTier = TIERS.includes(ss.tier) ? ss.tier : 'easy';
+      const players = ss.players.filter((p) => p && p.token && p.token !== me.token).slice(0, maxPlayers(rTier) - 1).map((p) => ({ // 其余玩家先标记掉线，等他们重连；给足时间不被移出
+        pid: keepPid(p), token: String(p.token), name: cleanName(p.name) || 'Player', skin: okSkin(p.skin) ? p.skin : 'classic', gender: okGender(p.gender) ? p.gender : 'm', ready: false, online: false, inResult: false }));
       players.forEach((p) => offlineSince.set(p.token, now + 60000));
       const resumePlay = ss.ph === 'playing' && /^[A-Za-z0-9_-]{1,24}$/.test(ss.lv || '') && players.length; // 被杀时正在对局：恢复成同一局(玩家重连后各自接着玩)，不是回大厅
-      room = { code: ss.code, mode: 'race', tier: TIERS.includes(ss.tier) ? ss.tier : 'easy', levelId: resumePlay ? ss.lv : '', phase: resumePlay ? 'playing' : 'lobby', hostToken: me.token, hostPid: hpid, seq: 0,
-        players: [{ pid: hpid, token: me.token, name: cleanName(me.name) || (mine && mine.name) || 'Player', skin: skinKeys()[0], ready: true, online: true, inResult: false }].concat(players) }; // 房主永远是经典配色
+      room = { code: ss.code, mode: 'race', tier: rTier, levelId: resumePlay ? ss.lv : '', phase: resumePlay ? 'playing' : 'lobby', hostToken: me.token, hostPid: hpid, seq: 0,
+        players: [{ pid: hpid, token: me.token, name: cleanName(me.name) || (mine && mine.name) || 'Player', skin: okSkin(mine && mine.skin) ? mine.skin : (okSkin(me.skin) ? me.skin : skinKeys()[0]), gender: okGender(mine && mine.gender) ? mine.gender : (okGender(me.gender) ? me.gender : 'm'), ready: true, online: true, inResult: false }].concat(players) }; // 房主的配色/形象沿用被杀前的选择
       if (resumePlay) { room.mid = String(ss.mid || '').slice(0, 16); startedAt = +ss.sa || now; }
       wireHostPeer(peer); startHostTick(); persistHost();
       state = 'HOST_ACTIVE';
@@ -357,6 +366,8 @@ function createLAN(cfg) {
       if (p.inResult) return; // 还在结算画面：不能准备
       if (room.phase === 'starting' && !v) { if (cdLeft <= 2) return; p.ready = false; cancelStart('unready', p.name); } // 倒计时中有人取消准备=取消开始；但数字走到 2 以后(2、1)只有房主能取消
       else if (room.phase === 'lobby' && p.ready !== v) { p.ready = v; changed(); }
+    } else if (m.t === 'look') {
+      applyLook(p, m.skin, m.g, conn);
     } else if (m.t === 'pong') {
       const d = Date.now() - m.ts; // ts 是房主自己发 hb 时的时间，只和房主自己的时钟比
       if (typeof m.ts === 'number' && d >= 0 && d < 60000) pings.set(tok, Math.max(1, d));
@@ -370,6 +381,23 @@ function createLAN(cfg) {
     } // 任何消息都已在上面刷新 lastSeen
   }
 
+  /* 大厅里改配色/形象，房主裁决：只在 lobby 阶段(倒计时、对局中都不行)；配色同房间内不能和别人重复(下线的人也占着色)。
+     被占的话不改，把当前房间状态和 notice('lookTaken') 发回给对方，他的界面就还原了。返回 true=没被拒。 */
+  function applyLook(p, skin, g, conn) {
+    if (!p || room.phase !== 'lobby') return false;
+    let taken = false, ch = false;
+    if (skin !== undefined && skin !== p.skin) {
+      if (!okSkin(skin)) return false;
+      if (room.players.some((x) => x !== p && x.skin === skin)) taken = true; else { p.skin = skin; ch = true; }
+    }
+    if (g !== undefined && g !== p.gender && okGender(g)) { p.gender = g; ch = true; }
+    if (ch) changed();
+    if (taken) {
+      if (conn) { sendTo(conn, { t: 'room', room: snap() }); sendTo(conn, { t: 'notice', k: 'lookTaken' }); }
+      else if (L.onNotice) { try { L.onNotice('lookTaken'); } catch (e) { console.error(e); } }
+    }
+    return !taken;
+  }
   function onHello(conn, m) {
     if (m.v !== PROTO) { rejectConn(conn, 'version'); return; }
     const tok = String(m.token || '');
@@ -386,8 +414,8 @@ function createLAN(cfg) {
       dlog('resume', p.name);
     } else {
       if (room.phase !== 'lobby') { rejectConn(conn, 'started'); return; }
-      if (room.players.length >= MAX_PLAYERS) { rejectConn(conn, 'full'); return; }
-      p = { pid: newPid(), token: tok, name: cleanName(m.name) || 'Player', skin: freeSkin(), ready: false, online: true, inResult: false };
+      if (room.players.length >= maxPlayers(room.tier)) { rejectConn(conn, 'full'); return; }
+      p = { pid: newPid(), token: tok, name: cleanName(m.name) || 'Player', skin: freeSkin(m.skin), gender: okGender(m.g) ? m.g : 'm', ready: false, online: true, inResult: false };
       room.players.push(p);
       dlog('join', p.name);
     }
@@ -435,7 +463,7 @@ function createLAN(cfg) {
   function persistHost() { // 房间每变一次、以及每隔几秒存一份：房主 App 被杀后能用同一个配对码恢复，玩家身份(token)不变
     if (role !== 'host' || !room) return;
     const ss = { role: 'host', code: room.code, token: room.hostToken, tier: room.tier, t: Date.now(),
-      players: room.players.map((p) => ({ pid: p.pid, token: p.token, name: p.name, skin: p.skin })) };
+      players: room.players.map((p) => ({ pid: p.pid, token: p.token, name: p.name, skin: p.skin, gender: p.gender })) };
     if (room.phase === 'playing') { ss.ph = 'playing'; ss.lv = room.levelId; ss.mid = room.mid || ''; ss.sa = startedAt; } // 对局中：被杀后恢复能回到这一局
     saveSession(ss);
   }
@@ -541,9 +569,23 @@ function createLAN(cfg) {
     if (role === 'guest' && state === 'IN_ROOM') sendTo(G.conn, { t: 'back' });
     else if (role === 'host' && room) { const me = room.players.find((p) => p.token === room.hostToken); if (me && me.inResult) { me.inResult = false; changed(); } }
   }
-  function setTier(k) { // 房主：大厅里选难度档
-    if (role !== 'host' || !room || room.phase !== 'lobby' || !TIERS.includes(k) || room.tier === k) return;
+  function setTier(k) { // 房主：大厅里选难度档；切到人数上限更小的档(合作最多 2 人)而房里人更多时不切，返回 false(界面自己提示)
+    if (role !== 'host' || !room || room.phase !== 'lobby' || !TIERS.includes(k)) return false;
+    if (room.tier === k) return true;
+    if (room.players.length > maxPlayers(k)) return false;
     room.tier = k; changed();
+    return true;
+  }
+  function setLook(o) { // 大厅里改自己的配色/形象：{skin?, gender?}；房主直接裁决，玩家发给房主(以房主广播回来的房间状态为准)
+    if (!o || typeof o !== 'object') return false;
+    if (role === 'host' && room) return applyLook(room.players.find((p) => p.token === room.hostToken), o.skin, o.gender, null);
+    if (role === 'guest' && state === 'IN_ROOM') {
+      const msg = { t: 'look' };
+      if (okSkin(o.skin)) msg.skin = o.skin;
+      if (okGender(o.gender)) msg.g = o.gender;
+      return sendTo(G.conn, msg);
+    }
+    return false;
   }
   function sanitizeReport(o) { // 上报只留几个短字段(数字/布尔/短字符串)，防止谁塞大东西
     if (!o || typeof o !== 'object') return null;
@@ -600,7 +642,7 @@ function createLAN(cfg) {
         peer.on('error', (err) => { if (err && err.type === 'peer-unavailable') fail('notfound'); else dlog('guest peer error', err && err.type); });
         conn = peer.connect(HOST_PREFIX + code, { reliable: true });
         connTimer = setTimeout(() => { dlog('no answer from host in', C.CONNECT_MS + 'ms'); fail('timeout', 'connect'); }, C.CONNECT_MS);
-        conn.on('open', () => { if (!sendTo(conn, { t: 'hello', v: PROTO, token: me.token, name: me.name, resume: !!resume })) fail('timeout'); });
+        conn.on('open', () => { const h = { t: 'hello', v: PROTO, token: me.token, name: me.name, resume: !!resume }; if (me.skin) h.skin = me.skin; if (me.g) h.g = me.g; if (!sendTo(conn, h)) fail('timeout'); }); // skin/g=本机上次偏好(没有就不带键)
         conn.on('data', (m) => {
           if (done || !m) return;
           if (m.t === 'welcome') { done = true; clearTimeout(to); clearTimeout(connTimer); resolve({ peer, conn, room: m.room, you: m.you }); }
@@ -619,7 +661,7 @@ function createLAN(cfg) {
     if (state !== 'IDLE') teardown();
     const ep = ++epoch;
     state = 'JOINING'; role = 'guest';
-    G.me = { token: me.token, name: cleanName(me.name) || 'Player' }; G.code = code;
+    G.me = { token: me.token, name: cleanName(me.name) || 'Player' }; if (okSkin(me.skin)) G.me.skin = me.skin; if (okGender(me.gender)) G.me.g = me.gender; G.code = code;
     try {
       await loadPeerJS();
       if (ep !== epoch) throw { reason: 'cancelled' };
@@ -665,6 +707,7 @@ function createLAN(cfg) {
     } else if (m.t === 'log') { if (L.onLog) { try { L.onLog(m.e); } catch (e) { console.error(e); } } }
     else if (m.t === 'room' || m.t === 'welcome') { const was = !!(room && room.phase === 'playing'); G.lastHb = Date.now(); room = m.room; if (m.you) G.pid = m.you; if (was !== (room.phase === 'playing')) saveGuestSession(); emitRoom(); }
     else if (m.t === 'g') { if (room && L.onGame) { try { L.onGame(m.d, room.hostPid); } catch (e) { console.error(e); } } }
+    else if (m.t === 'notice') { if (L.onNotice) { try { L.onNotice(String(m.k || '').slice(0, 16)); } catch (e) { console.error(e); } } }
     else if (m.t === 'closed') { dlog('host closed room'); teardown(); if (L.onClosed) L.onClosed('host'); }
   }
 
@@ -758,7 +801,7 @@ function createLAN(cfg) {
   }
 
   Object.assign(L, {
-    create, restore, hostSession, guestSession, join, setReady, diag: () => logs.slice(-10).join('\n'), start, cancelStart: () => cancelStart('host'), endGame, endRound, removePlayer, back, setTier, setReport, sendGame, bcastGame, leave, reconnect, debugInfo, loadPeerJS,
+    create, restore, hostSession, guestSession, join, setReady, diag: () => logs.slice(-10).join('\n'), start, cancelStart: () => cancelStart('host'), endGame, endRound, removePlayer, back, setTier, setLook, setReport, sendGame, bcastGame, leave, reconnect, debugInfo, loadPeerJS,
     session() { try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch (e) { return null; } },
   });
   // 只读属性必须用 defineProperty：Object.assign 会把 getter 当场求值成死值
