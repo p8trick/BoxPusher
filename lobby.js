@@ -224,9 +224,9 @@ html[data-lang="en"] .lbBtn { font-size: 16px; letter-spacing: 0.06em; text-inde
 .lbDDList b { display: block; padding: 11px 14px; text-align: center; border-radius: 9px; color: #d9c08a; box-shadow: none; -webkit-tap-highlight-color: transparent; }
 .lbDDList b.sel { background: rgba(242, 180, 94, 0.2); color: #f6e3ae; box-shadow: inset 0 0 0 1px rgba(242, 180, 94, 0.55); }
 .lbDDList b.dis { color: rgba(217, 192, 138, 0.4); }
-.lbHeadPair { position: relative; flex: none; width: 28px; height: 28px; margin: 0 0 0 -2px; pointer-events: none; } /* 空位：男/女空心头像叠在同一个格子里交替淡入淡出(10 秒一轮、所有空位同相位，animation-delay 按全局时钟算，重绘也接得上) */
+.lbHeadPair { position: relative; flex: none; width: 28px; height: 28px; margin: 0 0 0 -2px; pointer-events: none; } /* 空位：男/女空心头像叠在同一个格子里交替淡入淡出(4 秒一轮：每个头像停留约 1.5 秒、渐变约 0.5 秒，所有空位同相位，animation-delay 按全局时钟算，重绘也接得上) */
 .lbHeadPair .lbHead { position: absolute; left: 0; top: 0; margin: 0; }
-.lbHeadPair .emA { animation: lbEmA 10s linear infinite; } .lbHeadPair .emB { animation: lbEmB 10s linear infinite; }
+.lbHeadPair .emA { animation: lbEmA 4s linear infinite; } .lbHeadPair .emB { animation: lbEmB 4s linear infinite; }
 @keyframes lbEmA { 0%, 38% { opacity: 0.4; } 50%, 88% { opacity: 0; } 100% { opacity: 0.4; } }
 @keyframes lbEmB { 0%, 38% { opacity: 0; } 50%, 88% { opacity: 0.4; } 100% { opacity: 0; } }
 .lbLook { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 6px 12px; margin: -4px 0 12px; }
@@ -663,7 +663,7 @@ function renderRoom() {
   $('lbSub').innerHTML = `<small>${t('lbCode')}</small><b>${esc(r.code)}</b>`;
 
   const slots = Math.max(r.tier === 'coop' ? 2 : MAX_PLAYERS, r.players.length); // 双人合作：房间自动收成 2 个位(房主 + 1 个玩家位)
-  const eM = emptySrc('m'), eF = emptySrc('f'), emPhase = ((Date.now() % 10000) / 1000).toFixed(2); // 空位男女头像交替淡入淡出：相位取全局时钟，所有空位同步、重绘不重头来
+  const eM = emptySrc('m'), eF = emptySrc('f'), emPhase = ((Date.now() % 4000) / 1000).toFixed(2); // 空位男女头像交替淡入淡出：相位取全局时钟，所有空位同步、重绘不重头来
   const emptyHead = eM && eF
     ? `<span class="lbHeadPair"><img class="lbHead emptyHead emA" alt="" draggable="false" src="${eM}" style="animation-delay:-${emPhase}s"><img class="lbHead emptyHead emB" alt="" draggable="false" src="${eF}" style="animation-delay:-${emPhase}s"></span>`
     : (eM || eF) ? `<img class="lbHead emptyHead" alt="" draggable="false" src="${eM || eF}">` : `<i class="lbDot"></i>`;
