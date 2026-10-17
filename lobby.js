@@ -226,11 +226,21 @@ html[data-lang="en"] .lbBtn { font-size: 16px; letter-spacing: 0.06em; text-inde
 .lbDDList b.dis { color: rgba(217, 192, 138, 0.4); }
 .lbHeadPair { position: relative; flex: none; width: 28px; height: 28px; margin: 0 0 0 -2px; pointer-events: none; } /* 空位：男/女空心头像叠在同一个格子里交替淡入淡出(4 秒一轮：每个头像停留约 1.5 秒、渐变约 0.5 秒，所有空位同相位，animation-delay 按全局时钟算，重绘也接得上) */
 .lbHeadPair .lbHead { position: absolute; left: 0; top: 0; margin: 0; }
-.lbHeadPair .emA { animation: lbEmA 4s linear infinite; } .lbHeadPair .emB { animation: lbEmB 4s linear infinite; }
-@keyframes lbEmA { 0%, 38% { opacity: 0.4; } 50%, 88% { opacity: 0; } 100% { opacity: 0.4; } }
-@keyframes lbEmB { 0%, 38% { opacity: 0; } 50%, 88% { opacity: 0.4; } 100% { opacity: 0; } }
-.lbLook { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 6px 12px; margin: -4px 0 12px; }
-.lbLook.off { opacity: 0.4; pointer-events: none; } /* 倒计时中 / 已准备 / 掉线：整排变暗不可点 */
+.lbHeadPair .emA { animation: lbEmA 7s linear infinite; } .lbHeadPair .emB { animation: lbEmB 7s linear infinite; } /* 7 秒一轮：每个头像停 3 秒，两个头像之间渐变 0.5 秒 */
+@keyframes lbEmA { 0%, 42.86% { opacity: 0.4; } 50%, 92.86% { opacity: 0; } 100% { opacity: 0.4; } }
+@keyframes lbEmB { 0%, 42.86% { opacity: 0; } 50%, 92.86% { opacity: 0.4; } 100% { opacity: 0; } }
+.lbRowWrap { display: flex; flex-direction: column; }
+.lbLookBtn { flex: none; display: flex; align-items: center; gap: 4px; margin-left: 2px; padding: 5px 8px 5px 6px; border-radius: 15px; background: rgba(255, 244, 220, 0.10); box-shadow: inset 0 0 0 1px rgba(255, 240, 210, 0.32); -webkit-tap-highlight-color: transparent; }
+.lbLookBtn .lbDot { width: 18px; height: 18px; box-shadow: 0 0 0 1.5px rgba(255, 240, 210, 0.4); }
+.lbLookBtn::after { content: ''; border: 4px solid transparent; border-top-color: #f6e3ae; border-bottom-width: 0; transition: transform 0.2s; }
+.lbLookBtn.open::after { transform: rotate(180deg); }
+.lbLookBtn.dim { opacity: 0.5; }
+.lbLookMenu { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px 14px; margin: 6px 4px 0; padding: 10px 12px; border-radius: 14px; /* 二级菜单：磨砂玻璃，无木框 */
+  background: rgba(255, 248, 230, 0.10); -webkit-backdrop-filter: blur(14px) saturate(1.3); backdrop-filter: blur(14px) saturate(1.3);
+  border: 1px solid rgba(255, 244, 220, 0.30); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 8px 20px rgba(0, 0, 0, 0.28); }
+.lbLookMenu.pop { animation: lbMenuIn 0.22s ease-out; transform-origin: top center; } /* 只在刚点开时播一次，之后房间状态刷新重绘不再重播 */
+@keyframes lbMenuIn { from { opacity: 0; transform: translateY(-6px) scaleY(0.85); } to { opacity: 1; transform: none; } }
+.lbLookMenu.off { opacity: 0.4; pointer-events: none; } /* 倒计时中 / 已准备 / 连接异常：整块变暗不可点 */
 .lbG { display: flex; gap: 6px; }
 .lbG b { padding: 6px 12px; border-radius: 14px; font-size: 13px; font-weight: 800; color: #d9c08a; box-shadow: inset 0 0 0 1px rgba(217, 192, 138, 0.35); -webkit-tap-highlight-color: transparent; }
 .lbG b.sel { background: rgba(242, 180, 94, 0.2); color: #f6e3ae; box-shadow: inset 0 0 0 1px rgba(242, 180, 94, 0.55); }
@@ -276,9 +286,14 @@ function myLookPref() { // 创建/加入/恢复房间时带给网络层的偏好
   return o;
 }
 function saveProfile(p) { try { localStorage.setItem(PROFILE_KEY, JSON.stringify({ token: p.token, name: p.name, last: p.last || '', tier: p.tier || '', skin: p.skin || '', gender: p.gender || '' })); } catch (e) {} } // last=最后一次成功加入的房间配对码；tier=房主最近选的模式(创建房间后自动套用)
-/* 玩家头像：男 icon_head.svg / 女 icon_head_female.svg(Kenney 人物头像，帽子是绿色两档，两个文件用同一组色值)，按配色把帽子换色后做成 blob 图；没加载好/失败就退回原来的小圆点。
-   空位头像：男/女空心线条版各一张(icon_head_empty.svg / icon_head_female_empty.svg)，白线换成空位主题色。 */
-const HEAD_URL = { m: 'assets/UI/icons/icon_head.svg', f: 'assets/UI/icons/icon_head_female.svg' }, HEAD_HAT = ['#2ECC71', '#28B162']; // 帽子主色 / 暗部(暗部 = 主色 × 0.87)
+/* 玩家头像：男 icon_head.svg / 女版(下面候选名里第一个取得到的)，Kenney 人物头像，帽子是绿色两档，按配色把帽子换色后做成 blob 图；没加载好/失败就退回原来的小圆点。
+   空位头像：男/女空心线条版各一张，白线换成空位主题色。女版文件名不确定，所以每款列了几个候选，依次试；实际用到哪个会在控制台 log 一行。 */
+const P = 'assets/UI/icons/';
+const HEAD_URLS = { m: [P + 'icon_head.svg'], f: [P + 'icon_head_female.svg', P + 'icon_head_f.svg', P + 'icon_head_girl.svg', P + 'icon_head_woman.svg', P + 'icon_head_w.svg'] };
+const EMPTY_URLS = { m: [P + 'icon_head_empty.svg'], f: [P + 'icon_head_female_empty.svg', P + 'icon_head_empty_female.svg', P + 'icon_head_f_empty.svg', P + 'icon_head_empty_f.svg', P + 'icon_head_girl_empty.svg', P + 'icon_head_empty_girl.svg', P + 'icon_head_woman_empty.svg', P + 'icon_head_empty_woman.svg'] };
+const HAT_RE = [/#2ECC71(?![0-9a-f])/gi, /#28B162(?![0-9a-f])/gi]; // 帽子主色 / 暗部(暗部 = 主色 × 0.87)，不分大小写
+const WHITE_RE = /(["':\s])(#fff(?:fff)?|white)(?=["';\s)])/gi; // 空心头像里的白线：属性值或 style 里的 #FFFFFF / #fff / white 都认
+const EMPTY_COLOR = '#D9C08A';
 const gOf = (g) => (g === 'f' ? 'f' : 'm');
 const headTpl = { m: '', f: '' }, headCache = {};
 function shade(hex, k) { const n = parseInt(hex.slice(1), 16); return '#' + [16, 8, 0].map((sh) => Math.round(((n >> sh) & 255) * k).toString(16).padStart(2, '0')).join('').toUpperCase(); }
@@ -287,35 +302,38 @@ function headSrc(skin, g) {
   if (!headTpl[g]) return '';
   const ck = g + ':' + skin;
   if (headCache[ck]) return headCache[ck].src;
-  const c = (typeof SKIN_COLORS !== 'undefined' && SKIN_COLORS[skin]) || [HEAD_HAT[0]];
+  const c = (typeof SKIN_COLORS !== 'undefined' && SKIN_COLORS[skin]) || ['#2ECC71'];
   if (!/^#[0-9a-fA-F]{6}$/.test(c[0])) return '';
-  const svg = headTpl[g].split(`"${HEAD_HAT[0]}"`).join(`"${c[0]}"`).split(`"${HEAD_HAT[1]}"`).join(`"${shade(c[0], 0.87)}"`); // 带引号匹配(B11)
+  const svg = headTpl[g].replace(HAT_RE[0], c[0]).replace(HAT_RE[1], shade(c[0], 0.87));
   const im = new Image(); im.decoding = 'async';
   im.src = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
   headCache[ck] = im; // 留着引用，重绘大厅时不闪(B9)
   return im.src;
 }
-const EMPTY_URL = { m: 'assets/UI/icons/icon_head_empty.svg', f: 'assets/UI/icons/icon_head_female_empty.svg' }, EMPTY_LINE = '#FFFFFF', EMPTY_COLOR = '#D9C08A'; // 空位头像(线条版)：白线换成空位主题色
 const emptyTpl = { m: '', f: '' }, emptyCache = {};
 function emptySrc(g) {
   g = gOf(g);
   if (!emptyTpl[g]) return '';
   if (emptyCache[g]) return emptyCache[g].src;
-  const svg = emptyTpl[g].split(`"${EMPTY_LINE}"`).join(`"${EMPTY_COLOR}"`); // 带引号匹配(B11)
+  const svg = emptyTpl[g].replace(WHITE_RE, '$1' + EMPTY_COLOR);
   const im = new Image(); im.decoding = 'async';
   im.src = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
   emptyCache[g] = im; // 留着引用，重绘大厅时不闪(B9)
   return im.src;
 }
 function refreshRoomView() { if (ov.classList.contains('show') && LB.room && LB.view === 'room') renderRoom(); } // 模板刚到：补刷一次
+function fetchFirst(urls) { // 依次试候选文件名，第一个取得到的算数
+  return urls.reduce((p, u) => p.catch(() => fetch(u).then((r) => (r.ok ? r.text().then((tx) => ({ tx, u })) : Promise.reject(r.status)))), Promise.reject());
+}
 function loadEmptyTpl() {
   if (typeof fetch !== 'function') return;
   ['m', 'f'].forEach((g) => {
     if (emptyTpl[g]) return;
-    fetch(EMPTY_URL[g]).then((r) => (r.ok ? r.text() : Promise.reject(r.status))).then((tx) => {
-      if (tx.indexOf(EMPTY_LINE) < 0) { console.warn('[lobby] 空位头像里没找到白线色值：', EMPTY_URL[g]); return; } // 不是预期的文件：这一款保持虚线圆圈/只显示另一款
+    fetchFirst(EMPTY_URLS[g]).then(({ tx, u }) => {
+      if (!new RegExp(WHITE_RE.source, 'i').test(tx)) { console.warn('[lobby] 空位头像里没找到白线色值：', u); return; }
+      console.log('[lobby] 空位头像(' + g + ')：', u);
       emptyTpl[g] = tx; refreshRoomView();
-    }).catch(() => {});
+    }).catch(() => { console.warn('[lobby] 空位头像(' + g + ')一个候选文件名都没取到：', EMPTY_URLS[g].join(' | ')); });
   });
 }
 function loadHeadTpl() {
@@ -323,10 +341,11 @@ function loadHeadTpl() {
   if (typeof fetch !== 'function') return;
   ['m', 'f'].forEach((g) => {
     if (headTpl[g]) return;
-    fetch(HEAD_URL[g]).then((r) => (r.ok ? r.text() : Promise.reject(r.status))).then((tx) => {
-      if (tx.indexOf(HEAD_HAT[0]) < 0) { console.warn('[lobby] 头像里没找到帽子色值，保持圆点：', HEAD_URL[g]); return; } // 不是预期的头像文件：保持圆点
+    fetchFirst(HEAD_URLS[g]).then(({ tx, u }) => {
+      if (!/#2ECC71/i.test(tx)) { console.warn('[lobby] 头像里没找到帽子色值，保持圆点：', u); return; }
+      console.log('[lobby] 头像(' + g + ')：', u);
       headTpl[g] = tx; refreshRoomView();
-    }).catch(() => {});
+    }).catch(() => { console.warn('[lobby] 头像(' + g + ')一个候选文件名都没取到：', HEAD_URLS[g].join(' | ')); });
   });
 }
 function headHTML(skin, px, g) { // 给 Multiplayer.js / coop.js 的结算等用：和大厅同一套头像，没加载好退回小圆点；px=边长(默认 28)；g='m'|'f'(默认男)
@@ -367,7 +386,7 @@ const cdSound = {
 
 /* ---------- 大厅 ---------- */
 const LB = { f: { name: '', code: '' }, kb: null, shift: false, caps: false, form: 'create', view: 'form', room: null, me: null, busy: false, status: 'ok', lastPhase: 'lobby', log: [], ping: {}, cd: 0, lastLevel: '' };
-function resetLive() { LB.log = []; LB.ping = {}; LB.cd = 0; LB.status = 'ok'; LB.lastPhase = 'lobby'; }
+function resetLive() { LB.lookOpen = false; LB.lookAnim = false; LB.log = []; LB.ping = {}; LB.cd = 0; LB.status = 'ok'; LB.lastPhase = 'lobby'; }
 function pickLevel(tier) { // 房主点开始时：从该难度档里随机抽一关(有多关时尽量不和上一关重复)；没有关卡返回 ''。合作档从 COOP_LEVEL_PACK.levels 抽(以后换成合作选关面板)
   const pk = tier === 'coop' ? window.COOP_LEVEL_PACK : window.MP_LEVEL_PACK;
   const tr = tier === 'coop' ? (pk && { levels: pk.levels }) : (pk && Array.isArray(pk.tiers) && pk.tiers.find((x) => x.key === tier));
@@ -663,10 +682,16 @@ function renderRoom() {
   $('lbSub').innerHTML = `<small>${t('lbCode')}</small><b>${esc(r.code)}</b>`;
 
   const slots = Math.max(r.tier === 'coop' ? 2 : MAX_PLAYERS, r.players.length); // 双人合作：房间自动收成 2 个位(房主 + 1 个玩家位)
-  const eM = emptySrc('m'), eF = emptySrc('f'), emPhase = ((Date.now() % 4000) / 1000).toFixed(2); // 空位男女头像交替淡入淡出：相位取全局时钟，所有空位同步、重绘不重头来
+  const eM = emptySrc('m'), eF = emptySrc('f'), emPhase = ((Date.now() % 7000) / 1000).toFixed(2); // 空位男女头像交替淡入淡出：相位取全局时钟，所有空位同步、重绘不重头来
   const emptyHead = eM && eF
     ? `<span class="lbHeadPair"><img class="lbHead emptyHead emA" alt="" draggable="false" src="${eM}" style="animation-delay:-${emPhase}s"><img class="lbHead emptyHead emB" alt="" draggable="false" src="${eF}" style="animation-delay:-${emPhase}s"></span>`
     : (eM || eF) ? `<img class="lbHead emptyHead" alt="" draggable="false" src="${eM || eF}">` : `<i class="lbDot"></i>`;
+  // 自己的外观(开局前自己选)：自己那行最右边一个小按钮(当前配色点+箭头)，点开在这行下面拉出磨砂玻璃二级菜单：形象男/女 + 6 个配色点，被别人占的灰掉
+  const lookLocked = !live || r.phase !== 'lobby' || (!isHost && !!me.ready); // 倒计时中 / 玩家已准备 / 连接异常：菜单变暗不可点
+  const takenBy = (k) => r.players.some((x) => x.pid !== myPid && x.skin === k);
+  const lookMenu = () => `<div class="lbLookMenu${lookLocked ? ' off' : ''}${LB.lookAnim ? ' pop' : ''}"><div class="lbG">` +
+    ['m', 'f'].map((g) => `<b id="lbG_${g}" class="${me.gender === g ? 'sel' : ''}">${t('gender_' + g)}</b>`).join('') + `</div><div class="lbSw">` +
+    SKIN_KEYS.map((k) => `<b id="lbSk_${k}" class="${me.skin === k ? 'sel' : takenBy(k) ? 'taken' : ''}"><i class="lbDot" style="${skinDot(k)}"></i></b>`).join('') + `</div></div>`;
   let rows = '';
   for (let i = 0; i < slots; i++) {
     const p = r.players[i];
@@ -677,16 +702,13 @@ function renderRoom() {
       : isH ? `<span class="lbTag host">${t('lbHost')}</span>`
       : p.ready ? `<span class="lbTag ready">${t('lbReady')}</span>` : `<span class="lbTag wait">${t('lbNotReady')}</span>`;
     const ping = isH ? '' : `<span class="lbPing off" data-pid="${esc(p.pid)}" data-on="${p.online === false ? 0 : 1}"></span>`; // 房主自己没有延迟
-    const hs = headSrc(p.skin, p.gender);
-    rows += `<div class="lbRow${p.pid === myPid ? ' me' : ''}${p.inResult ? ' inRes' : ''}">` + (hs ? `<img class="lbHead" alt="" draggable="false" src="${hs}">` : `<i class="lbDot" style="${skinDot(p.skin)}"></i>`) +
-      `<span class="lbName">${esc(p.name)}${p.pid === myPid ? `<em>(${t('lbMe')})</em>` : ''}</span>${ping}${tag}</div>`;
+    const hs = headSrc(p.skin, p.gender), mine = p.pid === myPid;
+    const lookBtn = mine ? `<span id="lbLookBtn" class="lbLookBtn${LB.lookOpen ? ' open' : ''}${lookLocked ? ' dim' : ''}"><i class="lbDot" style="${skinDot(p.skin)}"></i></span>` : '';
+    const row = `<div class="lbRow${mine ? ' me' : ''}${p.inResult ? ' inRes' : ''}">` + (hs ? `<img class="lbHead" alt="" draggable="false" src="${hs}">` : `<i class="lbDot" style="${skinDot(p.skin)}"></i>`) +
+      `<span class="lbName">${esc(p.name)}${mine ? `<em>(${t('lbMe')})</em>` : ''}</span>${ping}${tag}${lookBtn}</div>`;
+    rows += mine ? `<div class="lbRowWrap">${row}${LB.lookOpen ? lookMenu() : ''}</div>` : row;
   }
-  // 自己的外观(开局前自己选)：形象男/女 + 6 个配色点；被别人占的灰掉。倒计时中 / 已准备(玩家) / 连接异常时整排变暗
-  const lookLocked = !live || r.phase !== 'lobby' || (!isHost && !!me.ready);
-  const takenBy = (k) => r.players.some((x) => x.pid !== myPid && x.skin === k);
-  const lookRow = `<div class="lbLook${lookLocked ? ' off' : ''}"><div class="lbG">` +
-    ['m', 'f'].map((g) => `<b id="lbG_${g}" class="${me.gender === g ? 'sel' : ''}">${t('gender_' + g)}</b>`).join('') + `</div><div class="lbSw">` +
-    SKIN_KEYS.map((k) => `<b id="lbSk_${k}" class="${me.skin === k ? 'sel' : takenBy(k) ? 'taken' : ''}"><i class="lbDot" style="${skinDot(k)}"></i></b>`).join('') + `</div></div>`;
+  LB.lookAnim = false;
 
   let hint, action;
   if (isHost) {
@@ -706,10 +728,11 @@ function renderRoom() {
   $('lbBody').innerHTML =
     `<div id="lbModeRow" class="lbMode dd"><span>${t('lbMode')}</span><b id="lbDDBtn" class="on ddBtn${canTier ? ' pick' : ''}">${t(MODE_KEYS[r.tier] || 'lbMdEasy')}</b>` +
     (canTier ? `<div class="lbDDList">${TIER_KEYS.map(([k]) => `<b id="lbTier_${k}" class="${r.tier === k ? 'sel' : ''}${k === 'coop' && r.players.length > 2 ? ' dis' : ''}">${t(MODE_KEYS[k])}</b>`).join('')}</div>` : '') + `</div>` +
-    `<div id="lbList">${rows}</div>${lookRow}<div class="lbHint">${hint}</div>` +
+    `<div id="lbList">${rows}</div><div class="lbHint">${hint}</div>` +
     `<div class="lbBtns">${action}<button id="lbLeave" class="lbBtn red">${t(isHost ? 'lbDisband' : 'lbLeave')}</button></div><div id="lbLog"></div>`;
 
   tap('lbReady', () => net.setReady(!me.ready));
+  tap('lbLookBtn', () => { LB.lookOpen = !LB.lookOpen; LB.lookAnim = LB.lookOpen; renderRoom(); });
   ['m', 'f'].forEach((g) => tap('lbG_' + g, () => { if (lookLocked || me.gender === g) return; LB.want = Object.assign({}, LB.want, { gender: g }); net.setLook({ gender: g }); }));
   SKIN_KEYS.forEach((k) => tap('lbSk_' + k, () => { if (lookLocked || me.skin === k) return; if (takenBy(k)) { showToast(t('lbLookTaken')); return; } LB.want = Object.assign({}, LB.want, { skin: k }); net.setLook({ skin: k }); }));
   tap('lbStart', () => { // 先倒计时，结束后 phase 变 playing，由 onRoom 统一弹提示
