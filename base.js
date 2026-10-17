@@ -33,8 +33,8 @@ const HALO_WHITE_ALPHA = 0.6; // white 版外围括号的白色不透明度：0=
 
 /* 人物配色：hex→hex 换色。原版 svg 里 帽子+上衣 = 绿三档，背带裤 = 红两档；肤色/描边/鞋/帽徽不动。
    SKIN_COLORS = [帽子+上衣, 背带裤]；深浅档按原版比例压暗。缓存键 = 原路径 + '#皮肤名'(原版不带后缀) */
-const SKIN_KEYS = ['classic', 'blue', 'purple', 'gold', 'red', 'white'];
-const SKIN_COLORS = { blue: ['#3498DB', '#F1C40F'], purple: ['#9B59B6', '#E67E22'], gold: ['#F4C724', '#2F4A9A'], red: ['#E5484D', '#F3EBDD'], white: ['#F2F2F2', '#16A394'] };
+const SKIN_KEYS = ['classic', 'blue', 'purple', 'gold', 'red', 'orange'];
+const SKIN_COLORS = { blue: ['#3498DB', '#F1C40F'], purple: ['#9B59B6', '#E67E22'], gold: ['#F4C724', '#2F4A9A'], red: ['#E5484D', '#17A398'], orange: ['#F28A1E', '#1E7B4F'] };
 function shadeHex(hex, k) {
   const n = [1, 3, 5].map(i => Math.round(parseInt(hex.slice(i, i + 2), 16) * k));
   return '#' + n.map(v => v.toString(16).padStart(2, '0')).join('').toUpperCase();
@@ -145,7 +145,7 @@ const I18N = {
     theme_green: '森林绿', theme_dark: '酷黑', theme_blue: '海蓝',
     floor: '地板颜色（目标点光圈随地板配套）', wall: '墙壁样式', crate: '箱子颜色',
     halo: '目标点光圈', halo_classic: '经典', halo_white: '浅白边',
-    player: '角色配色', skin_classic: '原版', skin_blue: '蓝帽黄裤', skin_purple: '紫帽橙裤', skin_gold: '黄帽蓝裤', skin_red: '红帽米裤', skin_white: '白帽青裤',
+    player: '角色配色', skin_classic: '原版', skin_blue: '蓝黄', skin_purple: '紫橙', skin_gold: '黄蓝', skin_red: '红青', skin_orange: '橙绿',
     gender: '形象', gender_m: '男生', gender_f: '女生',
     grey: '灰', brown: '棕', green: '绿', red: '红', blue: '蓝',
     wall_grey: '灰砖', wall_brown: '棕砖', wall_red1: '红砖A', wall_red2: '红砖B',
@@ -172,7 +172,7 @@ const I18N = {
     theme_green: 'Forest', theme_dark: 'Dark', theme_blue: 'Ocean',
     floor: 'Floor colour (targets match the floor)', wall: 'Wall style', crate: 'Crate colour',
     halo: 'Target ring', halo_classic: 'Classic', halo_white: 'Soft white',
-    player: 'Outfit', skin_classic: 'Classic', skin_blue: 'Blue', skin_purple: 'Purple', skin_gold: 'Gold', skin_red: 'Red', skin_white: 'White',
+    player: 'Outfit', skin_classic: 'Classic', skin_blue: 'Blue', skin_purple: 'Purple', skin_gold: 'Gold', skin_red: 'Red', skin_orange: 'Orange',
     gender: 'Character', gender_m: 'Boy', gender_f: 'Girl',
     grey: 'Grey', brown: 'Brown', green: 'Green', red: 'Red', blue: 'Blue',
     wall_grey: 'Grey brick', wall_brown: 'Brown brick', wall_red1: 'Red brick A', wall_red2: 'Red brick B',
