@@ -31,13 +31,13 @@
     lookEntry: '游戏外观', lookOpen: '自定义', lookTitle: '游戏外观',
     lookBackMenu: '返回菜单', lookBackGame: '返回游戏',
     lookRow_gender: '形象', lookRow_player: '角色配色', lookRow_floor: '地板', lookRow_halo: '目标点光圈', lookRow_wall: '墙壁', lookRow_crate: '箱子', lookRow_theme: '界面主题',
-    lookSkinLocked: '联机对局中，角色配色由房间分配'
+    lookSkinLocked: '联机对局中，形象和配色由大厅里的选择决定'
   });
   Object.assign(I18N.en, {
     lookEntry: 'Game look', lookOpen: 'Customize', lookTitle: 'Game look',
     lookBackMenu: 'Back to menu', lookBackGame: 'Back to game',
     lookRow_gender: 'Character', lookRow_player: 'Outfit', lookRow_floor: 'Floor', lookRow_halo: 'Target ring', lookRow_wall: 'Walls', lookRow_crate: 'Crates', lookRow_theme: 'Theme',
-    lookSkinLocked: 'Outfit is assigned by the room during a match'
+    lookSkinLocked: 'Character and outfit are set in the lobby during a match'
   });
 
   /* ---------- 选项行：顺序 = 面板里从上到下；key 对应 settings 里的字段 ---------- */
@@ -113,6 +113,10 @@
 
   /* ---------- 联机对局中的角色配色锁(base.js 提供；没有就当没锁) ---------- */
   function skinIsLocked() { try { return typeof skinLocked === 'function' && !!skinLocked(); } catch (e) { return false; } }
+  function shownGender() { // 锁住时显示实际在用的形象(大厅里选定的)；没锁就是设置里的
+    try { if (skinIsLocked() && typeof effectiveGender === 'function') return effectiveGender() || settings.gender; } catch (e) {}
+    return settings.gender;
+  }
   function shownSkin() {   // 锁住时显示实际在用的配色(房主分配)，不动 settings.player
     try { if (skinIsLocked() && typeof effectiveSkin === 'function') return effectiveSkin() || settings.player; } catch (e) {}
     return settings.player;
@@ -127,7 +131,7 @@
 
   function renderPreview() {
     boardEl.innerHTML = '';
-    const playerImg = spriteURL(skinKey(playerFramePath('Down2', settings.gender), shownSkin())); // Down2 = 站立正面帧，男/女×每套皮肤启动时都已备好
+    const playerImg = spriteURL(skinKey(playerFramePath('Down2', shownGender()), shownSkin())); // Down2 = 站立正面帧，男/女×每套皮肤启动时都已备好
     MAP.forEach(line => [...line].forEach(ch => {
       const cell = document.createElement('div');
       cell.className = 'cell ' + (ch === '#' ? 'wall' : (ch === 'T' || ch === 'D') ? 'target' : 'floor');
@@ -153,17 +157,17 @@
     ROWS.forEach(row => {
       const wrap = document.createElement('div');
       wrap.className = 'lookRow';
-      const locked = row.key === 'player' && skinIsLocked();
-      const cur = locked ? shownSkin() : settings[row.key];
+      const locked = (row.key === 'player' || row.key === 'gender') && skinIsLocked();
+      const cur = locked ? (row.key === 'gender' ? shownGender() : shownSkin()) : settings[row.key];
       wrap.innerHTML = `<div class="lookRowLabel">${t('lookRow_' + row.key)}</div>` +
-        (locked ? `<div class="lookRowNote">${t('lookSkinLocked')}</div>` : '') + `<div class="lookRowBtns"></div>`;
+        (locked && row.key === 'gender' ? `<div class="lookRowNote">${t('lookSkinLocked')}</div>` : '') + `<div class="lookRowBtns"></div>`;
       const btns = wrap.querySelector('.lookRowBtns');
       row.keys().forEach(k => {
         const b = document.createElement('button');
         b.className = 'pillBtn' + (cur === k ? ' active' : '') + (locked ? ' lookOff' : '');
         b.textContent = row.label(k);
         bindTap(b, () => {
-          if (row.key === 'player' && skinIsLocked()) return;   // 灰=不响应(对局中途锁上也拦得住)
+          if ((row.key === 'player' || row.key === 'gender') && skinIsLocked()) return;   // 灰=不响应(对局中途锁上也拦得住)
           settings[row.key] = k;
           saveSettings();
           applySettings();   // 换 --img-* 变量；人物 12 帧在后台备货，备好才切
