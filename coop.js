@@ -7,6 +7,7 @@
    玩家按键 → 本机先用副本试探(撞墙/推不动/被人挡：当场弹开，不发)；能走就发 ci{d,s} 给房主(房主自己直接判定)。
    房主 step() 判定：成功 → v+1 → 广播 cm{i,d,v,to,b,bt,s}(谁、往哪、第几步、结果位置、被推箱子 id/新位置)，各端用同一套规则推演并播动画(房主本机经回环走同一条视觉路径)；
    没走成(撞墙/推不动/被人挡，包括两人同一瞬间抢同一格后到的那个)→ 房主只改这个人的朝向，序号 +1，广播 cf{i,d,v,w,s}：所有人都看到他转身并撞一下(失误也看得见)；本人自己的屏幕不等网络，按键当场就转身撞一下，收到自己的 cf 时不重复播。
+   后撤(v1.39)：每人只撤自己最近的一步，最多 UNDO_MAX 步；栈只在房主(C.ustk[人])，请求 cx → 房主按 coop_rules.js 的 undoCheck 检查(还站在原地/退回的格子空着/推过的箱子还在) → 通过就广播 cu(带 fr/to/b/bt，各端用同一规则复核后播后撤动画)，不通过就广播 cn(只有请求的人有反应：撤销键抖动 + 错误提示音)；总步数跟着减 1(撤掉的那一步不再算)，撤销次数 G.un 另记，结算卡片显示。栈随房主存档一起存(us)，恢复后还能撤；cs 快照带 ul=各人还能撤几步，玩家据此在按住连撤时知道何时停。
    互推(v1.37/1.38)：走向对方角色=把他推开一格，规则在 coop_rules.js 的 step：对方正面面对我就顶住(推不动)，没正面对着我才推得动(身后空地)；cm 里多带 pp/pt=被推的人和他的新格子。惯性(纯画面)：被推的人在这一步滑动期间按方向转身面对推他的人，所有人屏幕上都立刻看到他转身(不延迟)，但这次转身不弹(cf 带 q=1：只转身，不顶一下也不放撞击音)，推人的人照常把这一步推完，被推的人面对着对方倒退滑到位停下；滑完之后双方面对面，谁再推就按「正面面对=顶住」回弹。房主用 C.inertia 判定「是不是被推的那一步滑动期间的转身」，被推的人本机用 C.pushed 同样预判(不用等房主回执)。
    每 SNAP_MS 房主广播一次整盘快照 cs{v,n,p,b}；玩家端：序号落后/同号但状态不同=跑偏 → 对齐(只让「对不上」的角色/箱子淡出再在正确位置淡入，没变的不动)。
    cm 自带校验：跳号/推演结果和房主给的不一致 → 当场 cq 请求快照，不等下一个周期。常态下快照触发次数应当是 0，不是 0 就是规则/消息处理有 bug，要修源头。
@@ -26,6 +27,7 @@ const net = () => window.LAN_NET || null;
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 const TRANSPOSE = 'off';     // 竖屏设备是否把地图行列互换后显示：'auto'=竖屏转置(手机上格子更大，但和横屏设备上的样子不一样)；'off'=永远不转置(两台设备画面方向一致，宽地图在手机上格子会小)
+const UNDO_MAX = 10;          // 每人最多能连续撤销的步数(撤销栈深度)；撤销会减相应的总步数，另记撤销次数
 const SNAP_MS = 2000;          // 房主广播整盘快照的间隔(只是兜底；正常情况下对不上的次数应当是 0)
 const END_MS = 900;            // 最后一步落位后停一下，再弹通关卡片
 const FADE_MS = 200;           // 对齐时「对不上」的角色/箱子淡出淡入各用多久
@@ -34,10 +36,10 @@ const SNAP_KEY = 'boxpusher_co_snap_v1', SNAP_TTL = 30 * 60 * 1000;
 
 /* ---------- 文案 ---------- */
 Object.assign(I18N.zh, {
-  coWin: '合作通关！', coStat: (time, n) => `用时 ${time} · ${n}步`, coNoUndo: '合作模式暂不支持撤销', coHostOnly: '重来由房主决定', coBadRoom: '双人合作需要恰好 2 名玩家',
+  coWin: '合作通关！', coStat: (time, n, u) => `用时 ${time} · ${n}步` + (u > 0 ? ` · 撤销${u}次` : ''), coHostOnly: '重来由房主决定', coBadRoom: '双人合作需要恰好 2 名玩家',
 });
 Object.assign(I18N.en, {
-  coWin: 'Teamwork!', coStat: (time, n) => `Time ${time} · ${n} mv`, coNoUndo: 'Undo is not available in co-op yet', coHostOnly: 'Only the host can restart', coBadRoom: 'Co-op needs exactly 2 players',
+  coWin: 'Teamwork!', coStat: (time, n, u) => `Time ${time} · ${n} mv` + (u > 0 ? ` · ${u} undo${u > 1 ? 's' : ''}` : ''), coHostOnly: 'Only the host can restart', coBadRoom: 'Co-op needs exactly 2 players',
 });
 
 /* ---------- 样式(数据条/提示卡复用 Multiplayer.js 里的 .mpP .mpN .mpDot .mpCard .mrBtn) ---------- */
@@ -124,7 +126,7 @@ function paintModal() { // 优先级：通关卡片 > 本机断线 > 别人掉�
   if (C && C.res) {
     key = 'res';
     const head = (pid) => `<span>${(window.Lobby && Lobby.headHTML) ? Lobby.headHTML(C.skins[pid], 40, C.genders[pid]) : ''}${esc(C.names[pid] || '?')}</span>`;
-    html = card(t('coWin'), t('coStat', fmtTime(C.res.t), C.res.n | 0), [['lbBackLobby', 'back']], `<div class="coHeads">${head(C.order[0])}${head(C.order[1])}</div>`);
+    html = card(t('coWin'), t('coStat', fmtTime(C.res.t), C.res.n | 0, C.res.u | 0), [['lbBackLobby', 'back']], `<div class="coHeads">${head(C.order[0])}${head(C.order[1])}</div>`);
   } else if (C && !C.done && C.netBad) {
     key = C.netFailed ? 'nf' : 'nw';
     html = C.netFailed ? card(t('mpNetFailed'), t('mpNetFailedSub'), [['mpNetRetry', 'retry'], ['mpNetExit', 'exit']]) : card(t('mpNetLost'), t('mpNetLostSub'), []);
@@ -148,7 +150,12 @@ function modalAct(act) {
 /* ---------- 房主快照存档(被杀后恢复同一局) ---------- */
 function saveSnap() {
   if (!C || !C.isHost || C.done) return;
-  try { localStorage.setItem(SNAP_KEY, JSON.stringify({ code: C.room.code, mid: C.room.mid || '', lv: C.lv.id, s: R.snapshot(C.G), pm: C.pausedMs, t: Date.now() })); } catch (e) {}
+  try { localStorage.setItem(SNAP_KEY, JSON.stringify({ code: C.room.code, mid: C.room.mid || '', lv: C.lv.id, s: R.snapshot(C.G), us: C.ustk, pm: C.pausedMs, t: Date.now() })); } catch (e) {}
+}
+function cleanStack(a) { // 本地存档里的撤销栈：形状查一遍，坏的条目直接丢；最多 UNDO_MAX 条
+  const ok2 = (q) => Array.isArray(q) && q.length === 2 && Number.isInteger(q[0]) && Number.isInteger(q[1]);
+  return (Array.isArray(a) ? a : []).filter((e) => e && ok2(e.from) && ok2(e.to) && Number.isInteger(e.push) && e.push >= -1 && (e.push < 0 || ok2(e.bto)))
+    .map((e) => ({ from: [e.from[0], e.from[1]], to: [e.to[0], e.to[1]], push: e.push, bto: e.push >= 0 ? [e.bto[0], e.bto[1]] : null })).slice(-UNDO_MAX);
 }
 function clearSnap() { try { localStorage.removeItem(SNAP_KEY); } catch (e) {} }
 function readSnap(room, lvId) { // 只认「同一个房间 + 同一局」的存档
@@ -176,12 +183,12 @@ function start(room) {
     tr: TRANSPOSE === 'auto' && !isWideLayout(), // 竖屏设备转置显示(开局时定，对局中不跟着转)
     seg: 1000 + (++coNo) * 5, t0: Date.now(), timer: null, endTimer: null, fresh: false,
     paused: false, pauseNames: [], netBad: false, netFailed: false, done: false, ending: false, res: null,
-    hostPaused: false, pauseAt: 0, pausedMs: 0, winSent: false, lastSnap: 0, lastAsk: 0, seq: 0, pend: {}, bumped: {}, inertia: null, pushed: null,
+    hostPaused: false, pauseAt: 0, pausedMs: 0, winSent: false, lastSnap: 0, lastAsk: 0, seq: 0, pend: {}, bumped: {}, inertia: null, pushed: null, ustk: [[], []], ul: 0, denyAt: 0,
     boxEl: [], boxKey: [], pg: { dir: 'down', side: 'B', neutral: true, t1: 0, t2: 0 }, pshown: null,
     stat: { cm: 0, bump: 0, drift: 0, gap: 0, rtt: -1, last: '' } };
   if (C.isHost) { // 房主被杀后恢复：回到上次存的整盘状态(玩家端不用存，回来要一份快照就行)
     const sn = readSnap(room, lv.id);
-    if (sn && R.validSnap(G, sn.s)) { R.load(G, sn.s); C.pausedMs = +sn.pm || 0; }
+    if (sn && R.validSnap(G, sn.s)) { R.load(G, sn.s); C.pausedMs = +sn.pm || 0; if (Array.isArray(sn.us)) C.ustk = [cleanStack(sn.us[0]), cleanStack(sn.us[1])]; }
   } else C.fresh = true; // 玩家端：第一份快照静默套用(可能是中途加入/重连回来)，不播对齐动画
   modalKey = '';
   if (SPRITE_EXT === 'svg') { const c = C; loadSkin(partnerSkin(), partnerGender()).then(() => { if (C === c) paintPartner(); }); } // 备好同伴那套皮肤的 12 帧(每套只做一次)，好了重画同伴
@@ -245,12 +252,14 @@ function onCm(d) {
   }
   if (i === C.myIdx && d.s) { const t0 = C.pend[d.s]; if (t0) { C.stat.rtt = Math.round(performance.now() - t0); delete C.pend[d.s]; } }
   C.stat.cm++;
+  if (i === C.myIdx && !C.isHost) C.ul = Math.min(UNDO_MAX, C.ul + 1);
   if (i === C.myIdx) mineMove(d.d, res); else partnerMove(d.d, res);
 }
 function onCs(d) { // 房主的整盘快照(玩家端)：同号同状态=一切正常；落后或同号不同=跑偏，对齐
   if (!C || C.isHost || !R.validSnap(C.G, d)) return;
   const G = C.G;
   if (d.v < G.v) return; // 旧快照
+  if (Array.isArray(d.ul)) C.ul = Math.max(0, Math.min(UNDO_MAX, d.ul[C.myIdx] | 0)); // 我还能撤几步(按住连撤用)
   const quiet = C.fresh;
   C.fresh = false;
   if (R.same(G, d)) { G.v = d.v; return; } // 状态一样(序号可能因重开错开了)：只对齐序号，不算跑偏
@@ -288,6 +297,29 @@ function partnerBump(d) { // 同伴转身面朝撞到的东西，身体朝那边
   const tile = tileSize(), v = vk(C.G.p[C.oi]);
   nudge(el, vd, v[1] * tile, v[0] * tile);
 }
+function onCu(d) { // 房主确认：某人后撤了一步(玩家端先用同一规则复核)
+  if (!C || C.done) return;
+  const i = d.i | 0;
+  const ok2 = (q) => Array.isArray(q) && q.length === 2 && Number.isInteger(q[0]) && Number.isInteger(q[1]);
+  if ((i !== 0 && i !== 1) || !ok2(d.fr) || !ok2(d.to) || !Number.isInteger(d.b) || d.b < -1 || (d.b >= 0 && !ok2(d.bt))) return;
+  const e = { from: d.fr, to: d.to, push: d.b, bto: d.b >= 0 ? d.bt : null };
+  if (!C.isHost) {
+    const G = C.G, v = d.v | 0;
+    if (v <= G.v) return;
+    if (v !== G.v + 1) { C.stat.gap++; askSnap('gap'); return; }
+    const r = R.undo(G, i, e);
+    if (!r.ok) { C.stat.drift++; askSnap('mismatch', true); return; }
+    if (i === C.myIdx) C.ul = Math.max(0, C.ul - 1);
+  }
+  if (i === C.myIdx && d.s) { const t0 = C.pend[d.s]; if (t0) { C.stat.rtt = Math.round(performance.now() - t0); delete C.pend[d.s]; } }
+  C.stat.cm++;
+  if (i === C.myIdx) mineUndo(e); else partnerUndo(e);
+}
+function onCn(d) { // 房主：某人的撤销没成。只有请求的人有反应
+  if (!C || (d.i | 0) !== C.myIdx) return;
+  if (d.w === 'empty' && !C.isHost) C.ul = 0;
+  denyUndo();
+}
 function onCf(d) { // 房主确认：某人这一步没走成，转身面向 d.d(w=撞到什么：wall/box/boxplayer/player)
   if (!C || C.done) return;
   const i = d.i | 0;
@@ -315,6 +347,7 @@ function onCf(d) { // 房主确认：某人这一步没走成，转身面向 d.d
 function onCr(d) { // 重开
   if (!C) return;
   if (!C.isHost) { const G = R.fromXsb(C.lv.xsb); if (!G) return; G.v = d.v | 0; C.G = G; C.pend = {}; }
+  C.ul = 0; // 重开：撤销栈清空(房主那边在 restart 里清)
   resetView();
 }
 function onCz(d) { // 暂停/恢复(房主：有人掉线)
@@ -326,7 +359,7 @@ function onCz(d) { // 暂停/恢复(房主：有人掉线)
 
 /* ---------- 同步：房主侧 ---------- */
 function bcast(d) { const n = net(); if (n) n.bcastGame(d); }
-function sendSnap() { if (!C || !C.isHost) return; C.lastSnap = Date.now(); bcast(Object.assign({ k: 'cs' }, R.snapshot(C.G))); }
+function sendSnap() { if (!C || !C.isHost) return; C.lastSnap = Date.now(); bcast(Object.assign({ k: 'cs' }, R.snapshot(C.G), { ul: C.ustk.map((q) => q.length) })); }
 function stepMs() { return Math.max(50, Math.round(settings.walkMs * (window.EV ? EV.durMul() : 1))); } // 一步(走路)的时长，和核心 setMoveDur 同一算法
 function clearInertia() { if (C) { C.inertia = null; C.pushed = null; } }
 function inertiaDir(w, pi, d) { // 惯性窗口 w 里，pi 的方向 d 是不是「朝着推他的人」(转身顶住)
@@ -340,8 +373,10 @@ function pushedNow(d) { // 本机：我刚被同伴推开、这一步还在滑�
 }
 function hostStep(pi, d, s) { // 房主裁判：所有人(含自己)的移动意图都走这里
   if (!C || !C.isHost || C.done || C.ending || C.hostPaused) return;
+  const f0 = C.G.p[pi].slice();
   const r = R.step(C.G, pi, d);
   if (!r.ok) { if (r.why !== 'bad') hostFace(pi, d, r.why, s); return; } // 没走成：转身撞一下，大家都看得见
+  const stk = C.ustk[pi]; stk.push({ from: f0, to: r.to, push: r.push, bto: r.push >= 0 ? r.bto : null }); if (stk.length > UNDO_MAX) stk.shift(); // 记一条撤销记录(只记自己这一步；推了对方角色也只记自己)
   const m = { k: 'cm', i: pi, d, v: C.G.v, to: r.to, b: r.push };
   if (r.push >= 0) m.bt = r.bto; // P5：消息里不放 undefined
   if (r.pp >= 0) { m.pp = r.pp; m.pt = r.pto; C.inertia = { pp: r.pp, d, until: Date.now() + stepMs() }; } // 推到了对方角色：被推的人这一步滑动期间有惯性
@@ -382,7 +417,7 @@ function beginEnd(d) { // 收到合作通关结果：锁输入，停一下让大
   C.ending = true;
   stopTimers(); clearSnap();
   Bus.emit('solved', { moves: d.n | 0 });
-  C.endTimer = setTimeout(() => { if (!C) return; C.endTimer = null; C.done = true; C.res = { t: +d.t || 0, n: d.n | 0 }; paintModal(); }, END_MS);
+  C.endTimer = setTimeout(() => { if (!C) return; C.endTimer = null; C.done = true; C.res = { t: +d.t || 0, n: d.n | 0, u: C.G.un | 0 }; paintModal(); }, END_MS); // u=撤销次数：各端自己都有(撤销消息会同步)，不用走结算消息
 }
 
 /* ---------- 本机输入 → 意图(核心 tryMove 开头的钩子) ---------- */
@@ -407,10 +442,39 @@ function intent(dr, dc, vdir) {
   if (!sendIntent(d, false)) return;
   lockMovement(); // 等房主回执的这段时间也锁住，节奏和单机一样(连走/排队照常)；回执到了会按真正的步时长重新上锁
 }
-function undo() { // 暂不做；撤销的方案(只撤自己、合法性检查)后续再做
-  const now = Date.now();
-  if (now - undoToastAt > 2500) { undoToastAt = now; showToast(t('coNoUndo')); }
+function ulOf() { return C ? (C.isHost ? C.ustk[C.myIdx].length : C.ul) : 0; }
+function hostUndo(pi, s) { // 房主裁判：撤销请求(含自己)。栈顶就是这个人最近一步；检查通过才撤，不通过就 cn(只有请求的人有反应)
+  if (!C || !C.isHost || C.done || C.ending || C.hostPaused || C.winSent) return;
+  const stk = C.ustk[pi], e = stk[stk.length - 1];
+  const chk = e ? R.undoCheck(C.G, pi, e) : { ok: false, why: 'empty' };
+  if (!chk.ok) { const m = { k: 'cn', i: pi, w: chk.why }; if (s) m.s = s; bcast(m); return; }
+  stk.pop(); R.undo(C.G, pi, e);
+  const m = { k: 'cu', i: pi, v: C.G.v, fr: e.from, to: e.to, b: e.push };
+  if (e.push >= 0) m.bt = e.bto; // P5：消息里不放 undefined
+  if (s) m.s = s;
+  saveSnap();
+  bcast(m);
+  if (R.solved(C.G)) hostWin(); // 撤销也可能把箱子退回目标点，凑成通关
 }
+function denyUndo() { // 撤销没成(没得撤/位置被对方动过)：撤销键抖一下 + 错误提示音
+  if (!C) return;
+  C.denyAt = Date.now();
+  Bus.emit('bump', { kind: 'box' });
+  const el = document.getElementById('undo');
+  if (el && el.animate) el.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-6px)' }, { transform: 'translateX(5px)' }, { transform: 'translateX(-4px)' }, { transform: 'translateX(2px)' }, { transform: 'translateX(0)' }], { duration: 280, easing: 'ease-out' });
+}
+function undo() { // 后撤：只撤自己最近一步；真正的裁判在房主，这里只发请求
+  if (!C || C.done || C.ending) return;
+  if (blocked() || (window.EV && EV.locked())) return; // 和单机一样：暂停/断线/随机事件期间不动作
+  clearHold(); state.inputQueue.length = 0;            // 和单机撤销一样：停下按住的连走、清掉排队的方向
+  if (C.isHost) { hostUndo(C.myIdx, 0); return; }
+  if (!C.ul) { denyUndo(); return; }                   // 本机知道没得撤了：当场提示，不用问房主
+  const s = ++C.seq, n = net();
+  if (Object.keys(C.pend).length > 64) C.pend = {};
+  C.pend[s] = performance.now();
+  n && n.sendGame({ k: 'cx', s });
+}
+function undoLeft() { return C ? (Date.now() - C.denyAt < 600 ? 0 : ulOf()) : 0; } // 按住连撤用：没得撤了/刚被拒就停
 
 /* ---------- 画面：把房主确认过的一步播出来 ---------- */
 function moveBox(id, bto) { // 箱子 id 从旧格到新格：改核心的 boxes/boxEls(和 tryMove 推箱同一套)，元素换格键后 renderDynamic 会让它滑过去
@@ -460,6 +524,36 @@ function partnerMove(d, res) { // 同伴角色：位置由 afterRender 按 G 摆
     Bus.emit('push', { onTarget: state.targets.has(mv.tk), from: mv.fk, to: mv.tk });
   }
   if (res.pp === C.myIdx) updateCamera(vd); // 被推的是我：镜头跟着我
+  paintBar();
+}
+function mineUndo(e) { // 我后撤一步：朝向不变(倒退)，推过的箱子退回我刚离开的格子；步数减 1
+  const to = vk(e.from), push = e.push >= 0;
+  state.moves = Math.max(0, state.moves - 1); // 核心的本机步数(HUD 显示)，renderDynamic 会刷新
+  setMoveDur(push);
+  advanceGait(state.dir);
+  lockMovement();
+  state.player = { r: to[0], c: to[1] };
+  let mv = null;
+  if (push) mv = moveBox(e.push, e.to);
+  renderDynamic();
+  if (push) C.boxEl[e.push] = state.boxEls[mv.tk] || mv.el;
+  Bus.emit('undo');
+  scheduleIdle();
+  updateCamera();
+  paintBar();
+}
+function partnerUndo(e) { // 同伴后撤一步：朝向不变，位置由 afterRender 按 G 摆(滑回去)
+  const push = e.push >= 0, g = C.pg;
+  setMoveDur(push);
+  g.side = g.side === 'A' ? 'B' : 'A'; g.neutral = false;
+  paintPartner();
+  clearTimeout(g.t1); clearTimeout(g.t2);
+  g.t2 = setTimeout(() => { g.neutral = true; paintPartner(); }, MOVE_DUR + IDLE_GRACE);
+  let mv = null;
+  if (push) mv = moveBox(e.push, e.to);
+  renderDynamic();
+  if (push) C.boxEl[e.push] = state.boxEls[mv.tk] || mv.el;
+  Bus.emit('undo');
   paintBar();
 }
 function pFrameKey() { const d = SPRITE[C.pg.dir]; return C.pg.neutral ? d.stand : (C.pg.side === 'A' ? d.stepA : d.stepB); }
@@ -567,11 +661,14 @@ function onGame(d, fromPid) { // 返回 true=这条消息是合作的(已处理�
   if (k === 'ci') {
     const pi = C.order.indexOf(fromPid);
     if (C.isHost && !fromHost && pi === 1 && typeof d.d === 'string' && d.d.length === 1 && 'UDLR'.includes(d.d)) hostStep(pi, d.d, d.s | 0);
-  } else if (k === 'cq') { if (C.isHost && !fromHost) sendSnap(); }
+  } else if (k === 'cx') { if (C.isHost && !fromHost && C.order.indexOf(fromPid) === 1) hostUndo(1, d.s | 0); }
+  else if (k === 'cq') { if (C.isHost && !fromHost) sendSnap(); }
   else if (!fromHost) return true; // 下面这些只认房主
   else if (k === 'cm') onCm(d);
   else if (k === 'cs') onCs(d);
   else if (k === 'cf') onCf(d);
+  else if (k === 'cu') onCu(d);
+  else if (k === 'cn') onCn(d);
   else if (k === 'cr') onCr(d);
   else if (k === 'cz') onCz(d);
   return true;
@@ -599,6 +696,7 @@ function restart() { // 暂停菜单「重来」：只有房主能点，全体�
   const G = R.fromXsb(C.lv.xsb);
   if (!G) return;
   clearInertia(); // 重开时惯性/等着的转身作废
+  C.ustk = [[], []];
   G.v = C.G.v + 1; C.G = G; C.winSent = false; // v 只增不减：重开后的快照/事件序号仍然比重开前的大
   saveSnap();
   bcast({ k: 'cr', v: G.v }); // 本机经回环 onCr → resetView(loadMpLevel 里的 resetPauseUI 会收起暂停菜单)，和玩家同一条路
@@ -621,7 +719,7 @@ function requestEnd(btn) { // 暂停菜单里的「离开」键(房主)：结束
 window.addEventListener('pagehide', saveSnap);
 document.addEventListener('visibilitychange', () => { if (document.hidden) saveSnap(); });
 
-window.COOP = { onRoom, onGame, onStatus, onClosed, onLeave, blocked, barH, restart, requestEnd, intent, undo, afterBuild, afterRender, partnerAt,
+window.COOP = { onRoom, onGame, onStatus, onClosed, onLeave, blocked, barH, restart, requestEnd, intent, undo, undoLeft, afterBuild, afterRender, partnerAt,
   active: () => !!C, isHost: () => !!C && C.isHost, debug: () => C ? { v: C.G.v, moves: C.G.moves, stat: C.stat, tr: C.tr, snap: R.snapshot(C.G) } : null,
   _state: () => C }; // _state：调试/自动化测试用，直接拿内部状态(控制台里 COOP._state().G 看整盘)
 })();
