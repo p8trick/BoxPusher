@@ -5,7 +5,7 @@
 <script>
 /* ===== 版本号：发版只改这一行 =====
    主页版本号和所有子文件(css / js)的 ?v= 缓存参数都从这里生成(避坑 B8)。 */
-var APP_VERSION = '1.38.1';
+var APP_VERSION = '1.39.1';
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -909,21 +909,22 @@ const UNDO_STAGES = [[3, 180], [Infinity, 130]]; // [连撤到第几次为止, �
 let undoHold = null; // { id(触摸 identifier，鼠标是 'mouse'), k(已连撤次数), timer }
 
 function clearUndoHold() { if (undoHold) { clearTimeout(undoHold.timer); undoHold = null; } }
+function undoLeft() { return (state.mp && state.mp.coop && window.COOP) ? COOP.undoLeft() : history.length; } // 还能撤几步(合作里是自己的撤销栈，由 COOP 说了算)；按住连撤用它判断何时停
 function undoGap(k) { for (const [upto, ms] of UNDO_STAGES) if (k <= upto) return ms; return 110; }
 
 function startUndoHold(id) {
   clearUndoHold();
   if (holdBlocked()) return;
   undo();
-  if (history.length === 0) return; // 没得撤了，不用续
+  if (undoLeft() === 0) return; // 没得撤了，不用续
   undoHold = { id, k: 0, timer: setTimeout(undoRepeat, UNDO_HOLD_DELAY) };
 }
 
 function undoRepeat() {
   if (!undoHold) return;
-  if (holdBlocked() || history.length === 0) { clearUndoHold(); return; }
+  if (holdBlocked() || undoLeft() === 0) { clearUndoHold(); return; }
   undo();
-  if (history.length === 0) { clearUndoHold(); return; } // 撤到头自动停
+  if (undoLeft() === 0) { clearUndoHold(); return; } // 撤到头自动停
   undoHold.k++;
   undoHold.timer = setTimeout(undoRepeat, undoGap(undoHold.k));
 }
@@ -968,7 +969,7 @@ function checkWin() {
 }
 
 function undo() {
-  if (state.mp && state.mp.coop && window.COOP) { COOP.undo(); return; } // 双人合作：撤销方案后续再做
+  if (state.mp && state.mp.coop && window.COOP) { COOP.undo(); return; } // 双人合作：只撤自己最近一步(房主裁判，coop.js)
   clearHold();
   if (history.length === 0 || mpBlocked() || (window.EV && EV.locked())) return; // 联机随机事件期间不能撤销
   if (state.moveLockTimer) clearTimeout(state.moveLockTimer);
