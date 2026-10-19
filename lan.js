@@ -25,12 +25,15 @@
    endRound(payload) 房主：本局结束→phase 回 'lobby'、在线玩家标记 inResult、先把 {k:'result',…payload} 发给全体再广播房间状态；back() 玩家点结算画面的「返回大厅」→inResult 清除；startedAt(只读，房主端)=本局 go 的时刻(房主时钟，用于算用时)。
    v1.27 续局相关：倒计时数字走到 2 以后房主不再接受「取消准备」；
    房主会话里带 ph/lv/mid/sa(对局中/关卡/本局编号/开局时刻)，restore 后回到同一局；hostSession()/guestSession(token) 给「恢复游戏」入口用；room.mid 是本局编号。
+   (v9 合作进度) room.lvStart=房主在大厅选的「起点关卡」id(合作档用，玩家只读)；setStart(id) 房主(大厅阶段)设置；players[].nx=该玩家在结算卡片上点了「准备好了，下一关」；
+   setNext(bool) 玩家：结算卡片上准备/取消准备下一关(发 nx 给房主)；startNext({levelId}) 房主：在结算画面直接开下一关(不倒计时)——要求合作档、恰好 2 人、对方在线且还在结算画面且 nx=true；
+   nx 在对方返回大厅/掉线/离开/重连/新一局开始/本局结算时清零。
    removePlayer(pid) 房主：对局(playing)中不等已掉线的人了→把他移出房间，他再连回来会被拒绝(reason:'removed')，回到大厅(endRound/endGame)后清空这份名单。
    本层不懂竞速规则(谁赢/几人通关就结算)：那是 Multiplayer.js 的事，只经上面这几个口子收发。
    对外(包括房主自己的界面)只出现公开的 pid，token 永远不会离开房主那台设备；you=接收者自己的 pid。
 
    ── 消息(对象，t=类型；PeerJS 默认序列化)──
-   玩家→房主：hello{v,token,name,resume} / ready{v} / ping / leave / back / g{d}
+   玩家→房主：hello{v,token,name,resume} / ready{v} / nx{v} / ping / leave / back / g{d}
    房主→玩家：welcome{room,you} / reject{reason} / room{room}(完整状态) / hb{seq,ts,p,r}(每 1s，p=各玩家延迟，r=各玩家最近上报，只在 playing 阶段非空) / log{e} / g{d} / closed{reason}
    玩家→房主还有 pong{ts,r?}：收到 hb 立刻原样回 ts，房主用「现在 − ts」算往返延迟，同时它也是玩家「还活着」的信号；r=本机 setReport 的内容(只留 ≤8 个短字段)。
    玩家 8s 没收到 hb 就进入 WAIT_HOST 自动重连；房主 8s 没收到某玩家的消息就把他标记掉线。
@@ -38,7 +41,7 @@
 (function () {
 'use strict';
 
-const PROTO = 8; // 8：合作新增后撤(cx/cu/cn 消息，快照带 u/ul)，新旧版本推演不一致，升协议；7：合作推人改成「正面面对=顶住」规则(step 里看朝向)，新旧版本推演不一致，升协议；6：合作规则新增「推开对方角色」(cm 带 pp/pt)，新旧版本推演会对不上，所以升协议；5：玩家新增 gender(男/女形象)，hello 可带 skin/g 偏好，新增 look/notice 消息，合作档房间最多 2 人；4：新增 tier 'coop'(双人合作)和 c* 系列游戏消息，旧版连不上更干净；3：房间状态新增 tier/levelId、玩家 inResult，新增 g/back/pong.r/hb.r(竞速)；2：房间状态里不再带 token，改用公开的 pid。和旧版互相连会得到「版本不一致」
+const PROTO = 9; // 9：合作进度/下一关——房间新增 lvStart、玩家新增 nx，新增 nx 消息和房主 startNext，旧版不认，升协议；8：合作新增后撤(cx/cu/cn 消息，快照带 u/ul)，新旧版本推演不一致，升协议；7：合作推人改成「正面面对=顶住」规则(step 里看朝向)，新旧版本推演不一致，升协议；6：合作规则新增「推开对方角色」(cm 带 pp/pt)，新旧版本推演会对不上，所以升协议；5：玩家新增 gender(男/女形象)，hello 可带 skin/g 偏好，新增 look/notice 消息，合作档房间最多 2 人；4：新增 tier 'coop'(双人合作)和 c* 系列游戏消息，旧版连不上更干净；3：房间状态新增 tier/levelId、玩家 inResult，新增 g/back/pong.r/hb.r(竞速)；2：房间状态里不再带 token，改用公开的 pid。和旧版互相连会得到「版本不一致」
 const HOST_PREFIX = 'box-host-';
 const MAX_PLAYERS = 4;
 const COOP_MAX = 2;               // 双人合作档房间的人数上限
@@ -225,7 +228,7 @@ function createLAN(cfg) {
       if (!peer) throw { reason: 'network', detail: 'no-peer' };
       role = 'host'; hostPeer = peer;
       const hpid = newPid();
-      room = { code, mode: 'race', tier: 'easy', levelId: '', phase: 'lobby', hostToken: me.token, hostPid: hpid, seq: 0,
+      room = { code, mode: 'race', tier: 'easy', levelId: '', lvStart: '', phase: 'lobby', hostToken: me.token, hostPid: hpid, seq: 0,
         players: [{ pid: hpid, token: me.token, name: cleanName(me.name) || 'Player', skin: okSkin(me.skin) ? me.skin : skinKeys()[0], gender: okGender(me.gender) ? me.gender : 'm', ready: true, online: true, inResult: false }] }; // 房主默认经典、可自选
       wireHostPeer(peer);
       startHostTick();
@@ -278,7 +281,7 @@ function createLAN(cfg) {
         pid: keepPid(p), token: String(p.token), name: cleanName(p.name) || 'Player', skin: okSkin(p.skin) ? p.skin : 'classic', gender: okGender(p.gender) ? p.gender : 'm', ready: false, online: false, inResult: false }));
       players.forEach((p) => offlineSince.set(p.token, now + 60000));
       const resumePlay = ss.ph === 'playing' && /^[A-Za-z0-9_-]{1,24}$/.test(ss.lv || '') && players.length; // 被杀时正在对局：恢复成同一局(玩家重连后各自接着玩)，不是回大厅
-      room = { code: ss.code, mode: 'race', tier: rTier, levelId: resumePlay ? ss.lv : '', phase: resumePlay ? 'playing' : 'lobby', hostToken: me.token, hostPid: hpid, seq: 0,
+      room = { code: ss.code, mode: 'race', tier: rTier, levelId: resumePlay ? ss.lv : '', lvStart: /^[A-Za-z0-9_-]{1,24}$/.test(ss.ls || '') ? ss.ls : '', phase: resumePlay ? 'playing' : 'lobby', hostToken: me.token, hostPid: hpid, seq: 0,
         players: [{ pid: hpid, token: me.token, name: cleanName(me.name) || (mine && mine.name) || 'Player', skin: okSkin(mine && mine.skin) ? mine.skin : (okSkin(me.skin) ? me.skin : skinKeys()[0]), gender: okGender(mine && mine.gender) ? mine.gender : (okGender(me.gender) ? me.gender : 'm'), ready: true, online: true, inResult: false }].concat(players) }; // 房主的配色/形象沿用被杀前的选择
       if (resumePlay) { room.mid = String(ss.mid || '').slice(0, 16); startedAt = +ss.sa || now; }
       wireHostPeer(peer); startHostTick(); persistHost();
@@ -372,8 +375,11 @@ function createLAN(cfg) {
       const d = Date.now() - m.ts; // ts 是房主自己发 hb 时的时间，只和房主自己的时钟比
       if (typeof m.ts === 'number' && d >= 0 && d < 60000) pings.set(tok, Math.max(1, d));
       if (m.r) { const r = sanitizeReport(m.r); if (r) reports.set(tok, r); }
+    } else if (m.t === 'nx') { // 合作结算卡片：准备/取消准备下一关(只在结算画面、合作档、大厅阶段有效)
+      const v = !!m.v;
+      if (room.tier === 'coop' && room.phase === 'lobby' && p.inResult && !!p.nx !== v) { p.nx = v; changed(); }
     } else if (m.t === 'back') {
-      if (room.phase === 'lobby' && p.inResult) { p.inResult = false; changed(); }
+      if (room.phase === 'lobby' && p.inResult) { p.inResult = false; p.nx = false; changed(); }
     } else if (m.t === 'g') {
       if (gsize(m.d) <= MAX_GAME_MSG && L.onGame) { try { L.onGame(m.d, p.pid); } catch (e) { console.error(e); } }
     } else if (m.t === 'leave') {
@@ -409,7 +415,7 @@ function createLAN(cfg) {
     if (p) { resumed = true; // 认得这个玩家(Peer ID 变了没关系，只认 token)：恢复身份，顶掉旧连接
       const old = conns.get(tok);
       if (old && old !== conn) { old._tok = null; safeClose(old); }
-      p.online = true; p.inResult = false; // 重连回来就当已回到大厅(这台设备的界面从头开始，不会还停在结算画面上)
+      p.online = true; p.inResult = false; p.nx = false; // 重连回来就当已回到大厅(这台设备的界面从头开始，不会还停在结算画面上)
       if (room.phase === 'lobby') p.name = cleanName(m.name) || p.name;
       dlog('resume', p.name);
     } else {
@@ -437,7 +443,7 @@ function createLAN(cfg) {
   function markOffline(tok, quiet) { // quiet=已经记过「离开」日志，不再重复记「掉线」
     const p = room.players.find((x) => x.token === tok);
     if (!p || !p.online) return;
-    p.online = false; if (room.phase !== 'playing') p.ready = false;
+    p.online = false; p.nx = false; if (room.phase !== 'playing') p.ready = false;
     pings.delete(tok); offlineSince.set(tok, Date.now());
     dlog('offline', p.name);
     if (!quiet) logEv('offline', { n: p.name });
@@ -462,7 +468,7 @@ function createLAN(cfg) {
   function changed(exceptTok) { room.seq++; bcast({ t: 'room', room: snap() }, exceptTok); emitRoom(); persistHost(); }
   function persistHost() { // 房间每变一次、以及每隔几秒存一份：房主 App 被杀后能用同一个配对码恢复，玩家身份(token)不变
     if (role !== 'host' || !room) return;
-    const ss = { role: 'host', code: room.code, token: room.hostToken, tier: room.tier, t: Date.now(),
+    const ss = { role: 'host', code: room.code, token: room.hostToken, tier: room.tier, ls: room.lvStart || '', t: Date.now(),
       players: room.players.map((p) => ({ pid: p.pid, token: p.token, name: p.name, skin: p.skin, gender: p.gender })) };
     if (room.phase === 'playing') { ss.ph = 'playing'; ss.lv = room.levelId; ss.mid = room.mid || ''; ss.sa = startedAt; } // 对局中：被杀后恢复能回到这一局
     saveSession(ss);
@@ -542,13 +548,13 @@ function createLAN(cfg) {
   function endGame() { // 房主：不经结算，强行让所有人回到大厅(异常兜底)
     if (role !== 'host' || !room || room.phase !== 'playing') return;
     room.phase = 'lobby'; room.levelId = ''; reports.clear(); removed.clear();
-    room.players.forEach((p) => { if (p.token !== room.hostToken) p.ready = false; p.inResult = false; });
+    room.players.forEach((p) => { if (p.token !== room.hostToken) p.ready = false; p.inResult = false; p.nx = false; });
     changed();
   }
   function endRound(payload) { // 房主：本局结束。phase 回 'lobby'，在线的人标记 inResult(还在看结算)，并把 {k:'result',…payload} 发给全体(含房主自己)
     if (role !== 'host' || !room || room.phase !== 'playing') return false;
     room.phase = 'lobby'; room.levelId = ''; reports.clear(); removed.clear();
-    room.players.forEach((p) => { if (p.token !== room.hostToken) p.ready = false; p.inResult = !!p.online; });
+    room.players.forEach((p) => { if (p.token !== room.hostToken) p.ready = false; p.inResult = !!p.online; p.nx = false; });
     bcastGame(Object.assign({}, payload || {}, { k: 'result' })); // 先发结算数据、再发房间状态(通道保序)：对方收到 phase=lobby 时手里已经有结算了
     changed();
     return true;
@@ -567,7 +573,32 @@ function createLAN(cfg) {
   }
   function back() { // 点结算画面底部「返回大厅」：清掉自己的 inResult，别人那边名字不再灰
     if (role === 'guest' && state === 'IN_ROOM') sendTo(G.conn, { t: 'back' });
-    else if (role === 'host' && room) { const me = room.players.find((p) => p.token === room.hostToken); if (me && me.inResult) { me.inResult = false; changed(); } }
+    else if (role === 'host' && room) { const me = room.players.find((p) => p.token === room.hostToken); if (me && me.inResult) { me.inResult = false; me.nx = false; changed(); } }
+  }
+  function setStart(id) { // 房主：大厅阶段选合作「起点关卡」(关卡 id)；玩家只读。返回 true=已设置
+    id = String(id || '');
+    if (role !== 'host' || !room || room.phase !== 'lobby' || !/^[A-Za-z0-9_-]{1,24}$/.test(id)) return false;
+    if (room.lvStart === id) return true;
+    room.lvStart = id; changed();
+    return true;
+  }
+  function setNext(v) { // 玩家：结算卡片上「准备好了，下一关」/取消；房主不需要(房主直接 startNext)
+    if (role === 'guest' && state === 'IN_ROOM') return sendTo(G.conn, { t: 'nx', v: !!v });
+    return false;
+  }
+  function startNext(opts) { // 房主：在结算画面直接开下一关，不倒计时。要求：合作档、恰好 2 人、房主自己还在结算画面、对方在线且还在结算画面且已点「准备好了」
+    if (role !== 'host' || !room) return Promise.reject({ reason: 'busy' });
+    const lv = String((opts && opts.levelId) || '');
+    if (!/^[A-Za-z0-9_-]{1,24}$/.test(lv)) return Promise.reject({ reason: 'nolevel' });
+    if (room.tier !== 'coop' || room.phase !== 'lobby') return Promise.reject({ reason: 'busy' });
+    if (room.players.length !== 2) return Promise.reject({ reason: 'need2' });
+    const self = room.players.find((p) => p.token === room.hostToken), guest = room.players.find((p) => p.token !== room.hostToken);
+    if (!self || !self.inResult || !guest || !guest.online || !guest.inResult || !guest.nx) return Promise.reject({ reason: 'notready' });
+    room.phase = 'playing'; room.levelId = lv; room.lvStart = lv; room.mid = Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+    startedAt = Date.now(); reports.clear(); removed.clear();
+    room.players.forEach((p) => { p.inResult = false; p.nx = false; if (p.token !== room.hostToken) p.ready = true; });
+    logEv('go'); changed();
+    return Promise.resolve();
   }
   function setTier(k) { // 房主：大厅里选难度档；切到人数上限更小的档(合作最多 2 人)而房里人更多时不切，返回 false(界面自己提示)
     if (role !== 'host' || !room || room.phase !== 'lobby' || !TIERS.includes(k)) return false;
@@ -801,7 +832,7 @@ function createLAN(cfg) {
   }
 
   Object.assign(L, {
-    create, restore, hostSession, guestSession, join, setReady, diag: () => logs.slice(-10).join('\n'), start, cancelStart: () => cancelStart('host'), endGame, endRound, removePlayer, back, setTier, setLook, setReport, sendGame, bcastGame, leave, reconnect, debugInfo, loadPeerJS,
+    create, restore, hostSession, guestSession, join, setReady, diag: () => logs.slice(-10).join('\n'), start, cancelStart: () => cancelStart('host'), endGame, endRound, removePlayer, back, setTier, setStart, setNext, startNext, setLook, setReport, sendGame, bcastGame, leave, reconnect, debugInfo, loadPeerJS,
     session() { try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch (e) { return null; } },
   });
   // 只读属性必须用 defineProperty：Object.assign 会把 getter 当场求值成死值
