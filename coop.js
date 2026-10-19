@@ -13,6 +13,8 @@
    cm 自带校验：跳号/推演结果和房主给的不一致 → 当场 cq 请求快照，不等下一个周期。常态下快照触发次数应当是 0，不是 0 就是规则/消息处理有 bug，要修源头。
    重连/解除暂停：房主立刻补发快照。房主每步把整盘状态存本机(被杀后从「恢复游戏」回到同一局)；玩家不用存，回来要一份快照即可。
    重开：只有房主能点；房主发 cr{v}，全体重置(v 只增不减，快照比较不受影响)。
+   进度/下一关(v1.40)：进度只存「房主这台设备」(localStorage boxpusher_co_prog_v1：已通关 id 集合 + 续玩位置 last)，解锁=已通关的最大序号+1 之内全开(按关卡 id 记，换序不错锁)；
+   通关后房主记进度并 setStart(下一关)；结算卡片上玩家「准备好了，下一关」(setNext)、房主「下一关」(startNext，不倒计时)；onRoom 见到「卡片开着+新局编号 mid」就 end()+start() 无缝开下一关。
 
    ── 显示 ──
    规范状态按横屏行列存，快照/事件永远用规范坐标。显示默认不转置(TRANSPOSE='off')：各设备只按屏幕大小缩放，两台设备上棋盘方向一致；设成 'auto' 则竖屏设备(!isWideLayout)在 toXsb 和方向键两处转置(手机上格子更大，但和横屏设备的样子不一样)，状态本身不转置。单机核心的 state 只是「本机视角的投影」：
@@ -37,9 +39,11 @@ const SNAP_KEY = 'boxpusher_co_snap_v1', SNAP_TTL = 30 * 60 * 1000;
 /* ---------- 文案 ---------- */
 Object.assign(I18N.zh, {
   coWin: '合作通关！', coStat: (time, n, u) => `用时 ${time} · ${n}步` + (u > 0 ? ` · 撤销${u}次` : ''), coHostOnly: '重来由房主决定', coBadRoom: '双人合作需要恰好 2 名玩家',
+  coNext: '下一关', coReady: '准备好了，下一关', coReadied: '已准备（点击取消）', coWaitReady: '等待对方准备', coPeerLobby: '对方已回大厅', coPeerOff: '对方已掉线', coAllClear: '全部通关！', coLvToast: (n) => `第 ${n} 关`,
 });
 Object.assign(I18N.en, {
   coWin: 'Teamwork!', coStat: (time, n, u) => `Time ${time} · ${n} mv` + (u > 0 ? ` · ${u} undo${u > 1 ? 's' : ''}` : ''), coHostOnly: 'Only the host can restart', coBadRoom: 'Co-op needs exactly 2 players',
+  coNext: 'Next level', coReady: 'Ready for next', coReadied: 'Ready (tap to cancel)', coWaitReady: 'Waiting for partner', coPeerLobby: 'Partner is in the lobby', coPeerOff: 'Partner is offline', coAllClear: 'All levels cleared!', coLvToast: (n) => `Level ${n}`,
 });
 
 /* ---------- 样式(数据条/提示卡复用 Multiplayer.js 里的 .mpP .mpN .mpDot .mpCard .mrBtn) ---------- */
@@ -52,6 +56,10 @@ css.textContent = `
 #coBar .coDbg { flex: none; font-size: 10px; font-weight: 700; color: #9fd66b; }
 #coModal { position: fixed; inset: 0; z-index: 9000; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(0, 0, 0, 0.5); visibility: hidden; pointer-events: none; }
 #coModal.show { visibility: visible; pointer-events: auto; }
+#coModal .mrBtn.main { display: block; width: 100%; margin: 6px 0 0; }
+#coModal .mrBtn.on { background: linear-gradient(180deg, rgba(242, 180, 94, 0.34), rgba(242, 180, 94, 0.16)); border-color: rgba(242, 180, 94, 0.7); }
+#coModal .mrBtn.dis { opacity: 0.5; pointer-events: none; }
+#coModal .mrBtn.sub { display: block; min-width: 0; height: 34px; margin: 10px auto 0; padding: 0 18px; font-size: 13px; letter-spacing: 0.06em; text-indent: 0.06em; background: none; box-shadow: none; border-color: rgba(243, 223, 178, 0.3); color: #d9c08a; }
 .coHeads { display: flex; justify-content: center; gap: 22px; margin: 2px 0 10px; }
 .coHeads span { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 13px; font-weight: 800; color: #f6e8c4; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 `;
@@ -87,6 +95,32 @@ function nameChip(pid) {
   const ab = Array.from(String(C.names[pid] || '')).slice(0, 2).join('').toUpperCase() || '?';
   return `<b class="mpN"${st}>${esc(ab)}</b>`;
 }
+
+/* ---------- 关卡进度(只存房主这台设备；按关卡 id 记，换序/插关不错锁) ---------- */
+const PROG_KEY = 'boxpusher_co_prog_v1', ID_RE = /^[A-Za-z0-9_-]{1,24}$/;
+function coLevels() { const pk = window.COOP_LEVEL_PACK; return pk && Array.isArray(pk.levels) ? pk.levels.filter((l) => l && typeof l.id === 'string' && typeof l.xsb === 'string') : []; }
+function loadProg() {
+  try {
+    const o = JSON.parse(localStorage.getItem(PROG_KEY) || 'null'), done = {};
+    if (o && typeof o === 'object') {
+      if (o.done && typeof o.done === 'object') Object.keys(o.done).forEach((k) => { if (ID_RE.test(k)) done[k] = 1; });
+      return { done, last: typeof o.last === 'string' && ID_RE.test(o.last) ? o.last : '' };
+    }
+  } catch (e) { /* 存档损坏当没有 */ }
+  return { done: {}, last: '' };
+}
+function saveProg(p) { try { localStorage.setItem(PROG_KEY, JSON.stringify(p)); } catch (e) { /* 存不了就算了 */ } }
+function levelIdx(id) { return coLevels().findIndex((l) => l.id === id); }
+function unlockedCount() { const pr = loadProg(); let m = -1; coLevels().forEach((l, i) => { if (pr.done[l.id]) m = i; }); return Math.min(coLevels().length, m + 2); } // 序号 < 返回值 的关都已解锁(一关都没通=只开第 1 关)
+function isUnlocked(id) { const i = levelIdx(id); return i >= 0 && i < unlockedCount(); }
+function isDone(id) { return !!loadProg().done[id]; }
+function startId() { // 默认起点=续玩位置的下一关(到了最后一关就停在最后一关)；没有记录=第 1 关
+  const lv = coLevels(); if (!lv.length) return '';
+  const li = levelIdx(loadProg().last), want = li < 0 ? 0 : Math.min(li + 1, lv.length - 1);
+  return lv[Math.max(0, Math.min(want, unlockedCount() - 1))].id;
+}
+function nextId(id) { const lv = coLevels(), i = lv.findIndex((l) => l.id === id); return i >= 0 && i + 1 < lv.length ? lv[i + 1].id : ''; }
+function markDone(id) { const pr = loadProg(); pr.done[id] = 1; pr.last = id; saveProg(pr); }
 
 /* ---------- DOM ---------- */
 function ensureDom() {
@@ -124,9 +158,22 @@ function paintModal() { // 优先级：通关卡片 > 本机断线 > 别人掉�
   let key = '', html = '';
   const card = (title, sub, btns, extra) => `<div class="mpCard"><h3>${esc(title)}</h3>${extra || ''}<p>${esc(sub || '')}</p>${btns.map(([k, a]) => `<button class="mrBtn" data-act="${a}">${esc(t(k))}</button>`).join('')}</div>`;
   if (C && C.res) {
-    key = 'res';
+    const byPid = (pid) => C.room.players.find((p) => p.pid === pid), me = byPid(C.myPid), other = byPid(C.order[C.oi]), host = byPid(C.hostPid), nid = C.res.nid;
     const head = (pid) => `<span>${(window.Lobby && Lobby.headHTML) ? Lobby.headHTML(C.skins[pid], 40, C.genders[pid]) : ''}${esc(C.names[pid] || '?')}</span>`;
-    html = card(t('coWin'), t('coStat', fmtTime(C.res.t), C.res.n | 0, C.res.u | 0), [['lbBackLobby', 'back']], `<div class="coHeads">${head(C.order[0])}${head(C.order[1])}</div>`);
+    const btn = (label, act, cls) => `<button class="mrBtn ${cls || ''}"${act ? ` data-act="${act}"` : ' disabled'}>${esc(label)}</button>`;
+    let st = '', btns = '';
+    if (!nid) { st = 'end'; btns = btn(t('lbBackLobby'), 'back'); } // 最后一关：只剩返回大厅
+    else if (C.isHost) {
+      if (!other || other.online === false) { st = 'off'; btns = btn(t('coPeerOff'), '', 'main dis'); }
+      else if (!other.inResult) { st = 'lob'; btns = btn(t('coPeerLobby'), '', 'main dis'); }
+      else if (!other.nx) { st = 'wait'; btns = btn(t('coWaitReady'), '', 'main dis'); }
+      else { st = 'go'; btns = btn(t('coNext'), 'next', 'main'); }
+      btns += btn(t('lbBackLobby'), 'back', 'sub');
+    } else if (!host || host.online === false || !host.inResult) { st = 'hb'; btns = btn(t('lbBackLobby'), 'back'); } // 房主已回大厅/掉线：没人能开下一关了，主按钮就是返回大厅
+    else if (me && me.nx) { st = 'rdy'; btns = btn(t('coReadied'), 'unready', 'main on') + btn(t('lbBackLobby'), 'back', 'sub'); }
+    else { st = 'nrdy'; btns = btn(t('coReady'), 'ready', 'main') + btn(t('lbBackLobby'), 'back', 'sub'); }
+    key = 'res:' + st;
+    html = `<div class="mpCard"><h3>${esc(t(nid ? 'coWin' : 'coAllClear'))}</h3><div class="coHeads">${head(C.order[0])}${head(C.order[1])}</div><p>${esc(t('coStat', fmtTime(C.res.t), C.res.n | 0, C.res.u | 0))}</p>${btns}</div>`;
   } else if (C && !C.done && C.netBad) {
     key = C.netFailed ? 'nf' : 'nw';
     html = C.netFailed ? card(t('mpNetFailed'), t('mpNetFailedSub'), [['mpNetRetry', 'retry'], ['mpNetExit', 'exit']]) : card(t('mpNetLost'), t('mpNetLostSub'), []);
@@ -145,6 +192,19 @@ function modalAct(act) {
   if (act === 'retry') { if (n) n.reconnect(); }
   else if (act === 'exit') { if (window.Lobby) Lobby.close(); end(); } // 离开房间(通知房主)并清掉本机房间状态
   else if (act === 'back') { if (n) n.back(); end(); if (window.Lobby) Lobby.show(); } // 通关卡片「返回大厅」：清掉自己的 inResult，别人那边名字不再灰
+  else if (act === 'next') goNext();
+  else if (act === 'ready' || act === 'unready') { if (n && n.setNext) n.setNext(act === 'ready'); } // 玩家：准备/取消准备下一关，房主确认后经房间状态把卡片重画
+}
+function goNext() { // 房主点「下一关」：不倒计时，直接开；对方没准备好会被 lan.js 拒绝
+  const n = net();
+  if (!n || !n.startNext || !C || !C.isHost || !C.done || !C.res || !C.res.nid || C.nexting) return;
+  C.nexting = true;
+  n.startNext({ levelId: C.res.nid }).catch(() => { if (C) C.nexting = false; showToast(t('coWaitReady')); });
+}
+function nextLevel(room) { // 结算卡片开着时房间进了新的一局：收掉上一局(和「返回大厅」同一套收尾，同一任务内不会闪)再开新局
+  end(); skipPlaying = false; start(room);
+  if (!C) { if (window.Lobby) Lobby.show(); return; } // 新局没开起来(缺关卡等)：回大厅
+  const i = levelIdx(room.levelId); if (i >= 0) showToast(t('coLvToast', i + 1));
 }
 
 /* ---------- 房主快照存档(被杀后恢复同一局) ---------- */
@@ -179,7 +239,7 @@ function start(room) {
   room.players.forEach((p) => { names[p.pid] = p.name; skins[p.pid] = p.skin; genders[p.pid] = p.gender === 'f' ? 'f' : 'm'; });
   const myIdx = order.indexOf(room.you);
   if (myIdx < 0) { skipPlaying = true; return; }
-  C = { room, lv, G, order, names, skins, genders, myIdx, oi: 1 - myIdx, myPid: room.you, hostPid: room.hostPid, isHost: room.you === room.hostPid,
+  C = { room, lv, G, mid: room.mid || '', order, names, skins, genders, myIdx, oi: 1 - myIdx, myPid: room.you, hostPid: room.hostPid, isHost: room.you === room.hostPid,
     tr: TRANSPOSE === 'auto' && !isWideLayout(), // 竖屏设备转置显示(开局时定，对局中不跟着转)
     seg: 1000 + (++coNo) * 5, t0: Date.now(), timer: null, endTimer: null, fresh: false,
     paused: false, pauseNames: [], netBad: false, netFailed: false, done: false, ending: false, res: null,
@@ -399,7 +459,10 @@ function hostWin() {
   C.winSent = true;
   const n = net(), now = Date.now(), t0 = (n && n.startedAt) || C.t0, paused = C.pausedMs + (C.hostPaused ? now - C.pauseAt : 0);
   // endRound：phase 回 lobby、在线的人标记 inResult，并先广播 result 再广播房间状态(保序)；co=1 表示这是合作通关(不是竞速结算)
-  if (!n || !n.endRound({ co: 1, n: C.G.moves, t: Math.max(0, now - t0 - paused), lv: C.lv.id })) C.winSent = false;
+  const lvId = C.lv.id;
+  if (!n || !n.endRound({ co: 1, n: C.G.moves, t: Math.max(0, now - t0 - paused), lv: lvId })) { C.winSent = false; return; }
+  markDone(lvId); // 进度只记房主这台设备；回大厅后默认起点=下一关(最后一关则停在原地)
+  if (n.setStart) n.setStart(nextId(lvId) || lvId);
 }
 function hostRoomChanged() { // 房间状态一变：有人掉线就暂停(并反复通知，晚连上的人也能同步)，都回来了就恢复并补发快照
   if (!C || !C.isHost || C.done) return;
@@ -417,7 +480,7 @@ function beginEnd(d) { // 收到合作通关结果：锁输入，停一下让大
   C.ending = true;
   stopTimers(); clearSnap();
   Bus.emit('solved', { moves: d.n | 0 });
-  C.endTimer = setTimeout(() => { if (!C) return; C.endTimer = null; C.done = true; C.res = { t: +d.t || 0, n: d.n | 0, u: C.G.un | 0 }; paintModal(); }, END_MS); // u=撤销次数：各端自己都有(撤销消息会同步)，不用走结算消息
+  C.endTimer = setTimeout(() => { if (!C) return; C.endTimer = null; C.done = true; C.res = { t: +d.t || 0, n: d.n | 0, u: C.G.un | 0, nid: nextId(ID_RE.test(d.lv || '') ? d.lv : C.lv.id) }; paintModal(); }, END_MS); // u=撤销次数：各端自己都有(撤销消息会同步)，不用走结算消息
 }
 
 /* ---------- 本机输入 → 意图(核心 tryMove 开头的钩子) ---------- */
@@ -647,6 +710,8 @@ function onRoom(room) { // 返回 true=合作接管了，竞速那边别再处�
     return true;
   }
   C.room = room;
+  if (room.phase === 'playing' && C.done && room.mid && room.mid !== C.mid) { nextLevel(room); return true; } // 卡片开着、房间进了新的一局：房主点了「下一关」
+  if (C.done) paintModal(); // 结算卡片：对方准备/回大厅/掉线一变就重画(内容没变不重绘)
   if (room.phase !== 'playing' && !C.done && !C.ending) { abort(); return true; } // 结算过渡期间(ending)房间先转 lobby 是正常的
   if (room.phase === 'playing') { hostRoomChanged(); paintBar(); }
   return true;
@@ -719,7 +784,7 @@ function requestEnd(btn) { // 暂停菜单里的「离开」键(房主)：结束
 window.addEventListener('pagehide', saveSnap);
 document.addEventListener('visibilitychange', () => { if (document.hidden) saveSnap(); });
 
-window.COOP = { onRoom, onGame, onStatus, onClosed, onLeave, blocked, barH, restart, requestEnd, intent, undo, undoLeft, afterBuild, afterRender, partnerAt,
+window.COOP = { levels: coLevels, levelIndex: levelIdx, isUnlocked, isDone, startId, onRoom, onGame, onStatus, onClosed, onLeave, blocked, barH, restart, requestEnd, intent, undo, undoLeft, afterBuild, afterRender, partnerAt,
   active: () => !!C, isHost: () => !!C && C.isHost, debug: () => C ? { v: C.G.v, moves: C.G.moves, stat: C.stat, tr: C.tr, snap: R.snapshot(C.G) } : null,
   _state: () => C }; // _state：调试/自动化测试用，直接拿内部状态(控制台里 COOP._state().G 看整盘)
 })();
