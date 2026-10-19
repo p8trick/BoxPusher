@@ -65,6 +65,8 @@ Object.assign(I18N.en, {
   lbLogCd: (s) => `Starting in ${s}…`, lbLogGo: 'Go!',
   lbLogCdCancel: (why, n) => (why === 'host' ? 'Host cancelled the start' : why === 'unready' ? `${n} cancelled ready, start cancelled` : why === 'left' ? `${n} left, start cancelled` : why === 'offline' ? `${n} went offline, start cancelled` : 'Start cancelled'),
 });
+Object.assign(I18N.zh, { lbLvStart: '起点', lbLvName: (n) => `第 ${n} 关`, lbLvLocked: '先通关前面的关卡' });
+Object.assign(I18N.en, { lbLvStart: 'Start', lbLvName: (n) => `Level ${n}`, lbLvLocked: 'Clear earlier levels first' });
 Object.assign(I18N.zh, {
   lbTier: '难度', lbTierEasy: '竞速入门', lbTierNormal: '竞速正常', lbTierCoop: '双人合作', lbInResult: '结算中', lbHintResWait: '等待大家看完结算、回到大厅…',
   lbErrNoLevels: '没有可用的多人关卡：请检查 levels_mp.js 是否加载、这个难度档里是否有关卡', lbEndMatch: '结束本局',
@@ -243,6 +245,16 @@ html[data-lang="en"] .lbBtn { font-size: 16px; letter-spacing: 0.06em; text-inde
 .lbLookMenu.off { opacity: 0.4; pointer-events: none; } /* 倒计时中 / 已准备 / 连接异常：整块变暗不可点 */
 .lbG { display: flex; gap: 6px; }
 .lbG b { padding: 6px 12px; border-radius: 14px; font-size: 13px; font-weight: 800; color: #d9c08a; box-shadow: inset 0 0 0 1px rgba(217, 192, 138, 0.35); -webkit-tap-highlight-color: transparent; }
+.lbLv { position: relative; z-index: 3; } .lbLv.open { z-index: 30; } /* 合作「起点」行：菜单展开时整行抬到最上层 */
+.lbLvMenu { position: absolute; left: 0; right: 0; top: 100%; margin: 6px 0 0; z-index: 30; padding: 10px; border-radius: 14px; /* 和外观菜单同一套磨砂玻璃：覆盖在大厅上，不占位、不推挤下面的版面 */
+  background: rgba(36, 28, 18, 0.58); -webkit-backdrop-filter: blur(16px) saturate(1.3); backdrop-filter: blur(16px) saturate(1.3);
+  border: 1px solid rgba(255, 244, 220, 0.32); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 10px 26px rgba(0, 0, 0, 0.4); }
+.lbLvMenu.pop { animation: lbMenuIn 0.22s ease-out; transform-origin: top center; }
+.lbLvGrid { position: relative; display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; max-height: 150px; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; touch-action: pan-y; } /* 约 3 行半，超出在菜单内部滚动 */
+.lbLvGrid b { position: relative; display: flex; align-items: center; justify-content: center; height: 38px; border-radius: 14px; font-size: 14px; font-weight: 800; color: #d9c08a; box-shadow: inset 0 0 0 1px rgba(217, 192, 138, 0.45); -webkit-tap-highlight-color: transparent; }
+.lbLvGrid b.sel { background: rgba(242, 180, 94, 0.2); color: #f6e3ae; box-shadow: inset 0 0 0 1px rgba(242, 180, 94, 0.55); }
+.lbLvGrid b.lock { color: rgba(217, 192, 138, 0.35); box-shadow: inset 0 0 0 1px rgba(217, 192, 138, 0.15); }
+.lbLvGrid b i { position: absolute; top: 1px; right: 6px; font-size: 9px; font-style: normal; color: #9fd66b; }
 .lbG b.sel { background: rgba(242, 180, 94, 0.2); color: #f6e3ae; box-shadow: inset 0 0 0 1px rgba(242, 180, 94, 0.55); }
 .lbSw { display: flex; gap: 2px; }
 .lbSw b { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; -webkit-tap-highlight-color: transparent; }
@@ -385,9 +397,15 @@ const cdSound = {
 };
 
 /* ---------- 大厅 ---------- */
-const LB = { f: { name: '', code: '' }, kb: null, shift: false, caps: false, form: 'create', view: 'form', room: null, me: null, busy: false, status: 'ok', lastPhase: 'lobby', log: [], ping: {}, cd: 0, lastLevel: '' };
-function resetLive() { LB.lookOpen = false; LB.lookAnim = false; LB.log = []; LB.ping = {}; LB.cd = 0; LB.status = 'ok'; LB.lastPhase = 'lobby'; }
-function pickLevel(tier) { // 房主点开始时：从该难度档里随机抽一关(有多关时尽量不和上一关重复)；没有关卡返回 ''。合作档从 COOP_LEVEL_PACK.levels 抽(以后换成合作选关面板)
+const LB = { f: { name: '', code: '' }, kb: null, shift: false, caps: false, form: 'create', view: 'form', room: null, me: null, busy: false, status: 'ok', lastPhase: 'lobby', log: [], ping: {}, cd: 0, lastLevel: '', lvOpen: false, lvAnim: false, lvScroll: -1 };
+function resetLive() { LB.lookOpen = false; LB.lookAnim = false; LB.lvOpen = false; LB.lvAnim = false; LB.lvScroll = -1; LB.log = []; LB.ping = {}; LB.cd = 0; LB.status = 'ok'; LB.lastPhase = 'lobby'; }
+function pickLevel(tier) { // 合作：用房主选的起点(没选/不可用就取默认起点=续玩位置的下一关)；竞速：
+  if (tier === 'coop') {
+    const CO = window.COOP, want = (LB.room && LB.room.lvStart) || '';
+    const id = want && (!CO || !CO.isUnlocked || CO.isUnlocked(want)) ? want : ((CO && CO.startId && CO.startId()) || '');
+    return (LB.lastLevel = id);
+  }
+  // 房主点开始时：从该难度档里随机抽一关(有多关时尽量不和上一关重复)；没有关卡返回 ''。合作档从 COOP_LEVEL_PACK.levels 抽(以后换成合作选关面板)
   const pk = tier === 'coop' ? window.COOP_LEVEL_PACK : window.MP_LEVEL_PACK;
   const tr = tier === 'coop' ? (pk && { levels: pk.levels }) : (pk && Array.isArray(pk.tiers) && pk.tiers.find((x) => x.key === tier));
   const ids = tr && Array.isArray(tr.levels) ? tr.levels.map((l) => l && l.id).filter(Boolean) : [];
@@ -403,12 +421,12 @@ ov.innerHTML = '<div id="lobbyWrap"><div id="lobbySheet" class="artPanel"><div i
 document.body.appendChild(ov);
 /* 外观二级菜单开着时：点菜单和折叠按钮以外的任何地方只负责收起菜单，不触发被点到的控件(避免误点开始/准备)；
    收起后 400ms 内的同一次点按的后续事件(touchend/click 等)也一并吞掉 */
-function closeLookMenu() { LB.lookOpen = false; LB.lookAnim = false; LB.lookSwallowUntil = Date.now() + 400; if (LB.room && LB.view === 'room') renderRoom(); }
+function closeLookMenu() { LB.lookOpen = false; LB.lookAnim = false; LB.lvOpen = false; LB.lvAnim = false; LB.lookSwallowUntil = Date.now() + 400; if (LB.room && LB.view === 'room') renderRoom(); }
 function lookOutsideTap(e) {
-  if (!LB.lookOpen && !(LB.lookSwallowUntil && Date.now() < LB.lookSwallowUntil)) return;
-  if (e.target && e.target.closest && e.target.closest('.lbLookMenu, #lbLookBtn')) return;
+  if (!LB.lookOpen && !LB.lvOpen && !(LB.lookSwallowUntil && Date.now() < LB.lookSwallowUntil)) return;
+  if (e.target && e.target.closest && e.target.closest('.lbLookMenu, #lbLookBtn, .lbLvMenu, #lbLvBtn')) return;
   e.stopPropagation(); e.preventDefault();
-  if (LB.lookOpen && (e.type === 'touchstart' || e.type === 'mousedown' || e.type === 'pointerdown')) closeLookMenu();
+  if ((LB.lookOpen || LB.lvOpen) && (e.type === 'touchstart' || e.type === 'mousedown' || e.type === 'pointerdown')) closeLookMenu();
 }
 ['pointerdown', 'touchstart', 'touchend', 'mousedown', 'mouseup', 'click'].forEach((ev) => ov.addEventListener(ev, lookOutsideTap, true));
 
@@ -698,6 +716,19 @@ function renderRoom() {
     : (eM || eF) ? `<img class="lbHead emptyHead" alt="" draggable="false" src="${eM || eF}">` : `<i class="lbDot"></i>`;
   // 自己的外观(开局前自己选)：自己那行最右边一个小按钮(当前配色点+箭头)，点开在这行下面拉出磨砂玻璃二级菜单：形象男/女 + 6 个配色点，被别人占的灰掉
   if (r.phase !== 'lobby') LB.lookOpen = false; // 倒计时/对局开始就自动收起
+  // 合作「起点」行：只在合作档出现；房主可点开磨砂小菜单选关(覆盖式、内部滚动、不占位)，玩家只读
+  const CO = window.COOP, lvs = (CO && CO.levels && CO.levels()) || [], isCoop = r.tier === 'coop';
+  if (!(isCoop && canTier)) LB.lvOpen = false;
+  const curLv = r.lvStart || (CO && CO.startId && CO.startId()) || '';
+  const lvNo = (id) => { const i = lvs.findIndex((l) => l.id === id); return i >= 0 ? t('lbLvName', i + 1) : esc(id || '—'); };
+  let lvRow = '';
+  if (isCoop) {
+    const cell = (l, i) => { const lock = CO && CO.isUnlocked && !CO.isUnlocked(l.id), done = CO && CO.isDone && CO.isDone(l.id); return `<b id="lbLv_${i}" class="${l.id === curLv ? 'sel' : lock ? 'lock' : ''}">${i + 1}${done ? '<i>✓</i>' : ''}</b>`; };
+    const menu = LB.lvOpen ? `<div class="lbLvMenu${LB.lvAnim ? ' pop' : ''}"><div id="lbLvGrid" class="lbLvGrid">${lvs.map(cell).join('')}</div></div>` : '';
+    lvRow = `<div id="lbLvRow" class="lbMode lbLv${LB.lvOpen ? ' open' : ''}"><span>${t('lbLvStart')}</span><b id="lbLvBtn" class="on ddBtn${canTier ? ' pick' : ''}">${lvNo(curLv)}</b>${menu}</div>`;
+  }
+  LB.lvAnim = false;
+  { const g0 = $('lbLvGrid'); if (g0) LB.lvScroll = g0.scrollTop; } // 重绘前记住滚动位置，房间状态一刷新不会跳回顶部
   const lookLocked = !live || r.phase !== 'lobby' || (!isHost && !!me.ready); // 倒计时中 / 玩家已准备 / 连接异常：菜单变暗不可点
   const takenBy = (k) => r.players.some((x) => x.pid !== myPid && x.skin === k);
   const lookMenu = () => `<div class="lbLookMenu${lookLocked ? ' off' : ''}${LB.lookAnim ? ' pop' : ''}"><div class="lbG">` +
@@ -738,12 +769,25 @@ function renderRoom() {
 
   $('lbBody').innerHTML =
     `<div id="lbModeRow" class="lbMode dd"><span>${t('lbMode')}</span><b id="lbDDBtn" class="on ddBtn${canTier ? ' pick' : ''}">${t(MODE_KEYS[r.tier] || 'lbMdEasy')}</b>` +
-    (canTier ? `<div class="lbDDList">${TIER_KEYS.map(([k]) => `<b id="lbTier_${k}" class="${r.tier === k ? 'sel' : ''}${k === 'coop' && r.players.length > 2 ? ' dis' : ''}">${t(MODE_KEYS[k])}</b>`).join('')}</div>` : '') + `</div>` +
+    (canTier ? `<div class="lbDDList">${TIER_KEYS.map(([k]) => `<b id="lbTier_${k}" class="${r.tier === k ? 'sel' : ''}${k === 'coop' && r.players.length > 2 ? ' dis' : ''}">${t(MODE_KEYS[k])}</b>`).join('')}</div>` : '') + `</div>` + lvRow +
     `<div id="lbList">${rows}</div><div class="lbHint">${hint}</div>` +
     `<div class="lbBtns">${action}<button id="lbLeave" class="lbBtn red">${t(isHost ? 'lbDisband' : 'lbLeave')}</button></div><div id="lbLog"></div>`;
 
+  { const g1 = $('lbLvGrid'); if (g1) { if (LB.lvScroll < 0) { const sel = g1.querySelector('.sel'); g1.scrollTop = sel ? Math.max(0, sel.offsetTop - 46) : 0; } else g1.scrollTop = LB.lvScroll; LB.lvScroll = g1.scrollTop; } } // 刚点开=滚到当前起点所在行；之后重绘保持原位
+  if (isCoop && canTier) {
+    tap('lbLvBtn', () => { LB.lvOpen = !LB.lvOpen; LB.lvAnim = LB.lvOpen; LB.lvScroll = -1; if (LB.lvOpen) LB.lookOpen = false; renderRoom(); });
+    lvs.forEach((l, i) => tap('lbLv_' + i, () => {
+      if (CO && CO.isUnlocked && !CO.isUnlocked(l.id)) { showToast(t('lbLvLocked')); return; }
+      if (l.id !== curLv && net.setStart) net.setStart(l.id);
+      closeLookMenu(); // 收起并吞掉这次点按后续事件(菜单下面是玩家列表和按钮，别误触)
+    }));
+  }
+  if (isHost && isCoop && r.phase === 'lobby' && live && CO && CO.startId) { // 房主默认起点：续玩位置的下一关；房间里没有/不可用就设一次
+    const want = CO.startId();
+    if (want && r.lvStart !== want && (!r.lvStart || !CO.isUnlocked(r.lvStart))) setTimeout(() => { if (LB.room === r && net && net.setStart) net.setStart(want); }, 0);
+  }
   tap('lbReady', () => net.setReady(!me.ready));
-  tap('lbLookBtn', () => { LB.lookOpen = !LB.lookOpen; LB.lookAnim = LB.lookOpen; renderRoom(); });
+  tap('lbLookBtn', () => { LB.lookOpen = !LB.lookOpen; LB.lookAnim = LB.lookOpen; if (LB.lookOpen) LB.lvOpen = false; renderRoom(); });
   ['m', 'f'].forEach((g) => tap('lbG_' + g, () => { if (lookLocked || me.gender === g) return; LB.want = Object.assign({}, LB.want, { gender: g }); net.setLook({ gender: g }); }));
   SKIN_KEYS.forEach((k) => tap('lbSk_' + k, () => { if (lookLocked || me.skin === k) return; if (takenBy(k)) { showToast(t('lbLookTaken')); return; } LB.want = Object.assign({}, LB.want, { skin: k }); net.setLook({ skin: k }); }));
   tap('lbStart', () => { // 先倒计时，结束后 phase 变 playing，由 onRoom 统一弹提示
