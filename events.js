@@ -46,7 +46,7 @@ const CFG = {
   speedGaitEvery: 2, speedGhost: 0, speedGhostMs: 260, // 加速视觉：左右走每N步插一次收脚帧；残影起始透明度/淡出毫秒(speedGhost=0 关残影，试过 0.5 眼睛更难受，默认关)
   poisonMul: 2, speedMul: 0.5,    // 步时长倍率：中毒慢一倍，加速快一倍
   fogNeed: 0.6, fogFadeMs: 1800,  // 迷雾：擦到这个比例后可操作(剩下的雾仍可继续擦)；计时走完后，剩下的雾这么久淡完
-  boxW: 240, boxVw: 0.64, boxAsp: 841 / 803, // 开机盲盒：最大宽度(px)、不超过屏宽的比例、素材宽高比(803×841)
+  boxW: 240, boxVw: 0.64, boxAsp: 740 / 720, // 开机盲盒：最大宽度(px)、不超过屏宽的比例、素材宽高比(720×740)；换盲盒图改这个比例，图的宽高必须同步
   long:  { drop: 380, shake: 450, fly: 380, roll: 1600, popIn: 220, popHold: 350, popOut: 280 }, // 带盲盒：落下→晃动→缩小飞向转盘位→滚动→亮相(ms)
   short: { drop: 0,   shake: 0,   fly: 200, roll: 1200, popIn: 200, popHold: 260, popOut: 260 }, // 不带盲盒(身上已有效果/连续抽中)：缩短版
   hideTell: 900,  // 隐身前摇：被隐身的箱子先闪烁这么久(ms)，然后瞬间消失
@@ -146,7 +146,7 @@ function mkIcon(id, px, kind) { // kind: 'small' | 'big'；id 可以是 '?'(盲�
   im.src = file;
   return im;
 }
-function mkBox(w) { // 开机盲盒大图：按素材原比例(803×841)，不压成正方形
+function mkBox(w) { // 开机盲盒大图：按素材原比例(720×740)，不压成正方形
   const im = new Image();
   im.draggable = false; im.style.cssText = 'display:block;width:100%;height:auto';
   im.onerror = () => { im.onerror = null; const s = document.createElement('span'); s.textContent = '❓'; s.style.cssText = `display:block;text-align:center;font-size:${Math.round(w * 0.6)}px;line-height:${Math.round(w * CFG.boxAsp)}px`; if (im.parentNode) im.parentNode.replaceChild(s, im); };
