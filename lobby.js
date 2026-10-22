@@ -451,7 +451,12 @@ dg.innerHTML = '<div id="lbDgTitle"></div><div id="lbDgHint"></div><div id="lbDg
 ov.appendChild(dg);
 ['touchstart', 'touchmove', 'touchend'].forEach((ev) => dg.addEventListener(ev, (e) => e.stopPropagation(), { passive: true })); // 别被全局 touch 拦截吃掉(同虚拟键盘)
 let dgTimer = null, dgTxt = '';
-function dgText() { const n = getNet(); try { return n && n.diagReport ? n.diagReport() : t('lbDgOld'); } catch (e) { return '诊断出错：' + (e && e.message); } }
+function dgText() {
+  const n = getNet(); let x;
+  try { x = n && n.diagReport ? n.diagReport() : t('lbDgOld'); } catch (e) { x = '诊断出错：' + (e && e.message); }
+  try { if (window.COOP && COOP.diag) x += '\n\n' + COOP.diag(); } catch (e) { x += '\n\n合作诊断出错：' + (e && e.message); } // 合作同步记录(快照纠正/跳号/事件流)
+  return x;
+}
 function dgPaint() { dgTxt = dgText(); $('lbDgText').textContent = dgTxt; }
 function dgLabels() { $('lbDgTitle').textContent = t('lbDiag'); $('lbDgHint').textContent = t('lbDgHint'); const c = $('lbDgCopy'); c.textContent = t('lbDgCopy'); c.classList.remove('bad'); $('lbDgRefresh').textContent = t('lbDgRefresh'); $('lbDgClear').textContent = t('lbDgClear'); $('lbDgClose').textContent = t('lbDgClose'); }
 function openDiag() { clearTimeout(dgTimer); dgLabels(); dgPaint(); $('lbDgText').scrollTop = 0; dg.classList.add('on'); }
