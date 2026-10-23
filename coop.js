@@ -74,8 +74,16 @@ let undoToastAt = 0;
 
 /* ---------- 同步诊断(只记录，不改任何逻辑)：环形缓冲 + 异常标记；联机诊断面板(lobby)里的「合作同步」一段由 diagText() 给出 ---------- */
 const TR = [], TR_MAX = 90, TB = [], TB_MAX = 40; // TR=最近的所有操作；TB=异常记录(单独存，不会被正常操作挤掉)
-const TR_BAD = { drift: 1, mismatch: 1, gap: 1, stale: 1, 'late-bump': 1, 'pred-bump-moved': 1 };
-const TRS = { stat: null, lv: '', host: false, rttSum: 0, rttN: 0, rttMax: 0, stale: 0 };
+const TR_BAD = { drift: 1, mismatch: 1, gap: 1, stale: 1, 'late-bump': 1, 'pred-bump-moved': 1, burst: 1 };
+const BURST_MS = 150; // 同一角色连走两步，正常间隔≥一步时长(约 260ms)；小于它说明到达被压缩(网络/主线程卡了一下，积压的步子一起到)
+const TRS = { stat: null, lv: '', host: false, rttSum: 0, rttN: 0, rttMax: 0, stale: 0, burst: 0 };
+function noteStep(i, kind) { // 诊断：记每个角色上一条 cm/cf/cu 的时刻和类型；cm 紧接 cm 且间隔太短=步子挤到一起
+  try {
+    const L = C.lastEv || (C.lastEv = [{ t: 0, k: '' }, { t: 0, k: '' }]), p = L[i], now = Date.now();
+    if (kind === 'cm' && p.k === 'cm' && now - p.t < BURST_MS) { TRS.burst++; trace('burst', { i, dt: now - p.t }); }
+    L[i] = { t: now, k: kind };
+  } catch (e) {}
+}
 function trace(k, o) {
   try {
     const e = Object.assign({ t: Date.now(), k, v: C ? C.G.v : -1 }, o || {});
@@ -98,7 +106,7 @@ function diagText() {
     const st = TRS.stat; if (!st) return '';
     const ms = (t) => new Date(t).toTimeString().slice(0, 8) + '.' + String(t % 1000).padStart(3, '0');
     const out = ['合作同步 · ' + (TRS.host ? '房主' : '玩家') + ' · 关卡 ' + TRS.lv + (C ? '' : '(已结束)')];
-    out.push('消息 cm' + st.cm + ' cf' + st.bump + ' · Δ跑偏 ' + st.drift + ' · 跳号 ' + st.gap + ' · 旧消息丢弃 ' + TRS.stale + (TRS.rttN ? ' · 回执 平均' + Math.round(TRS.rttSum / TRS.rttN) + 'ms 最大' + TRS.rttMax + 'ms' : ''));
+    out.push('消息 cm' + st.cm + ' cf' + st.bump + ' · Δ跑偏 ' + st.drift + ' · 跳号 ' + st.gap + ' · 旧消息丢弃 ' + TRS.stale + ' · 步子挤到一起 ' + TRS.burst + (TRS.rttN ? ' · 回执 平均' + Math.round(TRS.rttSum / TRS.rttN) + 'ms 最大' + TRS.rttMax + 'ms' : ''));
     const bad = TB;
     out.push(bad.length ? '异常记录(最近 ' + Math.min(12, bad.length) + ' 条)：' : '异常记录：无(没有跑偏/跳号/推演对不上)');
     bad.slice(-12).forEach((e) => { const r = Object.assign({}, e); delete r.t; delete r.k; delete r.pre; out.push(' ' + ms(e.t) + ' ' + e.k + ' ' + JSON.stringify(r).slice(0, 300)); if (e.pre) out.push('    此前(距此刻ms)：' + e.pre); });
@@ -283,7 +291,7 @@ function start(room) {
     hostPaused: false, pauseAt: 0, pausedMs: 0, winSent: false, lastSnap: 0, lastAsk: 0, seq: 0, pend: {}, bumped: {}, inertia: null, pushed: null, ustk: [[], []], ul: 0, denyAt: 0,
     boxEl: [], boxKey: [], pg: { dir: 'down', side: 'B', neutral: true, t1: 0, t2: 0 }, pshown: null,
     stat: { cm: 0, bump: 0, drift: 0, gap: 0, rtt: -1, last: '' } };
-  TR.length = 0; TB.length = 0; TRS.stat = C.stat; TRS.lv = lv.id; TRS.host = C.isHost; TRS.rttSum = 0; TRS.rttN = 0; TRS.rttMax = 0; TRS.stale = 0;
+  TR.length = 0; TB.length = 0; TRS.stat = C.stat; TRS.lv = lv.id; TRS.host = C.isHost; TRS.rttSum = 0; TRS.rttN = 0; TRS.rttMax = 0; TRS.stale = 0; TRS.burst = 0;
   if (C.isHost) { // 房主被杀后恢复：回到上次存的整盘状态(玩家端不用存，回来要一份快照就行)
     const sn = readSnap(room, lv.id);
     if (sn && R.validSnap(G, sn.s)) { R.load(G, sn.s); C.pausedMs = +sn.pm || 0; if (Array.isArray(sn.us)) C.ustk = [cleanStack(sn.us[0]), cleanStack(sn.us[1])]; }
@@ -351,7 +359,7 @@ function onCm(d) {
   let rtt0; if (i === C.myIdx && d.s) { const t0 = C.pend[d.s]; if (t0) { C.stat.rtt = rtt0 = Math.round(performance.now() - t0); TRS.rttSum += rtt0; TRS.rttN++; if (rtt0 > TRS.rttMax) TRS.rttMax = rtt0; delete C.pend[d.s]; } }
   if (i === C.myIdx && d.s && C.bumped[d.s]) { trace('pred-bump-moved', { i, d: d.d }); delete C.bumped[d.s]; } // 本机预判撞了、房主却说走成了
   C.stat.cm++;
-  trace('cm', { i, d: d.d, rtt: rtt0 });
+  trace('cm', { i, d: d.d, rtt: rtt0 }); noteStep(i, 'cm');
   if (i === C.myIdx && !C.isHost) C.ul = Math.min(UNDO_MAX, C.ul + 1);
   if (i === C.myIdx) mineMove(d.d, res); else partnerMove(d.d, res);
 }
@@ -417,7 +425,7 @@ function onCu(d) { // 房主确认：某人后撤了一步(玩家端先用同一
   }
   if (i === C.myIdx && d.s) { const t0 = C.pend[d.s]; if (t0) { C.stat.rtt = Math.round(performance.now() - t0); delete C.pend[d.s]; } }
   C.stat.cm++;
-  trace('cu', { i });
+  trace('cu', { i }); noteStep(i, 'cu');
   if (i === C.myIdx) mineUndo(e); else partnerUndo(e);
 }
 function onCn(d) { // 房主：某人的撤销没成。只有请求的人有反应
@@ -436,7 +444,7 @@ function onCf(d) { // 房主确认：某人这一步没走成，转身面向 d.d
     R.face(G, i, d.d);
   }
   C.stat.bump++;
-  trace('cf', { i, d: d.d, w: d.w, q: d.q ? 1 : 0 });
+  trace('cf', { i, d: d.d, w: d.w, q: d.q ? 1 : 0 }); noteStep(i, 'cf');
   if (d.q) { // 滑动中的转身：只转身，不弹
     if (i !== C.myIdx) { partnerTurn(d.d); return; }
     if (C.isHost) return;                                         // 房主自己的：按键时已经转过了
