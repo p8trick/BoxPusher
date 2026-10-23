@@ -74,9 +74,9 @@ let undoToastAt = 0;
 
 /* ---------- 同步诊断(只记录，不改任何逻辑)：环形缓冲 + 异常标记；联机诊断面板(lobby)里的「合作同步」一段由 diagText() 给出 ---------- */
 const TR = [], TR_MAX = 90, TB = [], TB_MAX = 40; // TR=最近的所有操作；TB=异常记录(单独存，不会被正常操作挤掉)
-const TR_BAD = { drift: 1, mismatch: 1, gap: 1, stale: 1, 'late-bump': 1, 'pred-bump-moved': 1, burst: 1 };
+const TR_BAD = { drift: 1, mismatch: 1, gap: 1, stale: 1, 'late-bump': 1, 'pred-bump-moved': 1, burst: 1, vjump: 1, longframe: 1 };
 const BURST_MS = 150; // 同一角色连走两步，正常间隔≥一步时长(约 260ms)；小于它说明到达被压缩(网络/主线程卡了一下，积压的步子一起到)
-const TRS = { stat: null, lv: '', host: false, rttSum: 0, rttN: 0, rttMax: 0, stale: 0, burst: 0 };
+const TRS = { stat: null, lv: '', host: false, rttSum: 0, rttN: 0, rttMax: 0, stale: 0, burst: 0, long: 0, long100: 0, maxFrame: 0, vjump: 0 };
 function noteStep(i, kind) { // 诊断：记每个角色上一条 cm/cf/cu 的时刻和类型；cm 紧接 cm 且间隔太短=步子挤到一起
   try {
     const L = C.lastEv || (C.lastEv = [{ t: 0, k: '' }, { t: 0, k: '' }]), p = L[i], now = Date.now();
@@ -107,6 +107,7 @@ function diagText() {
     const ms = (t) => new Date(t).toTimeString().slice(0, 8) + '.' + String(t % 1000).padStart(3, '0');
     const out = ['合作同步 · ' + (TRS.host ? '房主' : '玩家') + ' · 关卡 ' + TRS.lv + (C ? '' : '(已结束)')];
     out.push('消息 cm' + st.cm + ' cf' + st.bump + ' · Δ跑偏 ' + st.drift + ' · 跳号 ' + st.gap + ' · 旧消息丢弃 ' + TRS.stale + ' · 步子挤到一起 ' + TRS.burst + (TRS.rttN ? ' · 回执 平均' + Math.round(TRS.rttSum / TRS.rttN) + 'ms 最大' + TRS.rttMax + 'ms' : ''));
+    out.push('画面 卡帧>50ms ' + TRS.long + ' 次(>100ms ' + TRS.long100 + ' 次，最大 ' + TRS.maxFrame + 'ms) · 角色单帧跳变(>0.3格) ' + TRS.vjump + ' 次');
     const bad = TB;
     out.push(bad.length ? '异常记录(最近 ' + Math.min(12, bad.length) + ' 条)：' : '异常记录：无(没有跑偏/跳号/推演对不上)');
     bad.slice(-12).forEach((e) => { const r = Object.assign({}, e); delete r.t; delete r.k; delete r.pre; out.push(' ' + ms(e.t) + ' ' + e.k + ' ' + JSON.stringify(r).slice(0, 300)); if (e.pre) out.push('    此前(距此刻ms)：' + e.pre); });
@@ -117,6 +118,39 @@ function diagText() {
   } catch (e) { return '合作同步诊断出错：' + (e && e.message); }
 }
 
+/* ---------- 画面监视(诊断，只读)：每帧看一眼两个角色在棋盘里的实际位置(取 transform 过渡当前走到哪；不含回弹的 translate、不含镜头)，
+   抓两种「飘」：① 单帧位移>0.3 格的瞬间跳变(没有走路动画)；② 掉帧(帧间隔>50ms，看起来像一下子飘过去)。不改任何画面/逻辑。 */
+const VM_ON = true;
+let vm = null;
+function vmPos(el) {
+  const t = getComputedStyle(el).transform;
+  if (!t || t === 'none') return null;
+  const m3 = /^matrix3d\((.+)\)$/.exec(t), m2 = /^matrix\((.+)\)$/.exec(t), p = m3 ? m3[1].split(',') : m2 ? m2[1].split(',') : null;
+  if (!p) return null;
+  return m3 ? { x: +p[12], y: +p[13] } : { x: +p[4], y: +p[5] };
+}
+function vmFrame(ts) {
+  const dt = vm.last ? ts - vm.last : 0; vm.last = ts;
+  if (dt >= 2000) { vm.pos = {}; return; } // 切后台回来：不比
+  if (dt > 50) { TRS.long++; if (dt >= 100) TRS.long100++; if (dt > TRS.maxFrame) TRS.maxFrame = Math.round(dt); if (dt >= 80) trace('longframe', { dt: Math.round(dt) }); }
+  const tile = tileSize();
+  [['playerEl', '自己'], ['partnerEl', '同伴']].forEach((a) => {
+    const el = $(a[0]), p = el && vmPos(el), old = vm.pos[a[0]];
+    vm.pos[a[0]] = p ? { x: p.x, y: p.y, el, tile } : null;
+    if (!p || !old || old.el !== el || old.tile !== tile || dt > 50 || dt <= 0) return; // 新元素/格子大小变了/长帧：不比
+    const dist = Math.hypot(p.x - old.x, p.y - old.y);
+    if (dist > tile * 0.3) { TRS.vjump++; trace('vjump', { who: a[1], cell: +(dist / tile).toFixed(2), dt: Math.round(dt) }); }
+  });
+}
+function vmStart() {
+  vmStop();
+  if (!VM_ON || !window.requestAnimationFrame) return;
+  const m = vm = { last: 0, pos: {}, raf: 0 };
+  const loop = (ts) => { if (vm !== m || !C) return; m.raf = requestAnimationFrame(loop); try { vmFrame(ts); } catch (e) { /* 诊断不能影响对局 */ } };
+  m.raf = requestAnimationFrame(loop);
+}
+function vmStop() { if (vm) { cancelAnimationFrame(vm.raf); vm = null; } }
+document.addEventListener('visibilitychange', () => { if (vm) { vm.last = 0; vm.pos = {}; } });
 function findLevel(id) {
   const pk = window.COOP_LEVEL_PACK;
   if (!pk || !Array.isArray(pk.levels)) return null;
@@ -291,7 +325,7 @@ function start(room) {
     hostPaused: false, pauseAt: 0, pausedMs: 0, winSent: false, lastSnap: 0, lastAsk: 0, seq: 0, pend: {}, bumped: {}, inertia: null, pushed: null, ustk: [[], []], ul: 0, denyAt: 0,
     boxEl: [], boxKey: [], pg: { dir: 'down', side: 'B', neutral: true, t1: 0, t2: 0 }, pshown: null,
     stat: { cm: 0, bump: 0, drift: 0, gap: 0, rtt: -1, last: '' } };
-  TR.length = 0; TB.length = 0; TRS.stat = C.stat; TRS.lv = lv.id; TRS.host = C.isHost; TRS.rttSum = 0; TRS.rttN = 0; TRS.rttMax = 0; TRS.stale = 0; TRS.burst = 0;
+  TR.length = 0; TB.length = 0; TRS.stat = C.stat; TRS.lv = lv.id; TRS.host = C.isHost; TRS.rttSum = 0; TRS.rttN = 0; TRS.rttMax = 0; TRS.stale = 0; TRS.burst = 0; TRS.long = 0; TRS.long100 = 0; TRS.maxFrame = 0; TRS.vjump = 0;
   if (C.isHost) { // 房主被杀后恢复：回到上次存的整盘状态(玩家端不用存，回来要一份快照就行)
     const sn = readSnap(room, lv.id);
     if (sn && R.validSnap(G, sn.s)) { R.load(G, sn.s); C.pausedMs = +sn.pm || 0; if (Array.isArray(sn.us)) C.ustk = [cleanStack(sn.us[0]), cleanStack(sn.us[1])]; }
@@ -310,6 +344,7 @@ function start(room) {
   loadMpLevel(R.toXsb(G, myIdx, C.tr), lv.id, C.seg); // 核心的棋盘按「本机视角」的 XSB 建；建完会回调 afterBuild 挂上同伴角色
   state.mp.coop = true;
   paintBar(); paintModal();
+  vmStart();
   C.timer = setInterval(tick, 1000);
   if (C.isHost) { saveSnap(); hostRoomChanged(); } else askSnap('start', true);
 }
