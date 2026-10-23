@@ -369,10 +369,13 @@ function onCs(d) { // 房主的整盘快照(玩家端)：同号同状态=一切�
   reconcileView(!quiet);
 }
 const BUMP_K = 0.06; // 撞墙/推不动的回弹幅度 = 格子的 6%(原来 8%，减弱 25%)；最小 2px
-function nudge(el, vd, x, y) { // 身体朝撞到的方向顶一下再回来(纯画面，160ms)；x,y=角色当前格子左上角的像素位置
+function nudge(el, vd, x, y) { // 身体朝撞到的方向顶一下再回来(纯画面，160ms)；x,y 不再用(保留参数只为兼容调用处)
   if (!el || !el.animate) return;
-  const dv = DIR_DELTA[vd], k = Math.max(2, Math.round(tileSize() * BUMP_K)), base = el.style.transform;
-  el.animate([{ transform: base }, { transform: `translate(${x + dv[1] * k}px, ${y + dv[0] * k}px)`, offset: 0.4 }, { transform: base }], { duration: 160, easing: 'ease-out' });
+  const dv = DIR_DELTA[vd], k = Math.max(2, Math.round(tileSize() * BUMP_K));
+  /* 用独立的 translate 属性做偏移，只「叠加」在 transform 上，不覆盖走步/滑动的 transform 过渡(和 playBoxFx 同一思路)。
+     旧写法是按绝对坐标写 transform 关键帧：160ms 内会把人物钉在旧格子上，这期间若紧接着走一步(撞墙后立刻掉头)，
+     回弹一结束人物就从旧格子「瞬移」到过渡的当前位置(最多一格)，中间没有走路动画。 */
+  el.animate([{ translate: '0px 0px' }, { translate: `${dv[1] * k}px ${dv[0] * k}px`, offset: 0.4 }, { translate: '0px 0px' }], { duration: 160, easing: 'ease-out' });
 }
 function ownBump(d, w) { // 本机角色转身撞一下，并且和同伴那边一样身体回弹一下
   state.dir = vword(d);
