@@ -15,7 +15,6 @@
                            以及只在本机产生的 hostoff/hostback(房主掉线/上线)；广播类只在发生那一刻发出，晚加入的人看不到之前的
    cancelStart()           房主：倒计时期间取消开始
    debugInfo()             一段给真机排查用的状态文字
-   diagReport() / diagReset()  联机诊断：返回一段可复制的纯文本(路径类型、延迟分布、尖峰次数/成因、主线程卡顿)；清零。大厅「诊断」按钮用它。pong 带可选 lg、hb 带可选 lg(各端上一秒主线程最大卡顿 ms)，只给诊断用，旧版忽略
    me = { token, name }：token 是设备本地生成的私密随机串，只在 hello 里发给房主，房主用它认人；昵称只是显示用，重名也不会混。
    room = { code, mode:'race', tier:'easy'|'normal', levelId, phase:'lobby'|'starting'|'playing', hostPid, you, seq, players:[{pid,name,skin,gender,ready,online,inResult}] }：
    (v3 竞速) tier=房主选的难度档(大厅里 setTier)；levelId=本局关卡 id(start({levelId}) 时写入，倒计时期间玩家就能预载；回大厅后清空)；inResult=该玩家还停在结算画面(没点「返回大厅」)，期间不能准备、房主不能开始。
@@ -374,7 +373,7 @@ function createLAN(cfg) {
       applyLook(p, m.skin, m.g, conn);
     } else if (m.t === 'pong') {
       const d = Date.now() - m.ts; // ts 是房主自己发 hb 时的时间，只和房主自己的时钟比
-      if (typeof m.ts === 'number' && d >= 0 && d < 60000) { pings.set(tok, Math.max(1, d)); dgArrive(p.pid, d, m.lg); }
+      if (typeof m.ts === 'number' && d >= 0 && d < 60000) pings.set(tok, Math.max(1, d));
       if (m.r) { const r = sanitizeReport(m.r); if (r) reports.set(tok, r); }
     } else if (m.t === 'nx') { // 合作结算卡片：准备/取消准备下一关(只在结算画面、合作档、大厅阶段有效)
       const v = !!m.v;
@@ -483,7 +482,7 @@ function createLAN(cfg) {
   function bcast(msg, exceptTok) { conns.forEach((c, tok) => { if (tok !== exceptTok) sendTo(c, msg); }); }
 
   function startHostTick() {
-    dgStart(); clearInterval(hostTick); lastTickAt = Date.now();
+    clearInterval(hostTick); lastTickAt = Date.now();
     hostTick = setInterval(() => {
       if (role !== 'host' || !room) return;
       const now = Date.now();
@@ -498,7 +497,7 @@ function createLAN(cfg) {
       let rm = {}; // 各玩家最近一次上报(用 pid 做键)：只在 playing 阶段有；房主自己的上报也在里面
       if (room.phase === 'playing') room.players.forEach((pl) => { const r = pl.token === room.hostToken ? myReport : reports.get(pl.token); if (r) rm[pl.pid] = r; });
       else if (reports.size) reports.clear();
-      bcast({ t: 'hb', seq: room.seq, ts: now, p: pm, r: rm, lg: DG.lagLast });
+      bcast({ t: 'hb', seq: room.seq, ts: now, p: pm, r: rm });
       if (L.onLatency) { try { L.onLatency(pm); } catch (x) { console.error(x); } }
       if (room.phase === 'playing' && L.onReports) { try { L.onReports(rm); } catch (x) { console.error(x); } }
       let dirty = false;
@@ -717,7 +716,7 @@ function createLAN(cfg) {
     conn.on('close', () => { if (G.conn === conn) enterWait('conn closed'); });
     conn.on('error', () => { if (G.conn === conn) enterWait('conn error'); });
     peer.on('disconnected', () => { try { peer.reconnect(); } catch (e) {} }); // 和配对服务器断开不影响已建立的 P2P，顺手重连
-    dgStart(); clearInterval(G.tick);
+    clearInterval(G.tick);
     G.tick = setInterval(() => {
       const now = Date.now();
       const gap = G.tickAt ? now - G.tickAt : 0; G.tickAt = now;
@@ -732,7 +731,7 @@ function createLAN(cfg) {
     if (role !== 'guest' || G.conn !== conn || !m || typeof m !== 'object') return;
     if (m.t === 'hb') {
       G.lastHb = Date.now();
-      const pg = { t: 'pong', ts: m.ts, lg: DG.lagLast }; if (myReport) pg.r = myReport; dgArrive('H', m.p ? m.p[G.pid] : null, m.lg); // 原样回 ts，房主据此算延迟；本机上报随它一起走(没有就不带这个键)
+      const pg = { t: 'pong', ts: m.ts }; if (myReport) pg.r = myReport; // 原样回 ts，房主据此算延迟；本机上报随它一起走(没有就不带这个键)
       sendTo(conn, pg);
       if (m.p && L.onLatency) { try { L.onLatency(m.p); } catch (e) { console.error(e); } }
       if (m.r && L.onReports) { try { L.onReports(m.r); } catch (e) { console.error(e); } }
@@ -803,7 +802,7 @@ function createLAN(cfg) {
     teardown();
   }
   function teardown() {
-    epoch++; dgStop();
+    epoch++;
     clearInterval(hostTick); hostTick = null; clearInterval(sigTimer); sigTimer = null;
     clearInterval(G.tick); G.tick = null; clearTimeout(G.retryTimer); G.retryTimer = null;
     safeDestroy(hostPeer); hostPeer = null;
@@ -832,133 +831,8 @@ function createLAN(cfg) {
     return lines.concat(logs.slice(-6)).join('\n');
   }
 
-  /* ======================================================================
-     网络诊断(只读采样，不改任何协议行为；唯一多出来的是 pong/hb 里各带一个可选小字段 lg)。lobby 的「诊断」按钮调 diagReport() 显示并复制。
-     每秒给每个对端记一条：应用层往返(房主测的 hb→pong)、消息到达间隔 gap、两端主线程卡顿(200ms 定时器的最大迟到)、
-     getStats 里的 STUN 往返(只是底噪参考，几秒才更新一次，抓不到尖峰)；另记所选 ICE 路径类型(host/srflx/relay)。
-     判尖峰：app≥150ms 或 gap≥1.6s；切后台/被挂起前后 6 秒不计。诊断本身出任何错都吞掉，不能影响联机。 */
-  const DG_CAP = 900, DG_APP = 150, DG_GAP = 1600;
-  const DG = { timer: null, loop: null, loopAt: 0, winLag: 0, lagLast: 0, win: new Map(), series: new Map(), meta: new Map(), ev: [], t0: 0, bgUntil: 0, lastPh: '', n: 0 };
-  function dgEv(x) { DG.ev.push(new Date().toTimeString().slice(0, 8) + ' ' + x); if (DG.ev.length > 24) DG.ev.shift(); }
-  function dgWin(key) { let w = DG.win.get(key); if (!w) { w = { last: 0, gap: 0, app: null, plag: 0, conn: null }; DG.win.set(key, w); } return w; }
-  function dgStart() {
-    if (DG.timer) return;
-    try {
-      DG.t0 = Date.now(); DG.loopAt = performance.now(); DG.winLag = 0; DG.lagLast = 0; DG.lastPh = ''; DG.n = 0;
-      DG.loop = setInterval(() => {
-        const now = performance.now(), lag = Math.min(60000, Math.max(0, now - DG.loopAt - 200)); DG.loopAt = now;
-        if (lag > DG.winLag) DG.winLag = lag;
-        if (lag >= 3000) DG.bgUntil = Date.now() + 6000; // 被系统挂起过(切后台/锁屏)：前后几秒不算尖峰
-      }, 200);
-      DG.timer = setInterval(dgSample, 1000);
-      dgEv('诊断开始');
-    } catch (e) {}
-  }
-  function dgStop() { clearInterval(DG.loop); clearInterval(DG.timer); DG.loop = DG.timer = null; DG.win.clear(); DG.series.clear(); DG.meta.clear(); DG.ev = []; }
-  function dgReset() { DG.series.clear(); DG.ev = []; DG.t0 = Date.now(); DG.win.forEach((w) => { w.gap = 0; w.app = null; w.plag = 0; }); dgEv('已清零'); }
-  function dgArrive(key, app, plag) { // 收到对端一条心跳类消息(房主=收到 pong，玩家=收到 hb)；app=房主测得的往返；plag=对端上报的卡顿
-    try {
-      const w = dgWin(key), now = Date.now();
-      if (w.last) w.gap = Math.max(w.gap, now - w.last);
-      w.last = now;
-      if (typeof app === 'number' && app >= 0 && app < 60000) w.app = Math.max(w.app || 0, app);
-      if (typeof plag === 'number' && plag >= 0 && plag < 60000) w.plag = Math.max(w.plag, plag);
-    } catch (e) {}
-  }
-  function dgStats(conn, mt) { // 读所选 ICE 路径：类型、协议、STUN 往返(几秒才更新一次)
-    try {
-      const pc = conn && conn.peerConnection;
-      if (!pc || !pc.getStats || mt.busy) return;
-      mt.busy = true;
-      const done = () => { mt.busy = false; };
-      const to = setTimeout(done, 1500);
-      pc.getStats().then((rep) => {
-        clearTimeout(to);
-        const by = {}; let tid = null;
-        rep.forEach((r) => { by[r.id] = r; if (r.type === 'transport' && r.selectedCandidatePairId) tid = r.selectedCandidatePairId; });
-        let pair = tid ? by[tid] : null;
-        if (!pair) rep.forEach((r) => { if (!pair && r.type === 'candidate-pair' && (r.selected || (r.nominated && r.state === 'succeeded'))) pair = r; });
-        if (pair) {
-          const lc = by[pair.localCandidateId] || {}, rc = by[pair.remoteCandidateId] || {};
-          if (typeof pair.currentRoundTripTime === 'number') mt.rtt = Math.round(pair.currentRoundTripTime * 1000);
-          mt.path = (lc.candidateType || '?') + '→' + (rc.candidateType || '?'); mt.proto = lc.protocol || ''; mt.net = lc.networkType || ''; mt.relay = lc.relayProtocol || '';
-        }
-        done();
-      }).catch(() => { clearTimeout(to); done(); });
-    } catch (e) {}
-  }
-  function dgSample() {
-    try {
-      const now = Date.now();
-      DG.lagLast = Math.round(DG.winLag); const lag = DG.lagLast; DG.winLag = 0;
-      if (document.hidden) DG.bgUntil = now + 6000;
-      const bg = now < DG.bgUntil ? 1 : 0;
-      if (!room || (role !== 'host' && role !== 'guest')) return;
-      const ph = room.phase === 'playing' ? 'P' : room.phase === 'starting' ? 'S' : 'L';
-      if (ph !== DG.lastPh) { dgEv('阶段 ' + room.phase + (room.tier ? '/' + room.tier : '')); DG.lastPh = ph; }
-      const peers = [];
-      if (role === 'host') room.players.forEach((p) => { const c = conns.get(p.token); if (p.token !== room.hostToken && p.online && c) peers.push({ key: p.pid, name: p.name, conn: c }); });
-      else if (G.conn && state === 'IN_ROOM') peers.push({ key: 'H', name: hostName(), conn: G.conn });
-      const doStats = (++DG.n % 2) === 0; // getStats 每 2 秒读一次
-      peers.forEach((pe) => {
-        const w = dgWin(pe.key);
-        if (w.conn !== pe.conn) { w.conn = pe.conn; w.last = 0; w.gap = 0; w.app = null; w.plag = 0; dgEv('新连接 ' + pe.name); } // 换了条连接：间隔从头算
-        const gap = Math.max(w.gap, w.last ? now - w.last : 0);
-        let ser = DG.series.get(pe.key); if (!ser) { ser = []; DG.series.set(pe.key, ser); }
-        let mt = DG.meta.get(pe.key); if (!mt) { mt = { name: pe.name, rtt: null }; DG.meta.set(pe.key, mt); } mt.name = pe.name;
-        ser.push({ t: now, ph, app: w.app, gap, lag, plag: w.plag, rtt: mt.rtt, bg });
-        if (ser.length > DG_CAP + 60) ser.splice(0, 60);
-        w.gap = 0; w.app = null; w.plag = 0;
-        if (doStats) dgStats(pe.conn, mt);
-      });
-    } catch (e) {}
-  }
-  function dgPct(a, p) { const q = a.slice().sort((x, y) => x - y); return q.length ? q[Math.min(q.length - 1, Math.floor(p * q.length))] : 0; }
-  function dgCause(e) { return e.lag >= 100 ? '本机卡' : e.plag >= 100 ? '对端卡' : (e.rtt != null && e.rtt >= 100) ? 'STUN慢' : '两端都不卡'; }
-  function dgReport() { // 一段给人看、也给我看的纯文本：先结论后细节，尽量短
-    const hh = (t) => new Date(t).toTimeString().slice(0, 8), PH = { L: '大厅', S: '倒计时', P: '对局' };
-    const ua = navigator.userAgent || '', iosv = (ua.match(/OS (\d+[_.]\d+)/) || [])[1];
-    const dev = (/iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) ? 'iPad' : /iPhone/.test(ua) ? 'iPhone' : '其他设备';
-    const out = [`联机诊断 v1 · ${hh(Date.now())} · ${dev}${iosv ? ' iOS ' + iosv.replace('_', '.') : ''} · ${navigator.standalone ? 'PWA' : '非PWA'}`];
-    out.push(`${role === 'host' ? '房主' : role === 'guest' ? '玩家' : '未入房'} · 房间 ${room ? room.code : '-'} · ${room ? room.phase + '/' + room.tier : '-'} · 已记录 ${DG.t0 ? Math.round((Date.now() - DG.t0) / 1000) : 0}s`);
-    if (!DG.series.size) out.push('还没有采样：需要房间里至少有另一台设备在线，等几秒再点刷新');
-    DG.series.forEach((ser, key) => {
-      const mt = DG.meta.get(key) || {};
-      const okS = ser.filter((s) => !s.bg), bgN = ser.length - okS.length;
-      const apps = okS.map((s) => s.app).filter((v) => typeof v === 'number');
-      const evs = []; let prevT = -1e9;
-      okS.forEach((s) => { // 连续的异常秒合并成一次尖峰
-        if (!((typeof s.app === 'number' && s.app >= DG_APP) || s.gap >= DG_GAP)) return;
-        const cur = evs[evs.length - 1];
-        if (cur && s.t - prevT <= 2200) { cur.app = Math.max(cur.app, s.app || 0); cur.gap = Math.max(cur.gap, s.gap); cur.lag = Math.max(cur.lag, s.lag); cur.plag = Math.max(cur.plag, s.plag); cur.secs++; if (s.rtt != null) cur.rtt = s.rtt; }
-        else evs.push({ t: s.t, ph: s.ph, app: s.app || 0, gap: s.gap, lag: s.lag, plag: s.plag, rtt: s.rtt, secs: 1 });
-        prevT = s.t;
-      });
-      const byPh = { L: 0, S: 0, P: 0 }, byCause = {};
-      evs.forEach((e) => { byPh[e.ph]++; const c = dgCause(e); byCause[c] = (byCause[c] || 0) + 1; });
-      const rtts = okS.map((s) => s.rtt).filter((v) => typeof v === 'number');
-      out.push('');
-      out.push(`▶ ${mt.name || '?'} (${key}) · ${ser.length}s${bgN ? `，另有 ${bgN}s 在后台/刚恢复，已排除` : ''}`);
-      out.push(`路径 ${mt.path || '未知'} ${mt.proto || ''} ${mt.net || ''} ${mt.relay ? 'relay:' + mt.relay : ''}`.replace(/\s+/g, ' ').trim() + ` · STUN往返 ${rtts.length ? dgPct(rtts, 0.5) + 'ms(中位，参考)' : '未读到'}`);
-      out.push(apps.length ? `应用延迟 样本${apps.length} 平均${Math.round(apps.reduce((a, b) => a + b, 0) / apps.length)} 中位${dgPct(apps, 0.5)} P95${dgPct(apps, 0.95)} 最大${Math.max.apply(null, apps)} ms` : '应用延迟 还没有样本');
-      out.push(`尖峰 ${evs.length} 次(≥${DG_APP}ms 或断流≥${DG_GAP / 1000}s)：大厅${byPh.L} 倒计时${byPh.S} 对局${byPh.P}；其中≥300ms ${evs.filter((e) => e.app >= 300 || e.gap >= 3000).length} 次`);
-      if (evs.length) out.push('推测成因 ' + Object.keys(byCause).map((k) => k + byCause[k]).join(' · '));
-      const lags = okS.map((s) => s.lag), plags = okS.map((s) => s.plag);
-      out.push(`主线程卡顿 本机最大${Math.max.apply(null, lags.concat([0]))}ms(≥100ms 的秒数 ${lags.filter((v) => v >= 100).length}) · 对端最大${Math.max.apply(null, plags.concat([0]))}ms(≥100ms 的秒数 ${plags.filter((v) => v >= 100).length})`);
-      if (evs.length) {
-        out.push('最近尖峰：时刻 阶段 延迟/断流 卡顿(本/对) STUN → 推测');
-        evs.slice(-10).forEach((e) => out.push(` ${hh(e.t)} ${PH[e.ph]} ${e.app || '-'}/${e.gap}ms ${e.lag}/${e.plag} ${e.rtt == null ? '-' : e.rtt} → ${dgCause(e)}`));
-      }
-    });
-    out.push('');
-    out.push('事件：' + (DG.ev.length ? DG.ev.slice(-8).join(' | ') : '无'));
-    out.push('网络日志：' + (logs.length ? logs.slice(-5).join(' | ') : '无'));
-    return out.join('\n');
-  }
-  document.addEventListener('visibilitychange', () => { if (DG.timer) dgEv(document.hidden ? '切后台' : '回前台'); });
-
   Object.assign(L, {
-    diagReport: dgReport, diagReset: dgReset, create, restore, hostSession, guestSession, join, setReady, diag: () => logs.slice(-10).join('\n'), start, cancelStart: () => cancelStart('host'), endGame, endRound, removePlayer, back, setTier, setStart, setNext, startNext, setLook, setReport, sendGame, bcastGame, leave, reconnect, debugInfo, loadPeerJS,
+    create, restore, hostSession, guestSession, join, setReady, diag: () => logs.slice(-10).join('\n'), start, cancelStart: () => cancelStart('host'), endGame, endRound, removePlayer, back, setTier, setStart, setNext, startNext, setLook, setReport, sendGame, bcastGame, leave, reconnect, debugInfo, loadPeerJS,
     session() { try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch (e) { return null; } },
   });
   // 只读属性必须用 defineProperty：Object.assign 会把 getter 当场求值成死值
