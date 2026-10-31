@@ -77,8 +77,6 @@ Object.assign(I18N.en, {
   lbErrNoLevels: 'No race levels: check levels_mp.js is loaded and this tier has levels', lbEndMatch: 'End match',
   lbCoopMax: 'Co-op allows 2 players max', lbLookTaken: 'That color was just taken',
 });
-Object.assign(I18N.zh, { lbDiag: '联机诊断', lbDgCopy: '复制', lbDgCopied: '已复制 ✓', lbDgFail: '复制失败，请长按上方文字手动复制', lbDgRefresh: '刷新', lbDgClear: '清零', lbDgClose: '关闭', lbDgHint: '点「复制」后粘贴发给 Claude 即可', lbDgOld: '网络层版本过旧，没有诊断功能' });
-Object.assign(I18N.en, { lbDiag: 'Diagnostics', lbDgCopy: 'Copy', lbDgCopied: 'Copied ✓', lbDgFail: 'Copy failed — long-press the text above', lbDgRefresh: 'Refresh', lbDgClear: 'Reset', lbDgClose: 'Close', lbDgHint: 'Tap Copy, then paste it to Claude', lbDgOld: 'Network layer too old, no diagnostics' });
 const MODE_KEYS = { easy: 'lbMdEasy', normal: 'lbMdNormal', coop: 'lbMdCoop' }; // 下拉里显示的「模式-难度」
 const TIER_KEYS = [['easy', 'lbTierEasy'], ['normal', 'lbTierNormal'], ['coop', 'lbTierCoop']]; // 和 lan.js 的 TIERS 一致；easy/normal 同时是 levels_mp.js 的 tiers[].key，coop 的关卡在 levels_coop.js
 const ERR_KEY = { notfound: 'lbErrNotFound', full: 'lbErrFull', started: 'lbErrStarted', timeout: 'lbErrTimeout', network: 'lbErrNetwork', self: 'lbErrSelf', version: 'lbErrVersion', nosession: 'lbErrNoSession', busy: 'lbErrRestoreBusy', removed: 'lbErrRemoved' };
@@ -273,25 +271,6 @@ html[data-lang="en"] .lbBtn { font-size: 16px; letter-spacing: 0.06em; text-inde
   font-size: 13px; line-height: 1.6; color: #d9c08a; touch-action: pan-y; }
 .lbLogRow time { margin-right: 7px; opacity: 0.5; font-variant-numeric: tabular-nums; }
 .lbLogRow.warn { color: #ffb089; } .lbLogRow.go { color: #c9eb92; font-weight: 800; } .lbLogRow.cd { color: #f6e3ae; font-weight: 800; }
-
-/* 联机诊断：房间底部的小链接 + 全屏文字面板(挂在大厅浮层下，和房间重绘互不影响) */
-.lbDiagLink { display: block; margin: 8px auto 0; padding: 8px 18px; border: 0; background: none; font-size: 12px; font-weight: 700; letter-spacing: 0.1em;
-  color: rgba(217, 192, 138, 0.5); -webkit-tap-highlight-color: transparent; }
-#lbDgPanel { position: fixed; inset: 0; z-index: 3; box-sizing: border-box; display: none; flex-direction: column; gap: 8px; touch-action: manipulation;
-  padding: max(14px, env(safe-area-inset-top)) 12px max(14px, env(safe-area-inset-bottom)); background: rgba(16, 10, 4, 0.96); }
-#lbDgPanel.on { display: flex; }
-#lbDgTitle { flex: none; text-align: center; font-size: 18px; font-weight: 900; letter-spacing: 0.2em; color: #f3dfb2; }
-#lbDgHint { flex: none; text-align: center; font-size: 12px; color: rgba(217, 192, 138, 0.7); }
-#lbDgText { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; touch-action: pan-y; box-sizing: border-box;
-  padding: 10px; border-radius: 10px; background: rgba(0, 0, 0, 0.5); color: #e8d5a8; font: 12px/1.55 ui-monospace, Menlo, monospace;
-  white-space: pre-wrap; word-break: break-all; -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
-#lbDgBtns { flex: none; display: flex; gap: 8px; }
-.lbDgBtn { flex: 1 1 0; min-width: 0; height: 48px; padding: 0 4px; border: 0; border-radius: 10px; font: 800 16px/48px system-ui, -apple-system, sans-serif; color: #4a2a10; -webkit-tap-highlight-color: transparent;
-  background: linear-gradient(180deg, #e9c58a, #d2a263); box-shadow: 0 2px 0 #8a5a2a, inset 0 1px 0 rgba(255, 255, 255, 0.35); }
-.lbDgBtn:active { filter: brightness(0.85); transform: translateY(1px); }
-.lbDgBtn.main { flex: 1.6 1 0; background: linear-gradient(180deg, #8fbf6a, #6b9a47); color: #fff; box-shadow: 0 2px 0 #3f6128, inset 0 1px 0 rgba(255, 255, 255, 0.3); }
-.lbDgBtn.main.bad { background: linear-gradient(180deg, #d98a6a, #b8613f); box-shadow: 0 2px 0 #7a3a1f; font-size: 13px; line-height: 1.2; }
-.lbDgBtn.red { background: linear-gradient(180deg, #b98f5d, #9d7444); color: #fff4dc; box-shadow: 0 2px 0 #5d3b18; }
 `;
 document.head.appendChild(css);
 
@@ -440,61 +419,6 @@ const ov = document.createElement('div');
 ov.id = 'lobbyOverlay';
 ov.innerHTML = '<div id="lobbyWrap"><div id="lobbySheet" class="artPanel"><div id="lbHead"><span id="lbTitle"></span><span id="lbSub"></span></div><div id="lbBody"></div></div></div>';
 document.body.appendChild(ov);
-/* ---------- 联机诊断面板 ----------
-   复制要点(iOS PWA)：必须在点按事件里「同步」调用；先走 execCommand('copy')(只读 textarea + setSelectionRange，不会弹系统键盘)，
-   同时也调 navigator.clipboard.writeText，两条任一成功就算成功；都失败按钮变成提示，文字区本身可长按选中手动复制。 */
-const dg = document.createElement('div');
-dg.id = 'lbDgPanel';
-dg.innerHTML = '<div id="lbDgTitle"></div><div id="lbDgHint"></div><div id="lbDgText"></div><div id="lbDgBtns">' +
-  '<button type="button" id="lbDgCopy" class="lbDgBtn main"></button><button type="button" id="lbDgRefresh" class="lbDgBtn"></button>' +
-  '<button type="button" id="lbDgClear" class="lbDgBtn"></button><button type="button" id="lbDgClose" class="lbDgBtn red"></button></div>';
-ov.appendChild(dg);
-['touchstart', 'touchmove', 'touchend'].forEach((ev) => dg.addEventListener(ev, (e) => e.stopPropagation(), { passive: true })); // 别被全局 touch 拦截吃掉(同虚拟键盘)
-let dgTimer = null, dgTxt = '';
-function dgText() {
-  const n = getNet(); let x;
-  try { x = n && n.diagReport ? n.diagReport() : t('lbDgOld'); } catch (e) { x = '诊断出错：' + (e && e.message); }
-  try { if (window.COOP && COOP.diag) x += '\n\n' + COOP.diag(); } catch (e) { x += '\n\n合作诊断出错：' + (e && e.message); } // 合作同步记录(快照纠正/跳号/事件流)
-  return x;
-}
-function dgPaint() { dgTxt = dgText(); $('lbDgText').textContent = dgTxt; }
-function dgLabels() { $('lbDgTitle').textContent = t('lbDiag'); $('lbDgHint').textContent = t('lbDgHint'); const c = $('lbDgCopy'); c.textContent = t('lbDgCopy'); c.classList.remove('bad'); $('lbDgRefresh').textContent = t('lbDgRefresh'); $('lbDgClear').textContent = t('lbDgClear'); $('lbDgClose').textContent = t('lbDgClose'); }
-function openDiag() { clearTimeout(dgTimer); dgLabels(); dgPaint(); $('lbDgText').scrollTop = 0; dg.classList.add('on'); }
-function closeDiag() { clearTimeout(dgTimer); dg.classList.remove('on'); }
-function legacyCopy(txt) {
-  let ta = null, ok = false;
-  try {
-    ta = document.createElement('textarea');
-    ta.value = txt; ta.setAttribute('readonly', '');
-    ta.style.cssText = 'position:fixed;left:0;top:0;width:2px;height:2px;opacity:0;font-size:16px;-webkit-user-select:text;user-select:text;';
-    document.body.appendChild(ta);
-    ta.select(); ta.setSelectionRange(0, txt.length);
-    ok = !!document.execCommand('copy');
-  } catch (e) { ok = false; }
-  try { if (ta && ta.parentNode) ta.parentNode.removeChild(ta); } catch (e) {}
-  return ok;
-}
-function copyText(txt, cb) {
-  let okSync = false, called = false;
-  const fin = (v) => { if (called) return; called = true; cb(!!v); };
-  try { okSync = legacyCopy(txt); } catch (e) {}
-  if (okSync) fin(true); // 同步那条成功了就直接算成功；下面的异步 API 再写一遍同样的内容，失败也不要紧
-  try {
-    if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(txt).then(() => fin(true), () => fin(okSync)); return; }
-  } catch (e) {}
-  fin(okSync);
-}
-function dgCopyFeedback(ok) {
-  const c = $('lbDgCopy'); if (!c) return;
-  clearTimeout(dgTimer);
-  c.textContent = t(ok ? 'lbDgCopied' : 'lbDgFail'); c.classList.toggle('bad', !ok);
-  dgTimer = setTimeout(() => { c.textContent = t('lbDgCopy'); c.classList.remove('bad'); }, ok ? 1800 : 4000);
-}
-bindTap($('lbDgCopy'), () => { dgPaint(); copyText(dgTxt, dgCopyFeedback); }); // 复制前重新取一次最新文本，面板上显示的也同步刷新
-bindTap($('lbDgRefresh'), () => { dgPaint(); });
-bindTap($('lbDgClear'), () => { const n = getNet(); try { if (n && n.diagReset) n.diagReset(); } catch (e) {} dgPaint(); });
-bindTap($('lbDgClose'), closeDiag);
-
 /* 外观二级菜单开着时：点菜单和折叠按钮以外的任何地方只负责收起菜单，不触发被点到的控件(避免误点开始/准备)；
    收起后 400ms 内的同一次点按的后续事件(touchend/click 等)也一并吞掉 */
 function closeLookMenu() { LB.lookOpen = false; LB.lookAnim = false; LB.lvOpen = false; LB.lvAnim = false; LB.lookSwallowUntil = Date.now() + 400; if (LB.room && LB.view === 'room') renderRoom(); }
@@ -526,7 +450,7 @@ function openLobby(form) {
   ov.classList.add('show');
 }
 function closeLobby() { // 回到多人主页
-  closeKb(); closeDiag();
+  closeKb();
   if ((LB.room || LB.busy) && net) net.leave(); // 正在连接/恢复时点返回，也要取消掉
   LB.room = null;
   ov.classList.remove('show');
@@ -627,7 +551,7 @@ function closeKb() {
 }
 
 function renderForm() {
-  closeDiag(); LB.view = 'form';
+  LB.view = 'form';
   const join = LB.form === 'join';
   const hs = (!join && net && net.hostSession) ? net.hostSession(LB.me.token) : null; // 房主 App 被杀前的房间(30 分钟内、没主动解散)
   $('lbTitle').textContent = t(join ? 'lbJoinTitle' : 'lbCreateTitle');
@@ -847,7 +771,7 @@ function renderRoom() {
     `<div id="lbModeRow" class="lbMode dd"><span>${t('lbMode')}</span><b id="lbDDBtn" class="on ddBtn${canTier ? ' pick' : ''}">${t(MODE_KEYS[r.tier] || 'lbMdEasy')}</b>` +
     (canTier ? `<div class="lbDDList">${TIER_KEYS.map(([k]) => `<b id="lbTier_${k}" class="${r.tier === k ? 'sel' : ''}${k === 'coop' && r.players.length > 2 ? ' dis' : ''}">${t(MODE_KEYS[k])}</b>`).join('')}</div>` : '') + `</div>` + lvRow +
     `<div id="lbList">${rows}</div><div class="lbHint">${hint}</div>` +
-    `<div class="lbBtns">${action}<button id="lbLeave" class="lbBtn red">${t(isHost ? 'lbDisband' : 'lbLeave')}</button></div><div id="lbLog"></div><button id="lbDiagBtn" class="lbDiagLink">${t('lbDiag')}</button>`;
+    `<div class="lbBtns">${action}<button id="lbLeave" class="lbBtn red">${t(isHost ? 'lbDisband' : 'lbLeave')}</button></div><div id="lbLog"></div>`;
 
   { const g1 = $('lbLvGrid'); if (g1) { if (LB.lvScroll < 0) { const sel = g1.querySelector('.sel'); g1.scrollTop = sel ? Math.max(0, sel.offsetTop - 46) : 0; } else g1.scrollTop = LB.lvScroll; LB.lvScroll = g1.scrollTop; } } // 刚点开=滚到当前起点所在行；之后重绘保持原位
   if (isCoop && canTier) {
@@ -879,7 +803,6 @@ function renderRoom() {
   tap('lbEnd', () => net.endGame());
   tap('lbReconn', () => net.reconnect());
   tap('lbLeave', leaveRoom);
-  tap('lbDiagBtn', openDiag);
   paintPings(); paintLog();
 }
 
@@ -954,6 +877,6 @@ function showLobby() { // 对局结束回到大厅：房间还在就直接显示
   ov.classList.add('show');
   if (LB.room) renderRoom(); else renderForm();
 }
-function hideLobby() { closeKb(); closeDiag(); ov.classList.remove('show'); } // 对局开始：收起大厅(房间/网络状态不动)
+function hideLobby() { closeKb(); ov.classList.remove('show'); } // 对局开始：收起大厅(房间/网络状态不动)
 window.Lobby = { headHTML, open: openLobby, close: closeLobby, show: showLobby, hide: hideLobby, enterMultiHome, exitMultiHome, pickLevel }; // 给 Multiplayer.js 用
 })();
