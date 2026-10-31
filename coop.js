@@ -74,86 +74,6 @@ let modalKey = '';
 let coNo = 0;
 let undoToastAt = 0;
 
-/* ---------- 同步诊断(只记录，不改任何逻辑)：环形缓冲 + 异常标记；联机诊断面板(lobby)里的「合作同步」一段由 diagText() 给出 ---------- */
-const TR = [], TR_MAX = 90, TB = [], TB_MAX = 40; // TR=最近的所有操作；TB=异常记录(单独存，不会被正常操作挤掉)
-const TR_BAD = { drift: 1, mismatch: 1, gap: 1, stale: 1, 'late-bump': 1, 'pred-bump-moved': 1, burst: 1, vjump: 1, longframe: 1, slowrcpt: 1, 'pred-miss': 1, 'pred-denied': 1 };
-const BURST_MS = 230; // 同一角色连走两步，正常间隔≥一步时长(约 260ms)；小于它说明到达被压缩(网络/主线程卡了一下，积压的步子一起到)
-const TRS = { stat: null, lv: '', host: false, rttSum: 0, rttN: 0, rttMax: 0, stale: 0, burst: 0, long: 0, long100: 0, maxFrame: 0, vjump: 0, rc: [0, 0, 0, 0], pn: 0, pok: 0, pmiss: 0, pden: 0 };
-function noteStep(i, kind) { // 诊断：记每个角色上一条 cm/cf/cu 的时刻和类型；cm 紧接 cm 且间隔太短=步子挤到一起
-  try {
-    const L = C.lastEv || (C.lastEv = [{ t: 0, k: '' }, { t: 0, k: '' }]), p = L[i], now = Date.now();
-    if (kind === 'cm' && p.k === 'cm' && now - p.t < BURST_MS) { TRS.burst++; trace('burst', { i, dt: now - p.t }); }
-    L[i] = { t: now, k: kind };
-  } catch (e) {}
-}
-function trace(k, o) {
-  try {
-    const e = Object.assign({ t: Date.now(), k, v: C ? C.G.v : -1 }, o || {});
-    if (TR_BAD[k]) { // 异常：连同它前面的 6 条操作一起存(时刻差/类型/谁/方向)，方便看是什么节奏下出的事
-      let p = e.t; e.pre = TR.slice(-6).map((x) => { const q = '+' + (e.t - x.t) + ' ' + x.k + (x.i !== undefined ? x.i : '') + (x.d || ''); p = x.t; return q; }).join(' | ');
-      TB.push(e); if (TB.length > TB_MAX) TB.shift();
-    }
-    TR.push(e); if (TR.length > TR_MAX) TR.shift();
-  } catch (err) { /* 诊断不能影响对局 */ }
-}
-function snapDiff(G, d) { // 本机状态和房主快照具体哪里不一样
-  try {
-    const s0 = R.snapshot(G), o = [];
-    Object.keys(d).forEach((k) => { if (k === 'k' || k === 'v' || k === 'ul') return; const a = JSON.stringify(s0[k]), b = JSON.stringify(d[k]); if (a !== b) o.push(k + ' 本机' + a + ' 房主' + b); });
-    return (o.join(' ; ') || '(只有序号不同)').slice(0, 260);
-  } catch (e) { return '?'; }
-}
-function diagText() {
-  try {
-    const st = TRS.stat; if (!st) return '';
-    const ms = (t) => new Date(t).toTimeString().slice(0, 8) + '.' + String(t % 1000).padStart(3, '0');
-    const out = ['合作同步 · ' + (TRS.host ? '房主' : '玩家') + ' · 关卡 ' + TRS.lv + (C ? '' : '(已结束)')];
-    out.push('消息 cm' + st.cm + ' cf' + st.bump + ' · Δ跑偏 ' + st.drift + ' · 跳号 ' + st.gap + ' · 旧消息丢弃 ' + TRS.stale + ' · 步子挤到一起 ' + TRS.burst + (TRS.rttN ? ' · 回执 平均' + Math.round(TRS.rttSum / TRS.rttN) + 'ms 最大' + TRS.rttMax + 'ms' : ''));
-    out.push('画面 卡帧>50ms ' + TRS.long + ' 次(>100ms ' + TRS.long100 + ' 次，最大 ' + TRS.maxFrame + 'ms) · 角色单帧跳变(>0.3格) ' + TRS.vjump + ' 次');
-    out.push('回执(按键→房主确认) 分布 ≤40ms:' + TRS.rc[0] + ' 41-80:' + TRS.rc[1] + ' 81-150:' + TRS.rc[2] + ' >150:' + TRS.rc[3] + ' · 本机预判(' + (PREDICT_MOVE ? '开' : '关') + ') 走步' + TRS.pn + ' 对' + TRS.pok + ' 错' + TRS.pmiss + ' 被拒' + TRS.pden);
-    const bad = TB;
-    out.push(bad.length ? '异常记录(最近 ' + Math.min(12, bad.length) + ' 条)：' : '异常记录：无(没有跑偏/跳号/推演对不上)');
-    bad.slice(-12).forEach((e) => { const r = Object.assign({}, e); delete r.t; delete r.k; delete r.pre; out.push(' ' + ms(e.t) + ' ' + e.k + ' ' + JSON.stringify(r).slice(0, 300)); if (e.pre) out.push('    此前(距此刻ms)：' + e.pre); });
-    out.push('最近操作(时刻 +距上一条ms 类型 谁/方向/序号)：');
-    let prev = 0;
-    TR.slice(-16).forEach((e) => { out.push(' ' + ms(e.t) + ' +' + (prev ? e.t - prev : 0) + ' ' + e.k + (e.i !== undefined ? ' i' + e.i : '') + (e.d ? ' ' + e.d : '') + ' v' + e.v + (e.rtt !== undefined ? ' rtt' + e.rtt : '')); prev = e.t; });
-    return out.join('\n');
-  } catch (e) { return '合作同步诊断出错：' + (e && e.message); }
-}
-
-/* ---------- 画面监视(诊断，只读)：每帧看一眼两个角色在棋盘里的实际位置(取 transform 过渡当前走到哪；不含回弹的 translate、不含镜头)，
-   抓两种「飘」：① 单帧位移>0.3 格的瞬间跳变(没有走路动画)；② 掉帧(帧间隔>50ms，看起来像一下子飘过去)。不改任何画面/逻辑。 */
-const VM_ON = true;
-let vm = null;
-function vmPos(el) {
-  const t = getComputedStyle(el).transform;
-  if (!t || t === 'none') return null;
-  const m3 = /^matrix3d\((.+)\)$/.exec(t), m2 = /^matrix\((.+)\)$/.exec(t), p = m3 ? m3[1].split(',') : m2 ? m2[1].split(',') : null;
-  if (!p) return null;
-  return m3 ? { x: +p[12], y: +p[13] } : { x: +p[4], y: +p[5] };
-}
-function vmFrame(ts) {
-  const dt = vm.last ? ts - vm.last : 0; vm.last = ts;
-  if (dt >= 2000) { vm.pos = {}; return; } // 切后台回来：不比
-  if (dt > 50) { TRS.long++; if (dt >= 100) TRS.long100++; if (dt > TRS.maxFrame) TRS.maxFrame = Math.round(dt); if (dt >= 80) trace('longframe', { dt: Math.round(dt) }); }
-  const tile = tileSize();
-  [['playerEl', '自己'], ['partnerEl', '同伴']].forEach((a) => {
-    const el = $(a[0]), p = el && vmPos(el), old = vm.pos[a[0]];
-    vm.pos[a[0]] = p ? { x: p.x, y: p.y, el, tile } : null;
-    if (!p || !old || old.el !== el || old.tile !== tile || dt > 50 || dt <= 0) return; // 新元素/格子大小变了/长帧：不比
-    const dist = Math.hypot(p.x - old.x, p.y - old.y);
-    if (dist > tile * 0.3) { TRS.vjump++; trace('vjump', { who: a[1], cell: +(dist / tile).toFixed(2), dt: Math.round(dt) }); }
-  });
-}
-function vmStart() {
-  vmStop();
-  if (!VM_ON || !window.requestAnimationFrame) return;
-  const m = vm = { last: 0, pos: {}, raf: 0 };
-  const loop = (ts) => { if (vm !== m || !C) return; m.raf = requestAnimationFrame(loop); try { vmFrame(ts); } catch (e) { /* 诊断不能影响对局 */ } };
-  m.raf = requestAnimationFrame(loop);
-}
-function vmStop() { if (vm) { cancelAnimationFrame(vm.raf); vm = null; } }
-document.addEventListener('visibilitychange', () => { if (vm) { vm.last = 0; vm.pos = {}; } });
 function findLevel(id) {
   const pk = window.COOP_LEVEL_PACK;
   if (!pk || !Array.isArray(pk.levels)) return null;
@@ -328,7 +248,6 @@ function start(room) {
     hostPaused: false, pauseAt: 0, pausedMs: 0, winSent: false, lastSnap: 0, lastAsk: 0, seq: 0, pend: {}, bumped: {}, pred: {}, inertia: null, pushed: null, ustk: [[], []], ul: 0, denyAt: 0,
     boxEl: [], boxKey: [], pg: { dir: 'down', side: 'B', neutral: true, t1: 0, t2: 0 }, pshown: null,
     stat: { cm: 0, bump: 0, drift: 0, gap: 0, rtt: -1, last: '' } };
-  TR.length = 0; TB.length = 0; TRS.stat = C.stat; TRS.lv = lv.id; TRS.host = C.isHost; TRS.rttSum = 0; TRS.rttN = 0; TRS.rttMax = 0; TRS.stale = 0; TRS.burst = 0; TRS.long = 0; TRS.long100 = 0; TRS.maxFrame = 0; TRS.vjump = 0; TRS.rc = [0, 0, 0, 0]; TRS.pn = 0; TRS.pok = 0; TRS.pmiss = 0; TRS.pden = 0;
   if (C.isHost) { // 房主被杀后恢复：回到上次存的整盘状态(玩家端不用存，回来要一份快照就行)
     const sn = readSnap(room, lv.id);
     if (sn && R.validSnap(G, sn.s)) { R.load(G, sn.s); C.pausedMs = +sn.pm || 0; if (Array.isArray(sn.us)) C.ustk = [cleanStack(sn.us[0]), cleanStack(sn.us[1])]; }
@@ -347,7 +266,6 @@ function start(room) {
   loadMpLevel(R.toXsb(G, myIdx, C.tr), lv.id, C.seg); // 核心的棋盘按「本机视角」的 XSB 建；建完会回调 afterBuild 挂上同伴角色
   state.mp.coop = true;
   paintBar(); paintModal();
-  vmStart();
   C.timer = setInterval(tick, 1000);
   if (C.isHost) { saveSnap(); hostRoomChanged(); } else askSnap('start', true);
 }
@@ -377,7 +295,7 @@ function tick() {
 function askSnap(why, force) { // 请求房主补发一份快照(跳号/推演对不上/重连/刚开局)；500ms 内不重复要
   const n = net(), now = Date.now();
   if (!n || !C || C.isHost || (!force && now - C.lastAsk < 500)) return;
-  C.lastAsk = now; C.stat.last = why; trace('ask', { why });
+  C.lastAsk = now; C.stat.last = why;
   n.sendGame({ k: 'cq' });
 }
 function onCm(d) {
@@ -388,24 +306,20 @@ function onCm(d) {
   let res = { ok: true, to: d.to, push: Number.isInteger(d.b) ? d.b : -1, bto: Array.isArray(d.bt) ? d.bt : null, pp, pto: pp >= 0 ? d.pt : null };
   if (!C.isHost) { // 玩家：用同一套规则推演，并核对房主给的结果；房主本机的状态在广播前已经走完了，这里只播画面
     const G = C.G, v = d.v | 0;
-    if (v <= G.v) { TRS.stale++; trace('stale', { src: d.k, i, got: v }); return; }                                  // 重复/旧消息
-    if (v !== G.v + 1) { C.stat.gap++; trace('gap', { src: d.k, exp: G.v + 1, got: v }); askSnap('gap'); return; } // 跳号：漏了东西，当场要快照，不等周期
+    if (v <= G.v) return;                                  // 重复/旧消息
+    if (v !== G.v + 1) { C.stat.gap++; askSnap('gap'); return; } // 跳号：漏了东西，当场要快照，不等周期
     const r = R.step(G, i, d.d);
-    if (!r.ok || r.to[0] !== d.to[0] || r.to[1] !== d.to[1] || r.push !== res.push || r.pp !== res.pp || (r.pp >= 0 && (r.pto[0] !== res.pto[0] || r.pto[1] !== res.pto[1]))) { C.stat.drift++; trace('mismatch', { src: 'cm', i, d: d.d, host: d.to, mine: r.ok ? r.to : 'fail:' + r.why, push: [r.push, res.push], pp: [r.pp, res.pp] }); askSnap('mismatch', true); return; }
+    if (!r.ok || r.to[0] !== d.to[0] || r.to[1] !== d.to[1] || r.push !== res.push || r.pp !== res.pp || (r.pp >= 0 && (r.pto[0] !== res.pto[0] || r.pto[1] !== res.pto[1]))) { C.stat.drift++; askSnap('mismatch', true); return; }
     res = r;
   }
-  let rtt0; if (i === C.myIdx && d.s) { const t0 = C.pend[d.s]; if (t0) { C.stat.rtt = rtt0 = Math.round(performance.now() - t0); TRS.rttSum += rtt0; TRS.rttN++; if (rtt0 > TRS.rttMax) TRS.rttMax = rtt0; delete C.pend[d.s]; } }
-  if (rtt0 !== undefined) { TRS.rc[rtt0 <= 40 ? 0 : rtt0 <= 80 ? 1 : rtt0 <= 150 ? 2 : 3]++; if (rtt0 >= 100) trace('slowrcpt', { rtt: rtt0 }); }
-  if (i === C.myIdx && d.s && C.bumped[d.s]) { trace('pred-bump-moved', { i, d: d.d }); delete C.bumped[d.s]; } // 本机预判撞了、房主却说走成了
+  if (i === C.myIdx && d.s) { const t0 = C.pend[d.s]; if (t0) { C.stat.rtt = Math.round(performance.now() - t0); delete C.pend[d.s]; } }
   C.stat.cm++;
-  trace('cm', { i, d: d.d, rtt: rtt0 }); noteStep(i, 'cm');
   if (i === C.myIdx && !C.isHost) C.ul = Math.min(UNDO_MAX, C.ul + 1);
   if (i === C.myIdx) {
     const pr = !C.isHost && d.s && C.pred[d.s];
     if (pr) { // 这一步本机已经预判播过了：只核对
       delete C.pred[d.s];
-      if (pr.to[0] === res.to[0] && pr.to[1] === res.to[1] && pr.push === res.push && !(res.pp >= 0)) { TRS.pok++; paintBar(); return; } // 对上了：画面早播过，不重播、不重新上锁，只刷新数据条
-      TRS.pmiss++; trace('pred-miss', { d: d.d, mine: pr.to, host: res.to, push: [pr.push, res.push] });
+      if (pr.to[0] === res.to[0] && pr.to[1] === res.to[1] && pr.push === res.push && !(res.pp >= 0)) { paintBar(); return; } // 对上了：画面早播过，不重播、不重新上锁，只刷新数据条
       reconcileView(false); return; // 对不上(比如被同伴抢了格子/箱子)：按房主确认的真实状态摆正
     }
     mineMove(d.d, res);
@@ -419,7 +333,7 @@ function onCs(d) { // 房主的整盘快照(玩家端)：同号同状态=一切�
   const quiet = C.fresh;
   C.fresh = false;
   if (R.same(G, d)) { G.v = d.v; return; } // 状态一样(序号可能因重开错开了)：只对齐序号，不算跑偏
-  C.pred = {}; trace('drift', { quiet: quiet ? 1 : 0, gv: G.v, dv: d.v, diff: snapDiff(G, d) }); // 要整盘覆盖了：记下具体哪里不一样
+  C.pred = {};
   if (!quiet) { C.stat.drift++; C.stat.last = 'snap v' + G.v + '→' + d.v; if (window.console) console.warn('[CO] 状态跑偏，已对齐', C.stat.last); }
   R.load(G, d);
   reconcileView(!quiet);
@@ -465,15 +379,14 @@ function onCu(d) { // 房主确认：某人后撤了一步(玩家端先用同一
   const e = { from: d.fr, to: d.to, push: d.b, bto: d.b >= 0 ? d.bt : null };
   if (!C.isHost) {
     const G = C.G, v = d.v | 0;
-    if (v <= G.v) { TRS.stale++; trace('stale', { src: 'cu', i, got: v }); return; }
-    if (v !== G.v + 1) { C.stat.gap++; trace('gap', { src: 'cu', exp: G.v + 1, got: v }); askSnap('gap'); return; }
+    if (v <= G.v) return;
+    if (v !== G.v + 1) { C.stat.gap++; askSnap('gap'); return; }
     const r = R.undo(G, i, e);
-    if (!r.ok) { C.stat.drift++; trace('mismatch', { src: 'cu', i, fr: d.fr, to: d.to }); askSnap('mismatch', true); return; }
+    if (!r.ok) { C.stat.drift++; askSnap('mismatch', true); return; }
     if (i === C.myIdx) C.ul = Math.max(0, C.ul - 1);
   }
   if (i === C.myIdx && d.s) { const t0 = C.pend[d.s]; if (t0) { C.stat.rtt = Math.round(performance.now() - t0); delete C.pend[d.s]; } }
   C.stat.cm++;
-  trace('cu', { i }); noteStep(i, 'cu');
   if (i === C.myIdx) mineUndo(e); else partnerUndo(e);
 }
 function onCn(d) { // 房主：某人的撤销没成。只有请求的人有反应
@@ -487,14 +400,13 @@ function onCf(d) { // 房主确认：某人这一步没走成，转身面向 d.d
   if ((i !== 0 && i !== 1) || typeof d.d !== 'string' || !(d.d in R.DIRS)) return;
   if (!C.isHost) { // 玩家：和 cm 一样按序号推演
     const G = C.G, v = d.v | 0;
-    if (v <= G.v) { TRS.stale++; trace('stale', { src: 'cf', i, got: v }); return; }
-    if (v !== G.v + 1) { C.stat.gap++; trace('gap', { src: 'cf', exp: G.v + 1, got: v }); askSnap('gap'); return; }
+    if (v <= G.v) return;
+    if (v !== G.v + 1) { C.stat.gap++; askSnap('gap'); return; }
     R.face(G, i, d.d);
   }
   C.stat.bump++;
-  trace('cf', { i, d: d.d, w: d.w, q: d.q ? 1 : 0 }); noteStep(i, 'cf');
   if (i === C.myIdx && !C.isHost && d.s && C.pred[d.s]) { // 本机预判走了这一步，房主却说没走成(被同伴抢先/挡住)：画面退回真实位置，再按下面的流程转身
-    delete C.pred[d.s]; TRS.pden++; trace('pred-denied', { d: d.d, w: d.w }); reconcileView(false);
+    delete C.pred[d.s]; reconcileView(false);
   }
   if (d.q) { // 滑动中的转身：只转身，不弹
     if (i !== C.myIdx) { partnerTurn(d.d); return; }
@@ -505,7 +417,7 @@ function onCf(d) { // 房主确认：某人这一步没走成，转身面向 d.d
   if (i === C.myIdx) {
     if (C.isHost) return;                                         // 房主自己的：按键时已经播过
     if (d.s && C.bumped[d.s]) { delete C.bumped[d.s]; return; }   // 玩家自己的：本机预判撞墙时已经播过
-    trace('late-bump', { d: d.d, w: d.w }); ownBump(d.d, d.w); return;                                    // 本机副本没预判到(比如刚好被同伴抢了格子)：房主说撞了，现在补播
+    ownBump(d.d, d.w); return;                                    // 本机副本没预判到(比如刚好被同伴抢了格子)：房主说撞了，现在补播
   }
   partnerBump(d.d);
 }
@@ -617,7 +529,6 @@ function intent(dr, dc, vdir) {
       const pres = { ok: true, to: chk.to, push: Number.isInteger(chk.push) ? chk.push : -1, bto: Array.isArray(chk.bto) ? chk.bto : null, pp: -1, pto: null };
       if (pres.push < 0 || pres.bto) {
         C.pred[C.seq] = { t: now, to: pres.to.slice(), push: pres.push };
-        TRS.pn++;
         mineMove(d, pres); // 内部会 lockMovement：步节奏从按键这一刻算，和房主一样
         return;
       }
@@ -905,6 +816,6 @@ window.addEventListener('pagehide', saveSnap);
 document.addEventListener('visibilitychange', () => { if (document.hidden) saveSnap(); });
 
 window.COOP = { levels: coLevels, levelIndex: levelIdx, isUnlocked, isDone, startId, onRoom, onGame, onStatus, onClosed, onLeave, blocked, barH, restart, requestEnd, intent, undo, undoLeft, afterBuild, afterRender, partnerAt,
-  diag: diagText, active: () => !!C, isHost: () => !!C && C.isHost, debug: () => C ? { v: C.G.v, moves: C.G.moves, stat: C.stat, tr: C.tr, snap: R.snapshot(C.G) } : null,
+  active: () => !!C, isHost: () => !!C && C.isHost, debug: () => C ? { v: C.G.v, moves: C.G.moves, stat: C.stat, tr: C.tr, snap: R.snapshot(C.G) } : null,
   _state: () => C }; // _state：调试/自动化测试用，直接拿内部状态(控制台里 COOP._state().G 看整盘)
 })();
